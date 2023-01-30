@@ -1,0 +1,38 @@
+[project]
+name = "pyleco"
+version = "0.0.1dev"
+authors = [
+  { name="PyMeasure Developers" },
+]
+description = "Python reference implementation of the Laboratory Experiment COntrol (LECO) protocol"
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 1 - Planning",
+]
+
+requires-python = ">=3.10"
+dependencies = [
+  "pyzmq",
+]
+
+[project.optional-dependencies]
+dev = [
+  'pytest',
+  'sphinx',
+  'sphinx_rtd_theme',
+]
+
+[project.urls]
+"Homepage" = "https://github.com/pymeasure/pyleco"
+"Bug Tracker" = "https://github.com/pymeasure/pyleco/issues"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=7.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+# write_to = "pyleco/_version.py"

@@ -1,0 +1,13 @@
+name: pyleco
+channels:
+  - conda-forge
+dependencies:
+  - pyzmq=25.0.0
+# Development dependencies below
+  - pytest=7.2.0
+  - setuptools_scm # don't pin, to get newest features
+  - sphinx=6.1.3
+  - sphinx_rtd_theme=1.0.0
+  # - pip  # don't pin, to gain newest conda compatibility fixes
+  # - pip:
+  #   - xxx
