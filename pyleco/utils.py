@@ -38,6 +38,7 @@ VERSION = 0
 VERSION_B = VERSION.to_bytes(1, "big")
 
 
+# Control transfer protocol
 def create_header_frame(conversation_id=b"", message_id=b""):
     """Create the header frame.
 
@@ -100,7 +101,7 @@ class Commands(StrEnum):
     ERROR = "E"  # An error occurred.
     GET = "G"
     SET = "S"
-    ACKNOWLEDGE = "A"  # Message received.
+    ACKNOWLEDGE = "A"  # Message received. Response is appended.
     CALL = "C"
     OFF = "O"  # Turn off program
     CLEAR = "X"
@@ -110,7 +111,7 @@ class Commands(StrEnum):
     LIST = "?"  # List options
     SAVE = "V"
     CO_SIGNIN = "COS"  # Sign in as a Coordinator
-    PING = "P"  # Check, whether the other side is alive.
+    PING = "P"  # Ping: Check, whether the other side is alive.
 
 
 def serialize_data(data):

@@ -28,23 +28,10 @@ from pyleco import utils
 from pyleco.utils import VERSION_B
 
 
-class Test_Publisher:
-    @pytest.fixture
-    def pub(self):
-        return utils.Publisher(host="localhost")
-
-    def test_init(self, pub):
-        assert pub.host == "localhost"
-
-    def test_setPort(self, pub):
-        pub.port = 12345
-        assert pub._port == 12345
-
-
 message_tests = (
     ({'receiver': "broker", 'data': [["GET", [1, 2]], ["GET", 3]]},
      [VERSION_B, b"broker", b"", b";", b'[["GET", [1, 2]], ["GET", 3]]']),
-    ({'receiver': "someone", 'receiver_mid': "123", 'sender': "ego", 'sender_mid': "1"},
+    ({'receiver': "someone", 'conversation_id': "123", 'sender': "ego", 'message_id': "1"},
      [VERSION_B, b'someone', b'ego', b'123;1']),
     ({'receiver': "router", 'sender': "origin"},
      [VERSION_B, b"router", b"origin", b";"]),
@@ -83,9 +70,9 @@ def test_compose_message(kwargs, message):
 
 @pytest.mark.parametrize("kwargs, message", message_tests)
 def test_split_message(kwargs, message):
-    receiver, sender, receiver_mid, sender_mid, data = utils.split_message(message)
+    receiver, sender, conversation_id, message_id, data = utils.split_message(message)
     assert receiver == kwargs.get('receiver')
-    assert receiver_mid == kwargs.get('receiver_mid', "")
+    assert conversation_id == kwargs.get('conversation_id', "")
     assert sender == kwargs.get('sender', "")
-    assert sender_mid == kwargs.get('sender_mid', "")
+    assert message_id == kwargs.get('message_id', "")
     assert data == kwargs.get("data")

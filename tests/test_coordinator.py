@@ -44,7 +44,7 @@ def fake_perf_counter():
 
 @pytest.fixture()
 def fake_counting(monkeypatch):
-    monkeypatch.setattr("coordinator.perf_counter", fake_perf_counter)
+    monkeypatch.setattr("pyleco.coordinator.perf_counter", fake_perf_counter)
 
 
 # TODO cleaning anpassen an neue Begebenheiten
@@ -72,12 +72,32 @@ def test_heartbeat_local(coordinator, fake_counting):
 
 @pytest.mark.parametrize("i, o", (
     ([b"321", VERSION_B, b"COORDINATOR", b"send", b";", b""], None),  # test heartbeat alone
-    ([b"321", VERSION_B, b"rec", b"send", b";", b"1"], [b"123", VERSION_B, b"rec", b"send", b";", b"1"]),  # receiver known, sender given.
-    ([b"321", VERSION_B, b"x", b"send", b";", b""], [b"321", VERSION_B, b"send", b"N1.COORDINATOR", b";", b'[["E", "Receiver \'b\'x\'\' is not in addresses list."]]']),  # receiver unknown, return to sender
-    ([b"321", VERSION_B, b"N3.CB", b"N1.send", b";"], [b"321", VERSION_B, b"N1.send", b"N1.COORDINATOR", b";", b'[["E", "Node b\'N3\' is not known."]]']),
+    ([b"321", VERSION_B, b"rec", b"send", b";", b"1"], [b"123", VERSION_B, b"rec", b"send", b";", b"1"]),  # receiver known, sender known.
 ))
-def test_routing(coordinator, i, o):
-    """Test whether some incoming message `i` is sent as `o`."""
+def test_routing_successful(coordinator, i, o):
+    """Test whether some incoming message `i` is sent as `o`. Here: successful routing."""
+    coordinator.sock._r = [i]
+    coordinator._routing()
+    if o is None:
+        assert coordinator.sock._s == []
+    else:
+        assert coordinator.sock._s == [o]
+
+
+@pytest.mark.parametrize("i, o", (
+    # receiver unknown, return to sender:
+    ([b"321", VERSION_B, b"x", b"send", b";", b""], [b"321", VERSION_B, b"send", b"N1.COORDINATOR", b";", b'[["E", "Receiver \'b\'x\'\' is not in addresses list."]]']),
+    # unknown receiver node:
+    ([b"321", VERSION_B, b"N3.CB", b"N1.send", b";"], [b"321", VERSION_B, b"N1.send", b"N1.COORDINATOR", b";", b'[["E", "Node b\'N3\' is not known."]]']),
+    # sender (without namespace) did not sign in:
+    ([b"1", VERSION_B, b"rec", b"unknownSender", b"5;"], [b"1", VERSION_B, b"unknownSender", b"N1.COORDINATOR", b"5;", b'[["E", "You did not sign in!"]]']),
+    # sender (with given Namespace) did not sign in:
+    ([b"1", VERSION_B, b"rec", b"N1.unknownSender", b"5;"], [b"1", VERSION_B, b"N1.unknownSender", b"N1.COORDINATOR", b"5;", b'[["E", "You did not sign in!"]]']),
+    # unknown sender with a rogue node name:
+    ([b"1", VERSION_B, b"rec", b"N2.unknownSender", b"5;"], [b"1", VERSION_B, b"N2.unknownSender", b"N1.COORDINATOR", b"5;", b'[["E", "You did not sign in!"]]']),
+))
+def test_routing_error_messages(coordinator, i, o):
+    """Test whether some incoming message `i` is sent as `o`. Here: Error messages."""
     coordinator.sock._r = [i]
     coordinator._routing()
     if o is None:
@@ -93,17 +113,23 @@ def test_remote_routing(coordinator):
 
 
 def test_remote_heartbeat(coordinator, fake_counting):
-    coordinator.sock._r = [[b"1", VERSION_B, b"N2.CB", b"N3.CA", b";"]]
+    coordinator.sock._r = [[b"n2", VERSION_B, b"N2.CB", b"N3.CA", b";"]]
     coordinator._routing()
-    assert coordinator.node_heartbeats[b"1"] == 0
+    assert coordinator.node_heartbeats[b"n2"] == 0
 
 
 # Test Coordinator commands handling
 # TODO test individual Coordinator commands and their execution.
 def test_signin(coordinator):
-    coordinator.sock._r = [[b'cb', VERSION_B, b"COORDINATOR", b"CB", b";", b'[["SI"]]']]
+    coordinator.sock._r = [[b'cb', VERSION_B, b"COORDINATOR", b"CB", b"7;1", b'[["SI"]]']]
     coordinator._routing()
-    assert coordinator.sock._s == [[b"cb", VERSION_B, b"CB", b"N1.COORDINATOR", b";", b'[["SI", "N1"]]']]
+    assert coordinator.sock._s == [[b"cb", VERSION_B, b"CB", b"N1.COORDINATOR", b"7;", b'[["A"]]']]
+
+
+def test_signin_fails(coordinator):
+    coordinator.sock._r = [[b'cb', VERSION_B, b"COORDINATOR", b"send", b"7;1", b'[["SI"]]']]
+    coordinator._routing()
+    assert coordinator.sock._s == [[b"cb", VERSION_B, b"send", b"N1.COORDINATOR", b"7;", b'[["E", "SI", "The name is already taken."]]']]
 
 
 def test_signout_clears_address(coordinator):
@@ -111,6 +137,15 @@ def test_signout_clears_address(coordinator):
     coordinator._routing()
     assert b"rec" not in coordinator.directory.keys()
     assert coordinator.sock._s == [[b"123", VERSION_B, b"rec", b"N1.COORDINATOR", b";", b'[["A"]]']]
+
+
+def test_signout_requires_signin(coordinator):
+    coordinator.sock._r = [[b'123', VERSION_B, b"N1.COORDINATOR", b"rec", b";", b'[["D"]]']]
+    coordinator._routing()
+    coordinator.sock._s = []
+    coordinator.sock._r = [[b'123', VERSION_B, b"N1.COORDINATOR", b"rec", b";", b'[["A"]]']]
+    coordinator._routing()
+    assert coordinator.sock._s == [[b"123", VERSION_B, b"rec", b"N1.COORDINATOR", b";", b'[["E", "You did not sign in!"]]']]
 
 
 def test_co_signin_successful(coordinator):
@@ -130,6 +165,7 @@ def test_set_directory(coordinator):
     assert b"N3" in coordinator.dealers.keys()  # newly created
 
 
+# Test methods used for command handling
 class Test_add_coordinator:
     @pytest.fixture
     def coordinator_added(self, coordinator):

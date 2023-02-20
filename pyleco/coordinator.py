@@ -30,9 +30,8 @@ from time import perf_counter
 
 import zmq
 
-from .utils import (Commands, serialize_data, interpret_header,
-                    create_message, split_name, deserialize_data,
-                    divide_message
+from .utils import (Commands, serialize_data, interpret_header, create_message,
+                    split_name, deserialize_data, divide_message,
                     )
 from .timers import RepeatingTimer
 
@@ -206,12 +205,17 @@ class Coordinator:
                     pass  # Signing in, no heartbeat yet
                 else:
                     log.error(f"Message {payload} from not signed in Component {sender}.")
-                    self.send_message_raw(sender_identity, sender, conversation_id=message_id,
+                    self.send_message_raw(sender_identity, sender, conversation_id=conversation_id,
                                           data=[[Commands.ERROR, "You did not sign in!"]])
                     return
-            else:
-                # Message from another Coordinator
+            elif s_name == b"COORDINATOR" or sender_identity in self.node_identities.keys():
+                # Message from another Coordinator's DEALER socket
                 self.node_heartbeats[sender_identity] = perf_counter()
+            else:
+                log.error(f"Not signed in component {sender} tries to send a message.")
+                self.send_message_raw(sender_identity, receiver=sender, conversation_id=conversation_id,
+                                      data=[[Commands.ERROR, "You did not sign in!"]])
+                return
         # Route the message
         if r_node != self.node:
             # remote connections.
@@ -222,17 +226,17 @@ class Coordinator:
                                   data=[[Commands.ERROR, f"Node {r_node} is not known."]])
         elif r_name == b"COORDINATOR" or r_name == b"":
             # Coordinator communication
-            self.handle_commands(sender_identity, sender, s_node, s_name, payload)
+            self.handle_commands(sender_identity, sender, s_node, s_name, conversation_id, payload)
         elif receiver_addr := self.directory.get(r_name):
             # Local Receiver is known
             self.sock.send_multipart((receiver_addr, *msg))
         else:
             # Receiver is unknown
             log.error(f"Receiver '{receiver}' is not in the addresses list.")
-            self.send_message(receiver=sender,
+            self.send_message(receiver=sender, conversation_id=conversation_id,
                               data=[[Commands.ERROR, f"Receiver '{receiver}' is not in addresses list."]])
 
-    def handle_commands(self, sender_identity, sender, s_node, s_name, payload):
+    def handle_commands(self, sender_identity, sender, s_node, s_name, conversation_id, payload):
         """Handle commands for the Coordinator itself."""
         if not payload:
             return  # Empty payload, just heartbeat.
@@ -250,12 +254,13 @@ class Coordinator:
                 elif command[0] == Commands.SIGNIN:
                     if s_name not in self.directory.keys():
                         log.info(f"New Component {s_name} at {sender_identity}.")
-                        reply.append([Commands.SIGNIN, self.node.decode()])
+                        reply.append([Commands.ACKNOWLEDGE])
                         self.directory[s_name] = sender_identity
                         self.heartbeats[s_name] = perf_counter()
                     else:
                         log.info(f"Another Component at {sender_identity} tries to log in as {s_name}.")
                         self.send_message_raw(sender_identity, receiver=sender,
+                                              conversation_id=conversation_id,
                                               data=[[Commands.ERROR, Commands.SIGNIN, "The name is already taken."]])
                         return
                 elif command[0] == Commands.OFF:
@@ -276,6 +281,7 @@ class Coordinator:
                 elif command[0] == Commands.CO_SIGNIN and s_node not in self.dealers.keys():
                     self.node_identities[sender_identity] = s_node
                     self.send_message_raw(sender_identity, receiver=sender,
+                                          conversation_id=conversation_id,
                                           data=[[Commands.ACKNOWLEDGE]])
                     return
                 elif command[0] == Commands.SET:
@@ -292,9 +298,10 @@ class Coordinator:
             log.exception("Handling commands failed.", exc_info=exc)
         log.debug(f"Reply {reply} to {sender} at node {s_node}.")
         if s_node == self.node:
-            self.send_message_raw(sender_identity, receiver=sender, data=reply)
+            self.send_message_raw(sender_identity, receiver=sender,
+                                  conversation_id=conversation_id, data=reply)
         else:
-            self.send_message(receiver=sender, data=reply)
+            self.send_message(receiver=sender, conversation_id=conversation_id, data=reply)
 
     def add_coordinator(self, host, port=12300, node=None):
         """Add another Coordinator to the connections.
@@ -349,7 +356,7 @@ class Coordinator:
 
 
 if __name__ == "__main__":
-    if "-v" in sys.argv:  # Verbose log.
+    if True or "-v" in sys.argv:  # Verbose log.
         log.setLevel(logging.DEBUG)
     if len(log.handlers) == 1:
         log.addHandler(logging.StreamHandler())
