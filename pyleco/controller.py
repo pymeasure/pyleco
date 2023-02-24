@@ -28,11 +28,12 @@ import time
 
 import zmq
 
-from pyleco.publisher import Publisher
-from pyleco.utils import (Commands, compose_message, divide_message, interpret_header,
-                          deserialize_data, split_name,
-                          )
-from pyleco.timers import RepeatingTimer
+from .publisher import Publisher
+from .utils import (Commands, compose_message, divide_message, interpret_header,
+                    deserialize_data, split_name, split_name_str, split_message,
+                    Errors,
+                    )
+from .timers import RepeatingTimer
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -56,6 +57,8 @@ class InfiniteEvent:
 class MessageHandler:
     """Maintain connection to the router and listen to incoming messages.
 
+    You may use it as a context manager.
+
     :param str name: Name to listen to and to publish values with.
     :param int port: Port number to connect to.
     :param protocol: Connection protocol.
@@ -69,9 +72,20 @@ class MessageHandler:
 
         # ZMQ setup
         self.socket = context.socket(zmq.DEALER)
+        log.info(f"Connecting to {host}:{port}")
         self.socket.connect(f"{protocol}://{host}:{port}")
 
         super().__init__(**kwargs)  # for cooperation
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.close()
+
+    def close(self):
+        """Close the connection on closing."""
+        self.socket.close(1)
 
     def listen(self, stop_event=InfiniteEvent(), waiting_time=100):
         """Listen for zmq communication until `stop_event` is set.
@@ -102,8 +116,8 @@ class MessageHandler:
 
     def heartbeat(self):
         """Send a heartbeat to the router."""
+        log.debug("heartbeat")
         self.send("COORDINATOR")
-        log.debug("heartbeating")
 
     def _send(self, frames):
         """Send frames over the connection."""
@@ -122,43 +136,54 @@ class MessageHandler:
             receiver=receiver, sender=sender, conversation_id=conversation_id,
             message_id=message_id, data=data))
 
-    def send_reply(self, receiver, data, message_id=None, old_header=None):
+    def send_reply(self, receiver, data, message_id=None, conversation_id=None):
         """Send a reply according to the received header.
 
         :param receiver: Name of the receiver.
         :param data: data to send.
         :param message_id: Sender message id. Timestamp if not specified.
-        :param old_header: Originally received header frame.
+        :param conversation_id: Conversation_id to use.
         """
         if message_id is None:
             message_id = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S.%f")
-        conversation_id, sender_message_id = interpret_header(old_header)
         self.send(receiver, conversation_id=conversation_id, message_id=message_id,
                   data=data)
 
     def handle_message(self):
         """Interpret incoming message."""
         msg = self.socket.recv_multipart()
-        version, old_receiver, old_sender, old_header, payload = divide_message(msg)
-        if payload:
-            data = deserialize_data(payload[0])
-        else:
+        old_receiver, old_sender, conversation_id, message_id, data = split_message(msg)
+        if data is None:
             return
-        s_node, s_name = split_name(old_sender)
-        if s_name == b"COORDINATOR":
-            log.warning(f"Message from the Coordinator: '{data}'")
+        s_node, s_name = split_name_str(old_sender)
+        if s_name == "COORDINATOR":
             for message in data:
-                if message == [Commands.ERROR, "You did not sign in!"]:
+                if message == [Commands.ERROR, Errors.NOT_SIGNED_IN]:
                     self.node = None
                     self.send("COORDINATOR", data=[[Commands.SIGNIN]])
+                    log.warning("I was not signed in, signing in.")
+                    return
                 elif self.node is None and message[0] == Commands.ACKNOWLEDGE:
-                    self.node = s_node.decode()
+                    self.node = s_node
                     log.info(f"Signed in to Node '{self.node}'.")
-            return
-        self.handle_commands(old_receiver, old_sender, old_header, data)
+                    return
+                elif message == [Commands.PING]:
+                    self.heartbeat()
+                    return
+                elif message == [Commands.ERROR, Errors.DUPLICATE_NAME]:
+                    log.warning("Sign in failed, the name is already used.")
+                    return
+            log.warning(f"Message from the Coordinator: '{data}'")
+        self.handle_commands(old_receiver, old_sender, conversation_id, data)
 
-    def handle_commands(self, old_receiver, old_sender, old_header, data):
-        """Handle the list of commands."""
+    def handle_commands(self, old_receiver, old_sender, conversation_id, data):
+        """Handle the list of commands.
+
+        :param str old_receiver: receiver frame.
+        :param str old_sender: sender frame.
+        :param str conversation_id: conversation_id.
+        :param object data: deserialized data.
+        """
         reply = []
         if isinstance(data, (list, tuple)):
             for message in data:
@@ -167,7 +192,7 @@ class MessageHandler:
                     self.stop_event.set()
                 else:
                     reply.append(self.handle_command(*message))
-            self.send_reply(receiver=old_sender, old_header=old_header, data=reply)
+            self.send_reply(receiver=old_sender, conversation_id=conversation_id, data=reply)
         else:
             log.warning(f"Unknown message received: '{data}'.")
 
@@ -198,15 +223,22 @@ class BaseController(MessageHandler):
     def _get_properties(self, properties):
         """Internal method, includes response Command type."""
         # TODO error handling
-        return Commands.ACKNOWLEDGE, self.get_properties(properties)
+        try:
+            return Commands.ACKNOWLEDGE, self.get_properties(properties)
+        except AttributeError as exc:
+            return Commands.ERROR, Errors.NAME_NOT_FOUND, str(exc)
+        except Exception as exc:
+            return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
 
     def _set_properties(self, properties):
         """Internal method, includes response Command type."""
         try:
             self.set_properties(properties)
+        except AttributeError as exc:
+            return Commands.ERROR, Errors.NAME_NOT_FOUND, str(exc)
         except Exception as exc:
             log.exception("Setting properties failed", exc_info=exc)
-            return Commands.ERR, (properties, str(exc))
+            return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
         else:
             return Commands.ACKNOWLEDGE
 
@@ -215,11 +247,11 @@ class BaseController(MessageHandler):
         method = content.pop("_name")
         args = content.pop("_args", ())
         try:
-            value = self.call(method, args, content)
+            return Commands.ACKNOWLEDGE, self.call(method, args, content)
+        except AttributeError as exc:
+            return Commands.ERROR, Errors.NAME_NOT_FOUND, str(exc)
         except Exception as exc:
-            return Commands.ERROR, [type(exc).__name__, str(exc)]
-        else:
-            return Commands.ACKNOWLEDGE, value
+            return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
 
     def get_properties(self, properties):
         """Get properties from the list `properties`."""
@@ -246,7 +278,7 @@ class InstrumentController(BaseController):
         c = InstrumentController("testing", TestClass, auto_connect={'COM': 5})
         c._readout = readout  # some function readout(device, publisher)
         c.start_timer()
-        c.listen()  # here everything happens until told to stop from elsewhere
+        c.listen(stop_event)  # here everything happens until told to stop from elsewhere
         c.disconnect()
 
 
@@ -281,6 +313,10 @@ class InstrumentController(BaseController):
 
     def __del__(self):
         self.disconnect()
+
+    def __exit__(self, *args, **kwargs):
+        self.disconnect()
+        super().__exit__(*args, **kwargs)
 
     def listen(self, stop_event=InfiniteEvent(), waiting_time=100):
         """Listen for zmq communication until `stop_event` is set.
@@ -338,8 +374,12 @@ class InstrumentController(BaseController):
         """Do periodic readout of the instrument and publish the data."""
         self._readout(self.device, self.publisher)
 
-    def start_timer(self):
+    def start_timer(self, interval=None):
         """Start the timer."""
+        if interval is not None:
+            self.timer.interval = interval
+        if self.timer.interval < 0:
+            return
         try:
             self.timer.start()
         except RuntimeError:
@@ -371,7 +411,7 @@ class InstrumentController(BaseController):
         log.info("Disconnecting.")
         self.stop_timer()
         try:
-            self.device.shutdown()
+            self.device.adapter.close()
         except AttributeError:
             pass
         try:

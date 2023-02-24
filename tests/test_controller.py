@@ -98,7 +98,7 @@ def test_send(handler):
 
 
 def test_send_reply(handler):
-    handler.send_reply("N2.CB", message_id="sen", data=[["TEST"]], old_header=b"rec;os")
+    handler.send_reply("N2.CB", message_id="sen", data=[["TEST"]], conversation_id=b"rec")
     assert handler.socket._s == [[VERSION_B, b"N2.CB", b"N1.test", b"rec;sen", b'[["TEST"]]']]
 
 
@@ -121,11 +121,12 @@ def test_handle_SIGNIN_message_response(handler):
     assert handler.node == "N3"
 
 
-def test_handle_ACK_does_not_change_Node(handler):
-    """Test that an ACK does not change the node, if it is already set."""
+def test_handle_ACK_does_not_change_Namespace(handler):
+    """Test that an ACK does not change the Namespace, if it is already set."""
     handler.socket._r = [[VERSION_B, b"N3.test", b"N3.COORDINATOR", b";", b'[["A"]]']]
     handler.node = "N1"
-    handler.handle_message()
+    with pytest.raises(NotImplementedError):
+        handler.handle_message()
     assert handler.node == "N1"
 
 
