@@ -97,21 +97,39 @@ def interpret_header(header):
 
 # Control content protocol
 class Commands(StrEnum):
-    """Valid commands for the control protocol"""
-    ERROR = "E"  # An error occurred.
+    """Valid commands for the control protocol."""
+    # Coordinator communication requests
+    SIGNIN = "SI"
+    SIGNOUT = "D"
+    CO_SIGNIN = "COS"  # Sign in as a Coordinator
+    CO_SIGNOUT = "COD"
+    PING = "P"  # Ping: Check, whether the other side is alive.
+    # Component communication requests
     GET = "G"
     SET = "S"
-    ACKNOWLEDGE = "A"  # Message received. Response is appended.
     CALL = "C"
     OFF = "O"  # Turn off program
     CLEAR = "X"
-    SIGNIN = "SI"
-    SIGNOUT = "D"
     LOG = "L"  # configure log level
     LIST = "?"  # List options
     SAVE = "V"
-    CO_SIGNIN = "COS"  # Sign in as a Coordinator
-    PING = "P"  # Ping: Check, whether the other side is alive.
+    # Responses
+    ACKNOWLEDGE = "A"  # Message received. Response is appended.
+    ERROR = "E"  # An error occurred.
+    # Deprecated
+    DISCONNECT = "D"  # Deprecated, use SIGNOUT instead
+
+
+class Errors(StrEnum):
+    """Error messages for the control protocol."""
+    # Routing errors (Coordinator)
+    NOT_SIGNED_IN = "You did not sign in!"
+    DUPLICATE_NAME = "The name is already taken."
+    NODE_UNKNOWN = "Node {node} is not known."  # bytes value
+    RECEIVER_UNKNOWN = "Receiver {receiver} is not in addresses list."  # bytes value
+    # Data errors (Actors)
+    NAME_NOT_FOUND = "The requested name '{name}' is not known."  # name of a property or method.
+    EXECUTION_FAILED = "Execution of the action failed."
 
 
 def serialize_data(data):
