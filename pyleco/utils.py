@@ -31,6 +31,9 @@ except ImportError:
     class StrEnum(str, Enum):
         pass  # just inherit
 import json
+import random
+import struct
+from time import time
 
 
 # Current protocol version
@@ -42,8 +45,8 @@ VERSION_B = VERSION.to_bytes(1, "big")
 def create_header_frame(conversation_id=b"", message_id=b""):
     """Create the header frame.
 
-    :param bytes conversation_id: Message ID of the receiver, for example the ID of its request.
-    :param bytes message_id: Message ID of this message.
+    :param bytes conversation_id: ID of the conversation.
+    :param bytes message_id: Message ID of this message, must not contain ";".
     :return: header frame.
     """
     return b";".join((conversation_id, message_id))
@@ -88,7 +91,7 @@ def split_name_str(name, node=""):
 def interpret_header(header):
     """Interpret the header frame."""
     try:
-        conversation_id, message_id = header.split(b";")
+        conversation_id, message_id = header.rsplit(b";", maxsplit=1)
     except (IndexError, ValueError):
         conversation_id = b""
         message_id = b""
@@ -125,10 +128,10 @@ class Errors(StrEnum):
     # Routing errors (Coordinator)
     NOT_SIGNED_IN = "You did not sign in!"
     DUPLICATE_NAME = "The name is already taken."
-    NODE_UNKNOWN = "Node {node} is not known."  # bytes value
-    RECEIVER_UNKNOWN = "Receiver {receiver} is not in addresses list."  # bytes value
+    NODE_UNKNOWN = "Node is not known."
+    RECEIVER_UNKNOWN = "Receiver is not in addresses list."
     # Data errors (Actors)
-    NAME_NOT_FOUND = "The requested name '{name}' is not known."  # name of a property or method.
+    NAME_NOT_FOUND = "The requested name is not known."  # name of a property or method.
     EXECUTION_FAILED = "Execution of the action failed."
 
 
@@ -142,10 +145,16 @@ def deserialize_data(content):
     return json.loads(content.decode())
 
 
+def generate_conversation_id():
+    """Generate a conversation_id."""
+    # struct.pack uses 8 bytes and takes 0.1 seconds for 1 Million repetitions.
+    # str().encode() uses 14 bytes and takes 0.5 seconds for 1 Million repetitions.
+    # !d is a double (8 bytes) in network byte order (big-endian)
+    return struct.pack("!d", time()) + random.randbytes(2)
+
+
 # Convenience methods
-def compose_message(receiver, sender="", conversation_id="", message_id="",
-                    data=None,
-                    ):
+def compose_message(receiver, sender="", conversation_id=b"", message_id=b"", data=None):
     """Compose a message.
 
     :param str/bytes receiver: To whom the message is going to be sent.
@@ -179,7 +188,7 @@ def split_message(msg):
     assert (v := int.from_bytes(version, "big")) <= VERSION, f"Version {v} is above current version {VERSION}."
     conversation_id, message_id = interpret_header(header)
     data = deserialize_data(payload[0]) if payload else None
-    return receiver.decode(), sender.decode(), conversation_id.decode(), message_id.decode(), data
+    return receiver.decode(), sender.decode(), conversation_id, message_id, data
 
 
 # For tests

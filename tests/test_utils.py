@@ -24,14 +24,14 @@
 
 import pytest
 
-from pyleco import utils
-from pyleco.utils import VERSION_B
+from devices import utils
+from devices.utils import VERSION_B
 
 
 message_tests = (
     ({'receiver': "broker", 'data': [["GET", [1, 2]], ["GET", 3]]},
      [VERSION_B, b"broker", b"", b";", b'[["GET", [1, 2]], ["GET", 3]]']),
-    ({'receiver': "someone", 'conversation_id': "123", 'sender': "ego", 'message_id': "1"},
+    ({'receiver': "someone", 'conversation_id': b"123", 'sender': "ego", 'message_id': b"1"},
      [VERSION_B, b'someone', b'ego', b'123;1']),
     ({'receiver': "router", 'sender': "origin"},
      [VERSION_B, b"router", b"origin", b";"]),
@@ -72,7 +72,7 @@ def test_compose_message(kwargs, message):
 def test_split_message(kwargs, message):
     receiver, sender, conversation_id, message_id, data = utils.split_message(message)
     assert receiver == kwargs.get('receiver')
-    assert conversation_id == kwargs.get('conversation_id', "")
+    assert conversation_id == kwargs.get('conversation_id', b"")
     assert sender == kwargs.get('sender', "")
-    assert message_id == kwargs.get('message_id', "")
+    assert message_id == kwargs.get('message_id', b"")
     assert data == kwargs.get("data")

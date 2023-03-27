@@ -46,7 +46,8 @@ class Coordinator:
         c = Coordinator()
         c.routing()
 
-    :param str node: Name of the node. Defaults to hostname
+    :param str node: Name of the node. Defaults to hostname.
+    :param str host: Hostname of the system of this Coordinator, that others may connect to it.
     :param int port: Port to listen to.
     :param timeout: Timeout waiting for messages in ms.
     :param cleaning_interval: Interval between two addresses cleaning runs in s.
@@ -67,7 +68,7 @@ class Coordinator:
             raise ValueError("`node` must be str or bytes or None.")
         self.fname = self.node + b".COORDINATOR"
         log.info(f"Start Coordinator of node {self.node} at port {port}.")
-        self.address = (gethostname() if host is None else host, port)
+        self.address = f"{gethostname() if host is None else host}:{port}"
         # Connected Components
         self.directory = {b'COORDINATOR': b""}  # Component name: identity
         self.heartbeats = {}  # Component name: timestamp
@@ -93,9 +94,17 @@ class Coordinator:
     def __del__(self):
         self.close()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.close()
+
     def close(self):
+        self.sign_out()
         self.sock.close(1)
         self.cleaner.cancel()
+        log.info("Coordinator closed.")
 
     def send_message(self, receiver, data=None, **kwargs):
         """Send a message with any socket, including routing.
@@ -131,7 +140,7 @@ class Coordinator:
         log.debug("Cleaning addresses.")
         now = perf_counter()
         for name, time in list(self.heartbeats.items()):
-            if now > time + 2 * expiration_time:
+            if now > time + 3 * expiration_time:
                 del self.directory[name]
                 del self.heartbeats[name]
             elif now > time + expiration_time:
@@ -139,10 +148,10 @@ class Coordinator:
                                       data=[[Commands.PING]])
         # Clean Coordinators
         for identity, time in list(self.node_heartbeats.items()):
-            if now > time + 2 * expiration_time:
+            if now > time + 3 * expiration_time:
                 node = self.node_identities.get(identity, None)
                 if node is not None:
-                    log.debug(f"Node {node} at {identity} is unresponsive, removing.")
+                    log.info(f"Node {node} at {identity} is unresponsive, removing.")
                     self.remove_coordinator(node, identity)
             elif now > time + expiration_time:
                 node = self.node_identities.get(identity, None)
@@ -154,16 +163,19 @@ class Coordinator:
         # Clean unresponsive and not yet connected Coordinators
         for node in list(self.waiting_dealers.keys()):
             if b"." in node and now > float(node.decode()) + expiration_time * 10:
+                log.info(f"Node {node} unresponsive, removing.")
                 self.remove_coordinator(node)
 
     def routing(self, coordinators=[]):
         """Route all messages.
 
         Connect to Coordinators at the beginning.
-        :param list coordinators: list of coordinator addresses (tuple of host, port).
+        :param list coordinators: list of coordinator addresses.
         """
+        # Connect to Coordinators.
         for coordinator in coordinators:
-            self.add_coordinator(*coordinator)
+            self.add_coordinator(coordinator)
+        # Route messages until told to stop.
         self.running = True
         while self.running:
             if self.sock.poll(self.timeout):
@@ -203,11 +215,17 @@ class Coordinator:
                     self.send_message_raw(sender_identity, sender, conversation_id=conversation_id,
                                           data=[[Commands.ERROR, Errors.NOT_SIGNED_IN]])
                     return
-            elif s_name == b"COORDINATOR" or sender_identity in self.node_identities.keys():
+            elif sender_identity in self.node_identities.keys():
                 # Message from another Coordinator's DEALER socket
                 self.node_heartbeats[sender_identity] = perf_counter()
+            elif s_name == b"COORDINATOR" and (
+                    payload == [f'[["{Commands.CO_SIGNIN}"]]'.encode()]
+                    or payload == [f'[["{Commands.CO_SIGNOUT}"]]'.encode()]):
+                pass  # Signing in/out, no heartbeat yet
             else:
-                log.error(f"Message {payload} from not signed in Component {sender}.")
+                # Either a Component communicates with the wrong namespace setting or
+                # the other Coordinator is not known yet (reconnection)
+                log.error(f"Message {payload} from not signed in Component {sender} of another node.")
                 self.send_message_raw(sender_identity, receiver=sender, conversation_id=conversation_id,
                                       data=[[Commands.ERROR, Errors.NOT_SIGNED_IN]])
                 return
@@ -218,7 +236,7 @@ class Coordinator:
                 self.dealers[r_node].send_multipart(msg)
             except KeyError:
                 self.send_message(receiver=sender,
-                                  data=[[Commands.ERROR, Errors.NODE_UNKNOWN.format(node=r_node)]])
+                                  data=[[Commands.ERROR, Errors.NODE_UNKNOWN, r_node.decode()]])
         elif r_name == b"COORDINATOR":
             # Coordinator communication
             self.handle_commands(sender_identity, sender, s_node, s_name, conversation_id, payload)
@@ -229,7 +247,7 @@ class Coordinator:
             # Receiver is unknown
             log.error(f"Receiver '{receiver}' is not in the addresses list.")
             self.send_message(receiver=sender, conversation_id=conversation_id,
-                              data=[[Commands.ERROR, Errors.RECEIVER_UNKNOWN.format(receiver=receiver)]])
+                              data=[[Commands.ERROR, Errors.RECEIVER_UNKNOWN, receiver.decode()]])
 
     def handle_commands(self, sender_identity, sender, s_node, s_name, conversation_id, payload):
         """Handle commands for the Coordinator itself.
@@ -253,7 +271,12 @@ class Coordinator:
         try:
             for command in data:
                 if not command:
-                    continue
+                    continue  # nothing to handle.
+                elif command[0] == Commands.ACKNOWLEDGE:
+                    # Handle requestes responses.
+                    # No requests implemented yet.
+                    return  # A response should not cause an answer
+                # Component sign-in / sign-out
                 elif command[0] == Commands.SIGNIN:
                     if s_name not in self.directory.keys():
                         log.info(f"New Component {s_name} at {sender_identity}.")
@@ -261,19 +284,11 @@ class Coordinator:
                         self.directory[s_name] = sender_identity
                         self.heartbeats[s_name] = perf_counter()
                     else:
-                        log.info(f"Another Component at {sender_identity} tries to log in as {s_name}.")
+                        log.info(f"Another Component at {sender_identity} tries to sign in as {s_name}.")
                         self.send_message_raw(sender_identity, receiver=sender,
                                               conversation_id=conversation_id,
                                               data=[[Commands.ERROR, Errors.DUPLICATE_NAME]])
                         return
-                elif command[0] == Commands.OFF:
-                    self.running = False
-                    reply.append([Commands.ACKNOWLEDGE])
-                elif command[0] == Commands.CLEAR:
-                    self.clean_addresses(0)
-                    reply.append([Commands.ACKNOWLEDGE])
-                elif command[0] == Commands.LIST:
-                    reply.append([Commands.ACKNOWLEDGE, self.compose_local_directory()])
                 elif command[0] == Commands.SIGNOUT and sender_identity == self.directory.get(s_name):
                     try:
                         del self.directory[s_name]
@@ -281,22 +296,45 @@ class Coordinator:
                     except KeyError:
                         pass  # no entry
                     reply.append([Commands.ACKNOWLEDGE])
+                    log.info(f"Component {s_name} signed out.")
+                # Coordinator sign-in / sign-out
                 elif command[0] == Commands.CO_SIGNIN:
+                    if s_node in self.node_identities.values():
+                        log.info(f"Another Coordinator at {sender_identity} tries to sign in as {sender}.")
+                        self.send_message_raw(sender_identity, receiver=sender,
+                                              conversation_id=conversation_id,
+                                              data=[[Commands.ERROR, Errors.DUPLICATE_NAME]])
+                        return
+                    log.info(f"Coordinator of {s_node} signs in.")
                     self.node_identities[sender_identity] = s_node
+                    self.node_heartbeats[sender_identity] = perf_counter()
                     self.send_message_raw(sender_identity, receiver=sender,
                                           conversation_id=conversation_id,
                                           data=[[Commands.ACKNOWLEDGE]])
                     return
                 elif command[0] == Commands.CO_SIGNOUT and s_name == b"COORDINATOR":
-                    if self.node_identities[sender_identity] != s_node:
+                    if s_node not in self.dealers:
+                        return  # already removed.
+                    if self.node_identities.get(sender_identity) != s_node:
                         # Check whether the sign-out message came from the known identity.
-                        reply.append([Commands.ERROR, Errors.EXECUTION_FAILED, "You're not you"])
                         # TODO shall we have this check?
                         # TODO better error message
-                        continue
-                    self.send_message(receiver=sender, conversation_id=conversation_id, data=[[Commands.ACKNOWLEDGE]])
+                        self.send_message_raw(sender_identity, receiver=sender, conversation_id=conversation_id,
+                                              data=[[Commands.ERROR, Errors.EXECUTION_FAILED, "You are not you!"]])
+                        return
+                    self.send_message(receiver=sender, conversation_id=conversation_id, data=[[Commands.CO_SIGNOUT]])
                     self.remove_coordinator(s_node, identity=sender_identity)
                     return
+                # Control the Coordinator itself
+                elif command[0] == Commands.OFF:
+                    self.running = False
+                    self.sign_out()
+                    reply.append([Commands.ACKNOWLEDGE])
+                elif command[0] == Commands.CLEAR:
+                    self.clean_addresses(0)
+                    reply.append([Commands.ACKNOWLEDGE])
+                elif command[0] == Commands.LIST:
+                    reply.append([Commands.ACKNOWLEDGE, self.compose_local_directory()])
                 elif command[0] == Commands.SET:
                     for key, value in command[1].items():
                         if key == "directory":
@@ -306,7 +344,10 @@ class Coordinator:
                                 node = node.encode()
                                 if node in self.dealers.keys() or node == self.node:
                                     continue
-                                self.add_coordinator(*address)
+                                self.add_coordinator(address=address)
+                    reply.append([Commands.ACKNOWLEDGE])
+                elif command[0] == Commands.LOG:
+                    log.setLevel(command[1])
         except Exception as exc:
             log.exception("Handling commands failed.", exc_info=exc)
         log.debug(f"Reply {reply} to {sender} at node {s_node}.")
@@ -316,24 +357,26 @@ class Coordinator:
         else:
             self.send_message(receiver=sender, conversation_id=conversation_id, data=reply)
 
-    def add_coordinator(self, host, port=12300, node=None):
+    def add_coordinator(self, address, node=None):
         """Add another Coordinator to the connections.
 
-        :param str host: Host name of address to connect to.
-        :param int port: Port number to connect to.
+        :param str address: Address of the Coordinator to connect to, in the form
+            'host:port' or only 'host'. In the latter case 12300 is assumed as port.
         :param bytes node: Namespace of the Node to add or 'None' for a temporary name.
         """
         if node is None:
             node = str(perf_counter()).encode()
             # the "illegal" period in the time value distinguishes it from real Namespaces.
-        log.debug(f"Add DEALER for Coordinator {node} at {host}:{port}.")
+            if b"." not in node:
+                node += b"."
+        if ":" not in address:
+            address = address + ":12300"
+        log.info(f"Add DEALER for Coordinator {node} at {address}.")
         self.dealers[node] = d = self.context.socket(zmq.DEALER)
-        d.connect(f"tcp://{host}:{port}")
+        d.connect(f"tcp://{address}")
         d.send_multipart(create_message(receiver=b"COORDINATOR", sender=self.fname,
-                                        payload=serialize_data([[Commands.CO_SIGNIN,
-                                                                 {'host': self.address[0],
-                                                                  'port': self.address[1]}]])))
-        self.node_addresses[node] = host, port
+                                        payload=serialize_data([[Commands.CO_SIGNIN]])))
+        self.node_addresses[node] = address
         self.waiting_dealers[node] = d
 
     def remove_coordinator(self, node, identity=None):
@@ -357,6 +400,7 @@ class Coordinator:
                 del self.node_heartbeats[identity]
             except KeyError:
                 pass
+        log.info(f"Coordinator at {node} removed.")
 
     def handle_dealer_message(self, sock, ns):
         """Handle a message at a DEALER socket.
@@ -370,19 +414,41 @@ class Coordinator:
         except IndexError:
             log.error(f"Less than two frames received! {msg}.")
             return
-        if deserialize_data(payload[0]) == [[Commands.ACKNOWLEDGE]]:
-            s_node, s_name = split_name(sender)
-            addr = self.node_addresses[ns]
-            del self.dealers[ns]
-            del self.waiting_dealers[ns]
-            del self.node_addresses[ns]
-            self.dealers[s_node] = sock
-            # Rename address
-            self.node_addresses[s_node] = addr
+        s_node, s_name = split_name(sender)
+        data = deserialize_data(payload[0])
+        if data == [[Commands.ACKNOWLEDGE]]:
+            try:
+                del self.waiting_dealers[ns]
+            except KeyError:
+                pass  # already removed
+            # Rename dealer and address
+            self.dealers[s_node] = self.dealers.pop(ns)
+            self.node_addresses[s_node] = self.node_addresses.pop(ns)
             log.info(f"Renaming DEALER socket from temporary {ns} to {s_node}.")
             self.send_message(receiver=sender, data=[[Commands.SET, self.compose_local_directory()]])
+        elif data == [[Commands.ERROR, Errors.DUPLICATE_NAME]]:
+            log.error(f"Coordinator Sign in to node {s_node} failed. My name was rejected.")
+            try:
+                del self.dealers[ns]
+            except KeyError:
+                pass
+            try:
+                del self.waiting_dealers[ns]
+            except KeyError:
+                pass
+        # TODO this is only useful, if we read the DEALER sockets regularly
+        # elif data == [[Commands.ERROR, Errors.NOT_SIGNED_IN]]:
+        #     # Somehow connection got lost, sign in again
+        #     sock.send_multipart(create_message(receiver=b"COORDINATOR", sender=self.fname,
+        #                                        payload=serialize_data([[Commands.CO_SIGNIN]])))
         else:
             log.warning(f"Unknown message {payload} from {sender} at DEALER socket {ns}.")
+
+    def sign_out(self):
+        """Sign out from other Coordinators."""
+        for node in list(self.dealers.keys()):
+            self.send_message(b".".join((node, b"COORDINATOR")), data=[[Commands.CO_SIGNOUT]])
+            self.remove_coordinator(node)
 
     def compose_local_directory(self):
         """Send the local directory to the receiver."""

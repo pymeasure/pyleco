@@ -37,6 +37,7 @@ from pyleco.controller import InstrumentController, MessageHandler, InfiniteEven
 def handler():
     handler = MessageHandler(name="test", context=FakeContext())
     handler.node = "N1"
+    handler.fname = "N1.test"
     handler.stop_event = InfiniteEvent()
     return handler
 
@@ -97,13 +98,8 @@ def test_send(handler):
     assert handler.socket._s == [[VERSION_B, b"N2.CB", b"N1.test", b"rec;sen", b'[["TEST"]]']]
 
 
-def test_send_reply(handler):
-    handler.send_reply("N2.CB", message_id="sen", data=[["TEST"]], conversation_id=b"rec")
-    assert handler.socket._s == [[VERSION_B, b"N2.CB", b"N1.test", b"rec;sen", b'[["TEST"]]']]
-
-
 @pytest.mark.parametrize("i, out", (
-    ([VERSION_B, b"N1.test", b"N1.CB", b";", b"[]"], [VERSION_B, b"N1.CB", b"N1.test", b";", b'[]']),
+    ([VERSION_B, b"N1.test", b"N1.CB", b"5;6", b"[]"], [VERSION_B, b"N1.CB", b"N1.test", b"5;", b'[]']),
 ))
 def test_handle_message(handler, i, out):
     handler.socket._r = [i]
