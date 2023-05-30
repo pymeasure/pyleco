@@ -43,13 +43,14 @@ class ZmqLogHandler(QueueHandler):
         socket = context.socket(zmq.PUB)
         socket.connect(f"tcp://{host}:{port}")
         super().__init__(socket)
+        self.fullname = ""
 
     def prepare(self, record):
-        """Prepare a list from the record"""
+        """Prepare a list from the record."""
         record.message = record.getMessage()
         record.asctime = time.strftime('%Y-%m-%d %H:%M:%S')
         tmp = [record.asctime, str(record.levelname), str(record.name)]
-        s = record.msg
+        s = self.format(record)
         if record.exc_info:
             # Cache the traceback text to avoid converting it multiple times
             # (it's constant anyway)

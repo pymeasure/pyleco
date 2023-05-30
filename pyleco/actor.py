@@ -29,20 +29,23 @@ import zmq
 from .controller import BaseController, InfiniteEvent, heartbeat_interval
 from .publisher import Publisher
 from .timers import RepeatingTimer
-from .utils import Commands
 
 
 class Actor(BaseController):
-    """Control an instrument listening to zmq messages and regularly read the some values.
+    """Control an instrument listening to zmq messages and regularly read some values.
 
     .. code::
 
-        c = InstrumentController("testing", TestClass, auto_connect={'COM': 5})
-        c._readout = readout  # some function readout(device, publisher)
-        c.start_timer()
-        c.listen(stop_event)  # here everything happens until told to stop from elsewhere
-        c.disconnect()
+        a = Actor("testing", TestClass)
+        # define some function `readout(device, publisher)`
+        a.read_publish = readout
+        a.connect("COM5")  # connect to device
+        # in listen everything happens until told to stop from elsewhere
+        a.listen(stop_event)
+        a.disconnect()
 
+    Like the :class:`MessageHandler`, this class can be used as a context manager disconnecting at
+    the end of the context.
 
     :param str name: Name to listen to and to publish values with.
     :param class cls: Instrument class.
@@ -52,7 +55,7 @@ class Actor(BaseController):
     :param \\**kwargs: Keywoard arguments for the general message handling.
     """
 
-    def __init__(self, name, cls, periodic_reading=-1, auto_connect=False,
+    def __init__(self, name, cls, periodic_reading=-1, auto_connect: None | dict = None,
                  context=zmq.Context.instance(),
                  **kwargs):
         super().__init__(name, context=context, **kwargs)
@@ -71,14 +74,14 @@ class Actor(BaseController):
 
         if auto_connect:
             self.connect(**auto_connect)
-        self.log.info(f"InstrumentController '{name}' initialized.")
+        self.log.info(f"Actor '{name}' initialized.")
 
     def __del__(self):
         self.disconnect()
 
     def __exit__(self, *args, **kwargs):
-        self.disconnect()
         super().__exit__(*args, **kwargs)
+        self.disconnect()
 
     def listen(self, stop_event=InfiniteEvent(), waiting_time=100):
         """Listen for zmq communication until `stop_event` is set.
@@ -93,7 +96,7 @@ class Actor(BaseController):
         poller.register(self.socket, zmq.POLLIN)
 
         # Open communication
-        self.send("COORDINATOR", data=[[Commands.SIGNIN]])
+        self.sign_in()
         next_beat = time.perf_counter() + heartbeat_interval
         # Loop
         while not stop_event.is_set():
@@ -107,8 +110,7 @@ class Actor(BaseController):
                 self.heartbeat()
                 next_beat = now + heartbeat_interval
         # Close
-        self.disconnect()
-        self.send("COORDINATOR", data=[[Commands.SIGNOUT]])
+        self.sign_out()
         self.handle_message()
 
     def queue_readout(self):
@@ -119,11 +121,23 @@ class Actor(BaseController):
         self.publisher.send(data)
 
     def _readout(self, device, publisher):
-        raise NotImplementedError("Implement in subclass")
+        """Deprecated, use `read_publish` instead."""
+        pass
+
+    def read_publish(self, device, publisher):
+        """Read the device and publish the results.
+
+        Defaults to doing nothing. Implement in a subclass.
+        """
+        self._readout(device, publisher)  # TODO keep temporarily for backward compatibility
+        pass
 
     def readout(self):
-        """Do periodic readout of the instrument and publish the data."""
-        self._readout(self.device, self.publisher)
+        """Do periodic readout of the instrument and publish the data.
+
+        Defaults to calling :meth:`read_publish` with the device and publisher as arguments.
+        """
+        self.read_publish(self.device, self.publisher)
 
     def start_timer(self, interval=None):
         """Start the readout timer."""

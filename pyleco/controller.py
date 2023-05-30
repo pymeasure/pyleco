@@ -23,17 +23,11 @@
 #
 
 import logging
-import datetime
 import time
 
 import zmq
 
-from .publisher import Publisher
-from .utils import (Commands, compose_message, divide_message, interpret_header,
-                    deserialize_data, split_name, split_name_str, split_message,
-                    Errors,
-                    )
-from .timers import RepeatingTimer
+from .utils import Commands, compose_message, split_name_str, split_message, Errors, Message
 from .zmq_log_handler import ZmqLogHandler
 
 # Parameters
@@ -57,21 +51,21 @@ class MessageHandler:
     You may use it as a context manager.
 
     :param str name: Name to listen to and to publish values with.
-    :param int port: Port number to connect to.
+    :param str host: Host name (or IP address) of the Coordinator to connect to.
+    :param int port: Port number of the Coordinator to connect to.
     :param protocol: Connection protocol.
     :param log: Logger instance whose logs should be published. Defaults to "__main__".
     """
 
-    def __init__(self, name, host="localhost", port=12300, protocol="tcp",
+    def __init__(self, name: str, host: str = "localhost", port: int = 12300, protocol: str = "tcp",
                  log=None,
                  context=None,
                  **kwargs):
         self.name = name
-        self.node = None
-        self.fname = name
+        self.node: None | str = None
+        self.fname: str = name
         context = context or zmq.Context.instance()
 
-        self.logHandler = ZmqLogHandler()
         if log is None:
             log = logging.getLogger("__main__")
         # Add the ZmqLogHandler to the root logger, unless it has already a Handler.
@@ -81,6 +75,7 @@ class MessageHandler:
                 first_pub_handler = False
                 break
         if first_pub_handler:
+            self.logHandler = ZmqLogHandler()
             log.addHandler(self.logHandler)
         self.root_logger = log
         self.log = self.root_logger.getChild("MessageHandler")
@@ -99,53 +94,72 @@ class MessageHandler:
         self.close()
 
     def close(self):
-        """Close the connection on closing."""
+        """Close the connection."""
         self.socket.close(1)
 
     # Base communication
     def sign_in(self):
-        self._send("COORDINATOR", data=[[Commands.SIGNIN]])
+        self._send_final_message(Message(b"COORDINATOR", data=[[Commands.SIGNIN]]))
 
     def heartbeat(self):
         """Send a heartbeat to the router."""
         self.log.debug("heartbeat")
-        self._send("COORDINATOR")
+        self._send_final_message(Message(b"COORDINATOR"))
 
     def sign_out(self):
-        self._send("COORDINATOR", data=[[Commands.SIGNOUT]])
+        self._send_final_message(Message(b"COORDINATOR", data=[[Commands.SIGNOUT]]))
 
     def _send_frames(self, frames):
         """Send frames over the connection."""
+        # TODO deprecated
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
 
-    def _send(self, receiver, sender=None, data=None, conversation_id=b"", **kwargs):
-        """Compose and send a message to a `receiver` with serializable `data`."""
+    def _send_final_message(self, message: Message) -> None:
+        if not message.sender:
+            message.sender = self.fname.encode()
+        frames = message.get_frames_list()
+        self.log.debug(f"Sending {frames}")
+        self.socket.send_multipart(frames)
+
+    def _compose_message(self, receiver, sender=None, data=None, conversation_id=b"",
+                         **kwargs) -> list:
         if sender is None:
             sender = self.fname
         # TODO decide on timestamp
         # if message_id == None:
-        #     message_id = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S.%f").encode()
+        #     message_id = datetime.datetime.now(datetime.timezone.utc).strftime(
+        #                                                           "%H:%M:%S.%f").encode()
         try:
             msg = compose_message(receiver=receiver, sender=sender,
                                   conversation_id=conversation_id, data=data,
                                   **kwargs)
         except Exception as exc:
             self.log.exception(f"Composing message with data {data} failed.", exc_info=exc)
-            self._send(receiver, sender, conversation_id=conversation_id,
-                       data=[[Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)]])
-        else:
-            self._send_frames(msg)
+            msg = compose_message(receiver, sender, conversation_id=conversation_id,
+                                  data=[[Commands.ERROR, Errors.EXECUTION_FAILED,
+                                         type(exc).__name__, str(exc)]])
+        return msg
+
+    def _send(self, receiver, sender=None, data=None, conversation_id=b"", **kwargs):
+        """Compose and send a message to a `receiver` with serializable `data`."""
+        frames = self._compose_message(receiver, sender, data, conversation_id, **kwargs)
+        message = Message.from_frames(*frames)
+        self._send_final_message(message)
 
     # User commands
     def send(self, receiver, data=None, conversation_id=b"", **kwargs):
         """Send a message to a receiver with serializable `data`."""
         self._send(receiver=receiver, data=data, conversation_id=conversation_id, **kwargs)
 
+    def send_message(self, message: Message) -> None:
+        self._send_final_message(message)
+
     # Continuous listening and message handling
     def listen(self, stop_event=InfiniteEvent(), waiting_time=100):
-        """Listen for zmq communication until `stop_event` is set.
+        """Listen for zmq communication until `stop_event` is set or until KeyboardInterrupt.
 
+        :param stop_event: Event to stop the listening loop.
         :param waiting_time: Time to wait for a readout signal in ms.
         """
         self.log.info(f"Start to listen as '{self.name}'.")
@@ -158,13 +172,18 @@ class MessageHandler:
         self.sign_in()
         next_beat = time.perf_counter() + heartbeat_interval
         # Loop
-        while not stop_event.is_set():
-            socks = dict(poller.poll(waiting_time))
-            if self.socket in socks:
-                self.handle_message()
-            elif (now := time.perf_counter()) > next_beat:
-                self.heartbeat()
-                next_beat = now + heartbeat_interval
+        try:
+            while not stop_event.is_set():
+                socks = dict(poller.poll(waiting_time))
+                if self.socket in socks:
+                    self.handle_message()
+                elif (now := time.perf_counter()) > next_beat:
+                    self.heartbeat()
+                    next_beat = now + heartbeat_interval
+        except KeyboardInterrupt:
+            pass
+        except Exception:
+            raise
         # Close
         self.log.info(f"Stop listen as '{self.name}'.")
         self.sign_out()
@@ -175,14 +194,12 @@ class MessageHandler:
 
         COORDINATOR messages are handled and then :meth:`handle_commands` does the rest.
         """
-        msg = self.socket.recv_multipart()
+        msg = Message.from_frames(*self.socket.recv_multipart())
         self.log.debug(f"Handling {msg}")
-        old_receiver, old_sender, conversation_id, message_id, data = split_message(msg)
-        if data is None:
+        if msg.data is None:
             return
-        s_node, s_name = split_name_str(old_sender)
-        if s_name == "COORDINATOR":
-            for message in data:
+        if msg.sender_name == b"COORDINATOR":
+            for message in msg.data:
                 if message == [Commands.ERROR, Errors.NOT_SIGNED_IN]:
                     self.node = None
                     self.fname = self.name
@@ -194,9 +211,12 @@ class MessageHandler:
                     self.log.warning("I was not signed in, signing in.")
                     return
                 elif self.node is None and message[0] == Commands.ACKNOWLEDGE:
-                    self.node = s_node
+                    self.node = msg.sender_node.decode()
                     self.fname = ".".join((self.node, self.name))
-                    self.logHandler.fullname = self.fname
+                    try:
+                        self.logHandler.fullname = self.fname
+                    except AttributeError:
+                        pass
                     self.log.info(f"Signed in to Node '{self.node}'.")
                     return
                 elif message == [Commands.PING]:
@@ -205,10 +225,10 @@ class MessageHandler:
                 elif message == [Commands.ERROR, Errors.DUPLICATE_NAME]:
                     self.log.warning("Sign in failed, the name is already used.")
                     return
-            self.log.warning(f"Message from the Coordinator: '{data}'")
-        self.handle_commands(old_receiver, old_sender, conversation_id, data)
+            self.log.warning(f"Message from the Coordinator: '{msg.data}'")
+        self.handle_commands(msg)
 
-    def handle_commands(self, old_receiver, old_sender, conversation_id, data):
+    def handle_commands(self, msg: Message):
         """Handle the list of commands.
 
         :param str old_receiver: receiver frame.
@@ -217,8 +237,8 @@ class MessageHandler:
         :param object data: deserialized data.
         """
         reply = []
-        if isinstance(data, (list, tuple)):
-            for message in data:
+        if isinstance(msg.data, (list, tuple)):
+            for message in msg.data:
                 if message[0] == Commands.OFF:
                     reply.append([Commands.ACKNOWLEDGE])
                     self.stop_event.set()
@@ -226,16 +246,17 @@ class MessageHandler:
                     try:
                         self.root_logger.setLevel(message[1])
                     except Exception as exc:
-                        reply.append([Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)])
+                        reply.append([Commands.ERROR, Errors.EXECUTION_FAILED,
+                                      type(exc).__name__, str(exc)])
                     else:
                         reply.append([Commands.ACKNOWLEDGE])
                 elif message[0] == Commands.PING:
                     pass  # empty message
                 else:
                     reply.append(self.handle_command(*message))
-            self.handle_reply(old_sender, conversation_id, reply)
+            self.handle_reply(msg, reply)
         else:
-            self.log.warning(f"Unknown message received: '{data}'.")
+            self.log.warning(f"Unknown message received: '{msg.data}'.")
 
     def handle_command(self, command, content=None):
         """Handle a command with optional content.
@@ -246,9 +267,12 @@ class MessageHandler:
         """
         raise NotImplementedError("Implement in subclass.")
 
-    def handle_reply(self, old_sender, conversation_id, reply):
+    def handle_reply(self, original_message: Message, reply: list):
         """Handle the created reply."""
-        self.send(receiver=old_sender, conversation_id=conversation_id, data=reply)
+        response = Message(receiver=original_message.sender,
+                           conversation_id=original_message.conversation_id,
+                           data=reply)
+        self.send_message(response)
 
 
 class BaseController(MessageHandler):
@@ -315,6 +339,3 @@ class BaseController(MessageHandler):
     def call(self, method, args, kwargs):
         """Call a method with arguments dictionary `kwargs`."""
         return getattr(self, method)(*args, **kwargs)
-
-
-from .actor import Actor as InstrumentController

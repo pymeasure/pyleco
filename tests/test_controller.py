@@ -22,74 +22,19 @@
 # THE SOFTWARE.
 #
 
-import time
-
 import pytest
 
-from pymeasure.adapters import ProtocolAdapter
-from pymeasure.instruments import Instrument
-
 from pyleco.utils import VERSION_B, FakeContext
-from pyleco.controller import InstrumentController, MessageHandler, InfiniteEvent
+from pyleco.controller import MessageHandler, InfiniteEvent
 
 
-@pytest.fixture
+@pytest.fixture()
 def handler():
     handler = MessageHandler(name="test", context=FakeContext())
     handler.node = "N1"
     handler.fname = "N1.test"
     handler.stop_event = InfiniteEvent()
     return handler
-
-
-class FakeController(InstrumentController):
-
-    def _readout(self, device, publisher):
-        print("read", time.perf_counter())
-        time.sleep(1)
-
-    def queue_readout(self):
-        print("queue", time.perf_counter())
-        super().queue_readout()
-
-    def heartbeat(self):
-        print("beating")
-        super().heartbeat()
-
-
-class FantasyInstrument(Instrument):
-
-    def __init__(self, adapter, name="stuff", *args, **kwargs):
-        super().__init__(ProtocolAdapter(), name, includeSCPI=False)
-        self._prop = 5
-        self._prop2 = 7
-
-    @property
-    def prop(self):
-        return self._prop
-
-    @prop.setter
-    def prop(self, value):
-        self._prop = value
-
-    @property
-    def prop2(self):
-        return self._prop2
-
-    @prop2.setter
-    def prop2(self, value):
-        self._prop2 = value
-
-    def silent_method(self, value):
-        self._method_value = value
-
-    def returning_method(self, value):
-        return value ** 2
-
-    @property
-    def long(self):
-        time.sleep(0.5)
-        return 7
 
 
 # test communication
@@ -99,7 +44,8 @@ def test_send(handler):
 
 
 @pytest.mark.parametrize("i, out", (
-    ([VERSION_B, b"N1.test", b"N1.CB", b"5;6", b"[]"], [VERSION_B, b"N1.CB", b"N1.test", b"5;", b'[]']),
+    ([VERSION_B, b"N1.test", b"N1.CB", b"5;6", b"[]"],
+     [VERSION_B, b"N1.CB", b"N1.test", b"5;", b'[]']),
 ))
 def test_handle_message(handler, i, out):
     handler.socket._r = [i]
@@ -124,35 +70,3 @@ def test_handle_ACK_does_not_change_Namespace(handler):
     with pytest.raises(NotImplementedError):
         handler.handle_message()
     assert handler.node == "N1"
-
-
-# test general methods
-
-
-@pytest.fixture(scope="module")
-def controller():
-    return FakeController("test", FantasyInstrument, auto_connect={'adapter': "abc"}, port=1234, protocol="inproc")
-
-
-def test_get_properties(controller):
-    assert controller.get_properties(['prop']) == {'prop': 5}
-
-
-def test_set_properties(controller):
-    controller.set_properties({'prop2': 10})
-    assert controller.device.prop2 == 10
-
-
-def test_call_silent_method(controller):
-    assert controller.call("silent_method", [], {'value': 7}) is None
-    assert controller.device._method_value == 7
-
-
-def test_returning_method(controller):
-    assert controller.call('returning_method', [], {'value': 2}) == 4
-
-
-# test communication
-def readout(*args):
-    pass
-    # print("readout", args)
