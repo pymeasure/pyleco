@@ -25,19 +25,23 @@
 import json
 import pickle
 from threading import Thread, Lock, Event
+from typing import List, Tuple
 
 from PyQt6 import QtCore
 import zmq
 
-from .controller import MessageHandler
+from .message_handler import MessageHandler
 from .publisher import Publisher
-from .utils import Message, create_header_frame, Commands, generate_conversation_id
+from ..core.message import Message
+from ..core.enums import Commands
+from ..core.serialization import create_header_frame, generate_conversation_id, compose_message
 from .timers import RepeatingTimer
 
 
 class BaseListener(MessageHandler):
-    """
-    Listening on published data and opening a configuration port, both in a separate thread.
+    """Listening on published data and opening a configuration port, both in a separate thread.
+
+    It works like a :class:`Communicator`.
 
     Call :meth:`.start_listen()` to actually listen.
 
@@ -47,17 +51,18 @@ class BaseListener(MessageHandler):
     :param context: zmq context.
     """
 
-    def __init__(self, name,
-                 host="localhost",
-                 dataPort=11099,
-                 heartbeat_interval=10,
+    def __init__(self,
+                 name: str,
+                 host: str = "localhost",
+                 dataPort: int = 11099,
+                 heartbeat_interval: float = 10,
                  context=None,
-                 **kwargs):
-        super().__init__(name=name, host=host, context=context, **kwargs)
+                 **kwargs) -> None:
+        self.context = context or zmq.Context.instance()
+        super().__init__(name=name, host=host, context=self.context, **kwargs)
         self.log.info(f"Start Listener for '{name}'.")
         self.host = host
         self.dataPort = dataPort
-        self.context = context or zmq.Context.instance()
         pipe = self.context.socket(zmq.PAIR)
         pipe_port = pipe.bind_to_random_port("inproc://listenerPipe", min_port=12345)
         self.pipe = self.Pipe(pipe)
@@ -75,49 +80,50 @@ class BaseListener(MessageHandler):
     class Pipe:
         """Pipe endpoint with lock."""
 
-        def __init__(self, socket, **kwargs):
+        def __init__(self, socket, **kwargs) -> None:
             super().__init__(**kwargs)
             self.socket = socket
             self.lock = Lock()
 
-        def send_multipart(self, frames):
+        def send_multipart(self, frames: List[bytes] | Tuple[bytes, ...]) -> None:
             """Send a multipart message with frames (list type) ensuring lock."""
             self.lock.acquire()
             self.socket.send_multipart(frames)
             self.lock.release()
 
-        def close(self, linger=0):
+        def close(self, linger: float = 0) -> None:
             self.socket.close(linger)
 
-    def close(self):
+    def close(self) -> None:
         """Close everything."""
         self.stop_listen()
-        self.pipe.close(1)
+        self.pipe.close(linger=1)
         self.pipeL.close(1)
         self.context.destroy(1)
         super().close()
 
     # Methods to control the Listener
-    def stop_listen(self):
+    def stop_listen(self) -> None:
         """Stop the listener Thread."""
         try:
             if self.thread.is_alive():
                 self.log.debug("Stopping listener thread.")
-                self.pipe.send_multipart((b"STOP",))
+                self.pipe.send_multipart(frames=(b"STOP",))
                 self.thread.join()
         except AttributeError:
             pass
 
     #   Control protocol
-    def send(self, receiver: bytes | str, conversation_id=b"", data=None, **kwargs) -> None:
+    def send(self, receiver: str | bytes, conversation_id=b"", data: object = None,
+             **kwargs) -> None:
         """Send a message via control protocol."""
-        self.pipe.send_multipart((b"SND", *compose_message(receiver, sender=self.fname,
+        self.pipe.send_multipart((b"SND", *compose_message(receiver=receiver, sender=self.full_name,
                                                            conversation_id=conversation_id,
                                                            data=data, **kwargs)))
 
     def send_message(self, message: Message) -> None:
         if not message.sender:
-            message.sender = self.fname.encode()
+            message.sender = self.full_name.encode()
         self.pipe.send_multipart((b"SND", *message.get_frames_list()))
 
     def reply(self, header: list, content: object) -> None:
@@ -134,24 +140,26 @@ class BaseListener(MessageHandler):
                     return message
         return None
 
-    def read_answer(self, conversation_id: bytes, tries: int = 10, timeout: float = 0.1) -> list:
+    def read_answer(self, conversation_id: bytes, tries: int = 10,
+                    timeout: float = 0.1) -> Tuple[str, str, bytes, bytes, object]:
         """Read the answer of the original message with `conversation_id`."""
-        msg = self.read_answer_as_message(conversation_id, tries, timeout)
-        return self._turn_message_to_list(msg)
+        msg = self.read_answer_as_message(conversation_id=conversation_id, tries=tries,
+                                          timeout=timeout)
+        return self._turn_message_to_list(msg=msg)
 
     @staticmethod
-    def _turn_message_to_list(msg: Message) -> list:
+    def _turn_message_to_list(msg: Message) -> Tuple[str, str, bytes, bytes, object]:
         """Turn a message into a list of often used parameters.
 
         :return: receiver, sender, conversation_id, message_id, data
         """
         # adding an empty byte for a faked message_id.
-        return [msg.receiver.decode(), msg.sender.decode(), msg.conversation_id, b"",
-                msg.data]
+        return (msg.receiver.decode(), msg.sender.decode(), msg.conversation_id, b"",
+                msg.data)
 
     def read_answer_as_message(self, conversation_id: bytes, tries: int = 10,
                                timeout: float = 0.1) -> Message:
-        if (result := self._check_message_in_buffer(conversation_id)) is not None:
+        if (result := self._check_message_in_buffer(conversation_id=conversation_id)) is not None:
             return result
         for _ in range(tries):
             if self._event.wait(timeout):
@@ -167,21 +175,22 @@ class BaseListener(MessageHandler):
             conversation_id = generate_conversation_id()
         if isinstance(receiver, str):
             receiver = receiver.encode()
-        message = Message(receiver, conversation_id=conversation_id, data=data, **kwargs)
-        return self.ask_message(message)
+        message = Message(receiver=receiver, conversation_id=conversation_id, data=data, **kwargs)
+        return self.ask_message(message=message)
 
     ask_as_message = ask
 
     def ask_message(self, message: Message) -> Message:
         if not message.conversation_id:
             conversation_id = generate_conversation_id()
-            header = create_header_frame(conversation_id, message.message_id)
+            header = create_header_frame(conversation_id=conversation_id,
+                                         message_id=message.message_id)
             message.header = header
         self._event.clear()
         with self._buffer_lock:
             self.cids.append(message.conversation_id)
         self.send_message(message)
-        return self.read_answer_as_message(message.conversation_id)
+        return self.read_answer_as_message(conversation_id=message.conversation_id)
 
     #   Data protocol
     def subscribe(self, topics: str | list | tuple) -> None:
@@ -246,7 +255,7 @@ class BaseListener(MessageHandler):
     Methods below are executed in the thread, DO NOT CALL DIRECTLY!
     """
 
-    def _listen(self, context, pipe, host: str, dataPort: int = 11099):
+    def _listen(self, context, pipe, host: str, dataPort: int = 11099) -> None:
         """Listen on publisher - in another thread. Do not call directly."""
         self.log.info(f"Start listening, data port {host}:{dataPort}.")
         poller = zmq.Poller()
@@ -259,7 +268,8 @@ class BaseListener(MessageHandler):
         poller.register(controller, zmq.POLLIN)
         # Connect to Coordinator
         self.sign_in()
-        heartbeat_timer = RepeatingTimer(self.heartbeat_interval, self.heartbeat_timeout)
+        heartbeat_timer = RepeatingTimer(interval=self.heartbeat_interval,
+                                         function=self.heartbeat_timeout)
         heartbeat_timer.start()
         while True:
             socks = dict(poller.poll(1000))
@@ -278,7 +288,7 @@ class BaseListener(MessageHandler):
                         self.log.debug(f"Unsubscribing from {topic}.")
                         subscriber.unsubscribe(topic)
                     case [b"SND", *message]:  # noqa: 211
-                        self._send_frames(message)
+                        self._send_frames(frames=message)
                     case [b"HBT"]:  # noqa: 211
                         self.heartbeat()
                     case [b"REN", new_name]:  # noqa: 211
@@ -318,7 +328,7 @@ class BaseListener(MessageHandler):
         self.log.info("Listening stopped.")
 
     # Data protocol
-    def handle_subscription_data(self, data: object) -> None:
+    def handle_subscription_data(self, data: dict) -> None:
         """Handle incoming subscription data."""
         raise NotImplementedError("Implement in subclass.")
 
@@ -387,7 +397,7 @@ class Republisher(BaseListener):
         for key in self.handlings.keys():
             self.subscribe(key)
 
-    def handle_subscription_data(self, data: dict):
+    def handle_subscription_data(self, data: dict) -> None:
         """Call a calibration method and publish data under a new name."""
         new = {}
         if not isinstance(data, dict):
@@ -407,7 +417,7 @@ class QtMixin:
     Mixin for the Listener to publish Qt signals.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.signals = self.ListenerSignals()
 
@@ -416,11 +426,11 @@ class QtMixin:
         dataReady = QtCore.pyqtSignal(dict)
         message = QtCore.pyqtSignal(Message)
 
-    def handle_subscription_data(self, data):
+    def handle_subscription_data(self, data: dict) -> None:
         """Handle incoming subscription data."""
         self.signals.dataReady.emit(data)
 
-    def finish_handle_commands(self, message: Message):
+    def finish_handle_commands(self, message: Message) -> None:
         """Handle the list of commands: Redirect them to the application."""
         self.signals.message.emit(message)
 

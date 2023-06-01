@@ -55,7 +55,7 @@ class ZmqLogHandler(QueueHandler):
             # Cache the traceback text to avoid converting it multiple times
             # (it's constant anyway)
             if not record.exc_text:
-                record.exc_text = logging.Formatter.formatException(self, record.exc_info)
+                record.exc_text = logging.Formatter.formatException(self, record.exc_info)  # type: ignore  # noqa: E501
         if record.exc_text:
             if s[-1:] != "\n":
                 s = s + "\n"
@@ -71,9 +71,9 @@ class ZmqLogHandler(QueueHandler):
         """Enqueue a message, if the fullname is given."""
         try:
             # TODO adjust serialization according to protocol definition
-            self.queue.send_multipart((self.fullname.encode(), pickle.dumps(record)))
+            self.queue.send_multipart((self.fullname.encode(), pickle.dumps(record)))  # type: ignore  # noqa: E501
         except AttributeError:
             pass
 
     def close(self):
-        self.queue.close(1)
+        self.queue.close(1)  # type: ignore

@@ -22,24 +22,22 @@
 # THE SOFTWARE.
 #
 
-import argparse
 import logging
 from socket import gethostname
 
 import zmq
 
 try:
-    from .coordinator_utils import Directory, ZmqNode, ZmqMultiSocket
-    from .gui_utils import parse_command_line_parameters
-    from .utils import (Commands,
-                        deserialize_data, Errors,
-                        CommunicationError, Message
-                        )
-    from .timers import RepeatingTimer
-    from .zmq_log_handler import ZmqLogHandler
+    from ..utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket
+    from ..core.enums import Commands, Errors
+    from ..core.message import Message
+    from ..core.serialization import deserialize_data
+    from ..errors import CommunicationError
+    from ..utils.timers import RepeatingTimer
+    from ..utils.zmq_log_handler import ZmqLogHandler
 except ImportError as exc:
     import_error = exc
-    from pyleco.utils import Message
+    from pyleco.core.message import Message
 else:
     import_error = None
 
@@ -70,7 +68,7 @@ class Coordinator:
                  expiration_time: float = 15,
                  context=None,
                  multi_socket=None,
-                 **kwargs):
+                 **kwargs) -> None:
         if namespace is None:
             self.namespace = gethostname().encode()
         elif isinstance(namespace, str):
@@ -86,7 +84,7 @@ class Coordinator:
                                    address=self.address)
         self.global_directory = {}  # All Components
         self.timeout = timeout
-        self.cleaner = RepeatingTimer(cleaning_interval, self.clean_addresses,
+        self.cleaner = RepeatingTimer(interval=cleaning_interval, function=self.clean_addresses,
                                       args=(expiration_time,))
 
         self.cleaner.start()
@@ -99,16 +97,16 @@ class Coordinator:
 
         super().__init__(**kwargs)
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.close()
 
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         """Sign out and close the sockets."""
         log.debug("Closing Coordinator.")
         if not self.closed:
@@ -118,10 +116,10 @@ class Coordinator:
             log.info(f"Coordinator {self.fname} closed.")
             self.closed = True
 
-    def create_message(self, receiver: bytes, data=None, **kwargs) -> Message:
-        return Message(receiver, self.fname, data, **kwargs)
+    def create_message(self, receiver: bytes, data: object = None, **kwargs) -> Message:
+        return Message(receiver=receiver, sender=self.fname, data=data, **kwargs)
 
-    def send_message(self, receiver: bytes, data=None, **kwargs):
+    def send_message(self, receiver: bytes, data: object = None, **kwargs) -> None:
         """Send a message with any socket, including routing.
 
         :param identity: Connection identity to send to.
@@ -129,33 +127,35 @@ class Coordinator:
         :param data: Object to send.
         :param \\**kwargs: Keyword arguments for the header.
         """
-        self.deliver_message(b"",
-                             Message(receiver, self.fname, data=data, **kwargs))
+        self.deliver_message(sender_identity=b"",
+                             message=Message(receiver=receiver, sender=self.fname, data=data,
+                                             **kwargs))
 
-    def send_main_sock_reply(self, sender_identity: bytes, original_message: Message, data=None):
+    def send_main_sock_reply(self, sender_identity: bytes, original_message: Message,
+                             data: object = None) -> None:
         response = self.create_message(receiver=original_message.sender,
                                        data=data,
                                        conversation_id=original_message.conversation_id,)
         self.sock.send_message(sender_identity, response)
 
-    def clean_addresses(self, expiration_time: float):
+    def clean_addresses(self, expiration_time: float) -> None:
         """Clean all expired addresses from the directory.
 
         :param float expiration_time: Expiration limit in s.
         """
         log.debug("Cleaning addresses.")
-        self._clean_components(expiration_time)
-        self.directory.find_expired_nodes(expiration_time)
+        self._clean_components(expiration_time=expiration_time)
+        self.directory.find_expired_nodes(expiration_time=expiration_time)
 
-    def _clean_components(self, expiration_time: float):
-        to_admonish = self.directory.find_expired_components(expiration_time)
+    def _clean_components(self, expiration_time: float) -> None:
+        to_admonish = self.directory.find_expired_components(expiration_time=expiration_time)
         for identity, name in to_admonish:
             message = self.create_message(receiver=b".".join((self.namespace, name)),
                                           data=[[Commands.PING]])
             self.sock.send_message(identity, message)
         self.publish_directory_update()
 
-    def routing(self, coordinators: list | None = None):
+    def routing(self, coordinators: list | None = None) -> None:
         """Route all messages.
 
         Connect to Coordinators at the beginning.
@@ -175,7 +175,7 @@ class Coordinator:
         # Cleanup
         log.info("Coordinator routing stopped.")
 
-    def read_and_route(self):
+    def read_and_route(self) -> None:
         """Do the routing of one message."""
         try:
             sender_identity, message = self.sock.read_message()
@@ -184,48 +184,48 @@ class Coordinator:
             return
         else:
             # Handle different communication cases.
-            self.deliver_message(sender_identity, message)
+            self.deliver_message(sender_identity=sender_identity, message=message)
 
-    def deliver_message(self, sender_identity: bytes, msg: Message):
+    def deliver_message(self, sender_identity: bytes, message: Message) -> None:
         """Deliver a message `msg` from some `sender_identity` to some recipient."""
-        log.debug(f"From identity {sender_identity}, from {msg.sender}, to {msg.receiver}, "
-                  f"mid {msg.message_id}, cid {msg.conversation_id}, {msg.payload}")
+        log.debug(f"From identity {sender_identity}, from {message.sender}, to {message.receiver},"
+                  f" mid {message.message_id}, cid {message.conversation_id}, {message.payload}")
         # Update heartbeat
         if sender_identity:
             try:
-                self.directory.update_heartbeat(sender_identity=sender_identity, msg=msg)
+                self.directory.update_heartbeat(sender_identity=sender_identity, message=message)
             except CommunicationError as exc:
                 log.error(str(exc))
                 self.send_main_sock_reply(sender_identity=sender_identity,
-                                          original_message=msg,
+                                          original_message=message,
                                           data=exc.error_payload)
                 return
         # Route the message
-        if msg.receiver_node != self.namespace and msg.receiver_node != b"":
+        if message.receiver_node != self.namespace and message.receiver_node != b"":
             # remote connections.
             try:
-                self.directory.send_node_message(msg.receiver_node, msg)
+                self.directory.send_node_message(namespace=message.receiver_node, message=message)
             except ValueError:
-                self.send_message(receiver=msg.sender,
+                self.send_message(receiver=message.sender,
                                   data=[[Commands.ERROR, Errors.NODE_UNKNOWN,
-                                         msg.receiver_node.decode()]],
-                                  conversation_id=msg.conversation_id,
+                                         message.receiver_node.decode()]],
+                                  conversation_id=message.conversation_id,
                                   )
-        elif msg.receiver_name == b"COORDINATOR":
+        elif message.receiver_name == b"COORDINATOR":
             # Coordinator communication
-            self.handle_commands(sender_identity, msg)
+            self.handle_commands(sender_identity=sender_identity, message=message)
         else:
             try:
-                receiver_identity = self.directory.get_component_id(msg.receiver_name)
+                receiver_identity = self.directory.get_component_id(name=message.receiver_name)
             except ValueError:
-                log.error(f"Receiver '{msg.receiver}' is not in the addresses list.")
-                self.send_message(receiver=msg.sender, conversation_id=msg.conversation_id,
+                log.error(f"Receiver '{message.receiver}' is not in the addresses list.")
+                self.send_message(receiver=message.sender, conversation_id=message.conversation_id,
                                   data=[[Commands.ERROR, Errors.RECEIVER_UNKNOWN,
-                                         msg.receiver.decode()]])
+                                         message.receiver.decode()]])
             else:
-                self.sock.send_message(receiver_identity, msg)
+                self.sock.send_message(receiver_identity, message)
 
-    def handle_commands(self, sender_identity: bytes, message: Message):
+    def handle_commands(self, sender_identity: bytes, message: Message) -> None:
         """Handle commands for the Coordinator itself.
 
         :param bytes sender_identity: Identity of the original sender.
@@ -234,7 +234,7 @@ class Coordinator:
         if not message.payload:
             return  # Empty payload, just heartbeat.
         try:
-            data = deserialize_data(message.payload[0])
+            data = deserialize_data(content=message.payload[0])
         except ValueError as exc:
             log.exception("Payload decoding error.", exc_info=exc)
             return  # TODO error message
@@ -256,8 +256,9 @@ class Coordinator:
                     except ValueError:
                         log.info(f"Another Component at {sender_identity} "
                                  f"tries to sign in as {message.sender_name}.")
-                        self.send_main_sock_reply(sender_identity, message,
-                                                  [[Commands.ERROR, Errors.DUPLICATE_NAME]])
+                        self.send_main_sock_reply(sender_identity=sender_identity,
+                                                  original_message=message,
+                                                  data=[[Commands.ERROR, Errors.DUPLICATE_NAME]])
                         return
                     else:
                         log.info(f"New Component {message.sender_name} at {sender_identity}.")
@@ -268,8 +269,9 @@ class Coordinator:
                         self.directory.remove_component(name=message.sender_name,
                                                         identity=sender_identity)
                     except ValueError:
-                        self.send_main_sock_reply(sender_identity, message,
-                                                  [[Commands.ERROR, Errors.NAME_NOT_FOUND]])
+                        self.send_main_sock_reply(sender_identity=sender_identity,
+                                                  original_message=message,
+                                                  data=[[Commands.ERROR, Errors.NAME_NOT_FOUND]])
                     else:
                         reply.append([Commands.ACKNOWLEDGE])
                         log.info(f"Component {message.sender_name} signed out.")
@@ -277,26 +279,32 @@ class Coordinator:
                 # Coordinator sign-in / sign-out
                 elif command[0] == Commands.CO_SIGNIN:
                     try:
-                        self.directory.add_node_receiver(sender_identity, message.sender_node)
+                        self.directory.add_node_receiver(identity=sender_identity,
+                                                         namespace=message.sender_node)
                     except ValueError:
                         log.info(f"Another Coordinator at {sender_identity} "
                                  f"tries to sign in as {message.sender}.")
-                        self.send_main_sock_reply(sender_identity, message,
-                                                  [[Commands.ERROR, Errors.DUPLICATE_NAME]])
+                        self.send_main_sock_reply(sender_identity=sender_identity,
+                                                  original_message=message,
+                                                  data=[[Commands.ERROR, Errors.DUPLICATE_NAME]])
                     else:
-                        self.send_main_sock_reply(sender_identity, message,
-                                                  [[Commands.ACKNOWLEDGE]])
+                        self.send_main_sock_reply(sender_identity=sender_identity,
+                                                  original_message=message,
+                                                  data=[[Commands.ACKNOWLEDGE]])
                     return
                 elif command[0] == Commands.CO_SIGNOUT and message.sender_name == b"COORDINATOR":
                     try:
-                        node = self.directory.get_node(message.sender_node)
+                        node = self.directory.get_node(namespace=message.sender_node)
                     except ValueError:
                         log.warning(f"Not signed in Coordinator {message.sender_node} signs out.")
                         return  # TBD what to do, if it is not known
                     try:
-                        self.directory.remove_node(message.sender_node, identity=sender_identity)
+                        self.directory.remove_node(namespace=message.sender_node,
+                                                   identity=sender_identity)
                     except CommunicationError as exc:
-                        self.send_main_sock_reply(sender_identity, message, [exc.error_payload])
+                        self.send_main_sock_reply(sender_identity=sender_identity,
+                                                  original_message=message,
+                                                  data=[exc.error_payload])
                     else:
                         node.send_message(Message(
                             receiver=message.sender_node + b".COORDINATOR",
@@ -347,21 +355,22 @@ class Coordinator:
             log.exception("Handling commands failed.", exc_info=exc)
         log.debug(f"Reply {reply} to {message.sender} at node {message.sender_node}.")
         if message.sender_node == self.namespace or message.sender_node == b"":
-            self.send_main_sock_reply(sender_identity, message, reply)
+            self.send_main_sock_reply(sender_identity=sender_identity, original_message=message,
+                                      data=reply)
         else:
             self.send_message(receiver=message.sender, conversation_id=message.conversation_id,
                               data=reply)
 
-    def sign_out(self):
+    def sign_out(self) -> None:
         """Sign out from other Coordinators."""
         self.directory.sign_out_from_all_nodes()
 
-    def compose_local_directory(self):
+    def compose_local_directory(self) -> dict:
         """Compose a dictionary with the local directory."""
         return {'directory': self.directory.get_component_names(),
                 'nodes': self.directory.get_nodes_str_dict()}
 
-    def compose_global_directory(self):
+    def compose_global_directory(self) -> dict:
         """Compose a dictionary with the global directory."""
         data = {ns.decode(): components for ns, components in self.global_directory.items()}
         local = self.compose_local_directory()
@@ -370,28 +379,29 @@ class Coordinator:
         data[self.namespace.decode()] = local['directory']
         return data
 
-    def publish_directory_update(self):
+    def publish_directory_update(self) -> None:
         """Send a directory update to the other coordinators."""
         # TODO TBD whether to send the whole directory or only a diff.
         directory = self.compose_local_directory()
         for node in self.directory.get_nodes().keys():
-            self.send_message(b".".join((node, b"COORDINATOR")),
+            self.send_message(receiver=b".".join((node, b"COORDINATOR")),
                               data=[[Commands.SET, directory]])
 
 
 if __name__ == "__main__":
     # Absolute imports if the file is executed.
-    from pyleco.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket  # noqa: F811
-    from pyleco.gui_utils import parse_command_line_parameters  # noqa: F811
-    from pyleco.utils import (Commands,  # noqa: F811
-                               deserialize_data, Errors,
-                               CommunicationError, Message,
-                               )
-    from pyleco.timers import RepeatingTimer  # noqa: F811
-    from pyleco.zmq_log_handler import ZmqLogHandler  # noqa: F811
+    from argparse import ArgumentParser  # noqa: F811
+    from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket  # noqa: F811
+    from pyleco.core.enums import Commands, Errors  # noqa: F811
+    from pyleco.core.message import Message  # noqa: F811
+    from pyleco.core.serialization import deserialize_data  # noqa: F811
+    from pyleco.errors import CommunicationError  # noqa: F811
+    from pyleco.utils.timers import RepeatingTimer  # noqa: F811
+    from pyleco.utils.zmq_log_handler import ZmqLogHandler  # noqa: F811
+    from pyleco.utils.parser import parse_command_line_parameters  # noqa: F811
 
     # Define parser
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument("-c", "--coordinators", default="",
                         help="connect to this comma separated list of coordinators")
     parser.add_argument("--host", help="set the host name of this Coordinator")
@@ -414,7 +424,7 @@ if __name__ == "__main__":
         handler = ZmqLogHandler()
         handler.fullname = c.fname.decode()
         log.addHandler(handler)
-        c.routing(coordinators)
+        c.routing(coordinators=coordinators)
 elif import_error is not None:
     # Raise the error, if the file is not executed.
     raise import_error

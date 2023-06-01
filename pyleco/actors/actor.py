@@ -26,9 +26,9 @@ import time
 
 import zmq
 
-from .controller import BaseController, InfiniteEvent, heartbeat_interval
-from .publisher import Publisher
-from .timers import RepeatingTimer
+from ..utils.message_handler import BaseController, InfiniteEvent, heartbeat_interval
+from ..utils.publisher import Publisher
+from ..utils.timers import RepeatingTimer
 
 
 class Actor(BaseController):
@@ -57,8 +57,8 @@ class Actor(BaseController):
 
     def __init__(self, name, cls, periodic_reading=-1, auto_connect: None | dict = None,
                  context=zmq.Context.instance(),
-                 **kwargs):
-        super().__init__(name, context=context, **kwargs)
+                 **kwargs) -> None:
+        super().__init__(name=name, context=context, **kwargs)
         self.cls = cls
 
         # Pipe for the periodic readout timer
@@ -69,21 +69,21 @@ class Actor(BaseController):
         self.pipeL.set_hwm(1)
         self.pipeL.connect(f"inproc://listenerPipe:{pipe_port}")
 
-        self.timer = RepeatingTimer(periodic_reading, self.queue_readout)
+        self.timer = RepeatingTimer(interval=periodic_reading, function=self.queue_readout)
         self.publisher = Publisher(log=self.root_logger)
 
         if auto_connect:
             self.connect(**auto_connect)
         self.log.info(f"Actor '{name}' initialized.")
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.disconnect()
 
-    def __exit__(self, *args, **kwargs):
+    def __exit__(self, *args, **kwargs) -> None:
         super().__exit__(*args, **kwargs)
         self.disconnect()
 
-    def listen(self, stop_event=InfiniteEvent(), waiting_time=100):
+    def listen(self, stop_event=InfiniteEvent(), waiting_time=100) -> None:
         """Listen for zmq communication until `stop_event` is set.
 
         :param waiting_time: Time to wait for a readout signal in ms.
@@ -100,7 +100,7 @@ class Actor(BaseController):
         next_beat = time.perf_counter() + heartbeat_interval
         # Loop
         while not stop_event.is_set():
-            socks = dict(poller.poll(waiting_time))
+            socks = dict(poller.poll(timeout=waiting_time))
             if self.pipeL in socks:
                 self.pipeL.recv()
                 self.readout()
@@ -113,33 +113,34 @@ class Actor(BaseController):
         self.sign_out()
         self.handle_message()
 
-    def queue_readout(self):
+    def queue_readout(self) -> None:
         self.pipe.send(b"")
 
-    def publish(self, data):
+    def publish(self, data) -> None:
         """Publish `data` over the data channel."""
-        self.publisher.send(data)
+        self.publisher.send(data=data)
 
-    def _readout(self, device, publisher):
+    def _readout(self, device, publisher) -> None:
         """Deprecated, use `read_publish` instead."""
         pass
 
-    def read_publish(self, device, publisher):
+    def read_publish(self, device, publisher) -> None:
         """Read the device and publish the results.
 
         Defaults to doing nothing. Implement in a subclass.
         """
-        self._readout(device, publisher)  # TODO keep temporarily for backward compatibility
+        # TODO keep temporarily for backward compatibility
+        self._readout(device=device, publisher=publisher)
         pass
 
-    def readout(self):
+    def readout(self) -> None:
         """Do periodic readout of the instrument and publish the data.
 
         Defaults to calling :meth:`read_publish` with the device and publisher as arguments.
         """
-        self.read_publish(self.device, self.publisher)
+        self.read_publish(device=self.device, publisher=self.publisher)
 
-    def start_timer(self, interval=None):
+    def start_timer(self, interval=None) -> None:
         """Start the readout timer."""
         if interval is not None:
             self.timer.interval = interval
@@ -148,30 +149,30 @@ class Actor(BaseController):
         try:
             self.timer.start()
         except RuntimeError:
-            self.timer = RepeatingTimer(self.timer.interval, self.queue_readout)
+            self.timer = RepeatingTimer(interval=self.timer.interval, function=self.queue_readout)
             self.timer.start()
 
-    def stop_timer(self):
+    def stop_timer(self) -> None:
         """Stop the readout timer."""
         self.timer.cancel()
 
     @property
-    def timeout(self):
+    def timeout(self) -> float:
         """Timeout interval of the readout timer in s."""
         return self.timer.interval
 
     @timeout.setter
-    def timeout(self, value):
+    def timeout(self, value: float) -> None:
         self.timer.interval = value
 
-    def connect(self, *args, **kwargs):
+    def connect(self, *args, **kwargs) -> None:
         """Connect to the device."""
         # TODO read auto_connect?
         self.log.info("Connecting")
         self.device = self.cls(*args, **kwargs)
         self.start_timer()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Disconnect the device."""
         self.log.info("Disconnecting.")
         self.stop_timer()
@@ -184,7 +185,7 @@ class Actor(BaseController):
         except AttributeError:
             pass
 
-    def get_properties(self, properties):
+    def get_properties(self, properties) -> dict:
         """Get properties from the list `properties`."""
         data = {}
         if properties[0] == "_actor":
@@ -195,7 +196,7 @@ class Actor(BaseController):
                 raise TypeError(f"Attribute '{key}' is a callable!")
         return data
 
-    def set_properties(self, properties):
+    def set_properties(self, properties) -> None:
         """Set properties from a dictionary."""
         for key, value in properties.items():
             if key == "_actor":
@@ -207,5 +208,5 @@ class Actor(BaseController):
         """Call a method with arguments dictionary `kwargs`."""
         if method == "_actor":
             method = kwargs.pop("_actor")
-            return super().call(method, args, kwargs)
+            return super().call(method=method, args=args, kwargs=kwargs)
         return getattr(self.device, method)(*args, **kwargs)

@@ -47,13 +47,14 @@ class Publisher:
 
     def __init__(self, host="localhost", port=11100, log=None,
                  standalone=False,
+                 context=zmq.Context.instance(),
                  **kwargs):
         if log is None:
             self.log = logging.getLogger(f"{__name__}.Publisher")
         else:
             self.log = log.getChild("Publisher")
         self.log.info(f"Publisher started at {host}:{port}.")
-        self.socket = zmq.Context.instance().socket(zmq.PUB)
+        self.socket = context.socket(zmq.PUB)
         if standalone:
             self._connecting = self.socket.bind
             self._disconnecting = self.socket.unbind

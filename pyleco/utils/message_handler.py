@@ -24,11 +24,15 @@
 
 import logging
 import time
+from typing import Optional
 
 import zmq
 
-from .utils import Commands, compose_message, split_name_str, split_message, Errors, Message
+from ..core.message import Message
+from ..core.enums import Commands, Errors
+from ..core.serialization import compose_message
 from .zmq_log_handler import ZmqLogHandler
+
 
 # Parameters
 heartbeat_interval = 10  # s
@@ -48,13 +52,18 @@ class InfiniteEvent:
 class MessageHandler:
     """Maintain connection to the Coordinator and listen to incoming messages.
 
+    This class is inteded to run in a thread, maintain the connection to the coordinator
+    with heartbeats and timely responses. If a message arrives which is not connected to the control
+    protocol itself (e.g. ping message), another method is called.
+    You may subclass this class in order to handle these messages as desired.
+
     You may use it as a context manager.
 
     :param str name: Name to listen to and to publish values with.
     :param str host: Host name (or IP address) of the Coordinator to connect to.
     :param int port: Port number of the Coordinator to connect to.
     :param protocol: Connection protocol.
-    :param log: Logger instance whose logs should be published. Defaults to "__main__".
+    :param log: Logger instance whose logs should be published. Defaults to `getLogger("__main__")`.
     """
 
     def __init__(self, name: str, host: str = "localhost", port: int = 12300, protocol: str = "tcp",
@@ -63,7 +72,7 @@ class MessageHandler:
                  **kwargs):
         self.name = name
         self.node: None | str = None
-        self.fname: str = name
+        self.full_name = name
         context = context or zmq.Context.instance()
 
         if log is None:
@@ -117,7 +126,7 @@ class MessageHandler:
 
     def _send_final_message(self, message: Message) -> None:
         if not message.sender:
-            message.sender = self.fname.encode()
+            message.sender = self.full_name.encode()
         frames = message.get_frames_list()
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
@@ -125,7 +134,7 @@ class MessageHandler:
     def _compose_message(self, receiver, sender=None, data=None, conversation_id=b"",
                          **kwargs) -> list:
         if sender is None:
-            sender = self.fname
+            sender = self.full_name
         # TODO decide on timestamp
         # if message_id == None:
         #     message_id = datetime.datetime.now(datetime.timezone.utc).strftime(
@@ -189,7 +198,7 @@ class MessageHandler:
         self.sign_out()
         self.handle_message()
 
-    def handle_message(self):
+    def handle_message(self) -> None:
         """Interpret incoming message.
 
         COORDINATOR messages are handled and then :meth:`handle_commands` does the rest.
@@ -198,11 +207,11 @@ class MessageHandler:
         self.log.debug(f"Handling {msg}")
         if msg.data is None:
             return
-        if msg.sender_name == b"COORDINATOR":
+        if msg.sender_name == b"COORDINATOR" and isinstance(msg.data, (tuple, list)):
             for message in msg.data:
                 if message == [Commands.ERROR, Errors.NOT_SIGNED_IN]:
                     self.node = None
-                    self.fname = self.name
+                    self.full_name = self.name
                     try:
                         del self.logHandler.fullname
                     except AttributeError:
@@ -212,9 +221,9 @@ class MessageHandler:
                     return
                 elif self.node is None and message[0] == Commands.ACKNOWLEDGE:
                     self.node = msg.sender_node.decode()
-                    self.fname = ".".join((self.node, self.name))
+                    self.full_name = ".".join((self.node, self.name))
                     try:
-                        self.logHandler.fullname = self.fname
+                        self.logHandler.fullname = self.full_name
                     except AttributeError:
                         pass
                     self.log.info(f"Signed in to Node '{self.node}'.")
@@ -254,7 +263,7 @@ class MessageHandler:
                     pass  # empty message
                 else:
                     reply.append(self.handle_command(*message))
-            self.handle_reply(msg, reply)
+            self.handle_reply(original_message=msg, reply=reply)
         else:
             self.log.warning(f"Unknown message received: '{msg.data}'.")
 
@@ -267,18 +276,18 @@ class MessageHandler:
         """
         raise NotImplementedError("Implement in subclass.")
 
-    def handle_reply(self, original_message: Message, reply: list):
+    def handle_reply(self, original_message: Message, reply: list) -> None:
         """Handle the created reply."""
         response = Message(receiver=original_message.sender,
                            conversation_id=original_message.conversation_id,
                            data=reply)
-        self.send_message(response)
+        self.send_message(message=response)
 
 
 class BaseController(MessageHandler):
     """Control something, allow to get/set properties and call methods."""
 
-    def handle_command(self, command, content=None):
+    def handle_command(self, command: str, content: Optional[object] = None) -> tuple:
         """Handle commands."""
         # HACK noqa while flake does not recognize "match"
         match command:  # noqa
@@ -288,8 +297,10 @@ class BaseController(MessageHandler):
                 return self._set_properties(content)
             case Commands.CALL:
                 return self._call(content)
+            case _:
+                return ()
 
-    def _get_properties(self, properties):
+    def _get_properties(self, properties: list | tuple) -> tuple:
         """Internal method, includes response Command type."""
         # TODO error handling
         try:
@@ -299,7 +310,7 @@ class BaseController(MessageHandler):
         except Exception as exc:
             return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
 
-    def _set_properties(self, properties):
+    def _set_properties(self, properties: dict) -> tuple:
         """Internal method, includes response Command type."""
         try:
             self.set_properties(properties)
@@ -309,9 +320,9 @@ class BaseController(MessageHandler):
             self.log.exception("Setting properties failed", exc_info=exc)
             return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
         else:
-            return Commands.ACKNOWLEDGE
+            return Commands.ACKNOWLEDGE,
 
-    def _call(self, content):
+    def _call(self, content: dict):
         """Internal method, includes response Command type."""
         method = content.pop("_name")
         args = content.pop("_args", ())
@@ -322,7 +333,7 @@ class BaseController(MessageHandler):
         except Exception as exc:
             return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
 
-    def get_properties(self, properties):
+    def get_properties(self, properties: list | tuple) -> dict:
         """Get properties from the list `properties`."""
         data = {}
         for key in properties:
@@ -331,7 +342,7 @@ class BaseController(MessageHandler):
                 raise TypeError(f"Attribute '{key}' is a callable!")
         return data
 
-    def set_properties(self, properties):
+    def set_properties(self, properties: dict) -> None:
         """Set properties from a dictionary."""
         for key, value in properties.items():
             setattr(self, key, value)

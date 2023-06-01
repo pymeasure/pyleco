@@ -24,16 +24,18 @@
 
 import pytest
 
-from pyleco.utils import FakeContext, Commands, Message, CommunicationError
-
-from pyleco.coordinator_utils import ZmqNode, Directory, Node, ZmqMultiSocket, FakeNode
+from pyleco.test import FakeContext
+from pyleco.core.enums import Commands
+from pyleco.core.message import Message
+from pyleco.errors import CommunicationError
+from pyleco.utils.coordinator_utils import ZmqNode, ZmqMultiSocket, Node, Directory, FakeNode
 
 
 class TestZmqMultiSocket:
     @pytest.fixture
     def socket(self):
-        socket = ZmqMultiSocket(context=FakeContext())
-        socket._sock._r = [[b"id", b"version", b"receiver", b"sender", b"header", b"data"]]  # noqa: E501 type: ignore
+        socket = ZmqMultiSocket(context=FakeContext())  # type: ignore
+        socket._sock._r = [[b"id", b"version", b"receiver", b"sender", b"header", b"data"]]  # noqa: E501
         return socket
 
     def test_poll_True(self, socket):
@@ -99,8 +101,7 @@ def fake_perf_counter():
 
 @pytest.fixture()
 def fake_counting(monkeypatch):
-    # TODO adjust to pyleco
-    monkeypatch.setattr("pyleco.coordinator_utils.perf_counter", fake_perf_counter)
+    monkeypatch.setattr("pyleco.utils.coordinator_utils.perf_counter", fake_perf_counter)
 
 
 class Test_add_component:

@@ -5,7 +5,7 @@ from pymeasure.adapters import ProtocolAdapter
 from pymeasure.instruments import Instrument
 import pytest
 
-from pyleco.actor import Actor
+from pyleco.actors.actor import Actor
 
 
 class FantasyInstrument(Instrument):

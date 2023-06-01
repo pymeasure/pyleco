@@ -29,10 +29,12 @@ import threading
 
 import pytest
 
-from pyleco.coordinator import Coordinator
-from pyleco.intercom import Communicator
-from pyleco.utils import Commands, Message
-from pyleco.listener import BaseListener
+from pyleco.core.enums import Commands
+from pyleco.core.message import Message
+from pyleco.utils.listener import BaseListener
+from pyleco.utils.communicator import SimpleCommunicator as Communicator
+
+from pyleco.coordinators.coordinator import Coordinator
 
 
 hostname = gethostname()

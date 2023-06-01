@@ -24,66 +24,16 @@
 
 import pytest
 
-from pyleco import utils
-from pyleco.utils import VERSION_B
+from pyleco.core import VERSION_B
 
-
-message_tests = (
-    ({'receiver': "broker", 'data': [["GET", [1, 2]], ["GET", 3]], 'sender': 's'},
-     [VERSION_B, b"broker", b"s", b";", b'[["GET", [1, 2]], ["GET", 3]]']),
-    ({'receiver': "someone", 'conversation_id': b"123", 'sender': "ego", 'message_id': b"1"},
-     [VERSION_B, b'someone', b'ego', b'123;1']),
-    ({'receiver': "router", 'sender': "origin"},
-     [VERSION_B, b"router", b"origin", b";"]),
-)
-
-
-@pytest.mark.parametrize("kwargs, header", (
-    ({}, b";"),
-))
-def test_create_header_frame(kwargs, header):
-    assert utils.create_header_frame(**kwargs) == header
-
-
-@pytest.mark.parametrize("kwargs, message", (
-    ({'receiver': b"receiver"}, [VERSION_B, b"receiver", b"", b";"]),
-    ({'receiver': b"receiver", "payload": [b"abc"]}, [VERSION_B, b"receiver", b"", b";", b"abc"]),
-    ({'receiver': b"receiver", "payload": b"abc"}, [VERSION_B, b"receiver", b"", b";", b"abc"]),
-    ({'receiver': b"r", 'payload': [b"xyz"], "message_id": b"7"},
-     [VERSION_B, b"r", b"", b";7", b"xyz"]),
-))
-def test_create_message(kwargs, message):
-    assert utils.create_message(**kwargs) == message
-
-
-@pytest.mark.parametrize("full_name, node, name", (
-    (b"local only", b"node", b"local only"),
-    (b"abc.def", b"abc", b"def"),
-))
-def test_split_name(full_name, node, name):
-    assert utils.split_name(full_name, b"node") == (node, name)
-
-
-@pytest.mark.parametrize("kwargs, message", message_tests)
-def test_compose_message(kwargs, message):
-    assert utils.compose_message(**kwargs) == message
-
-
-@pytest.mark.parametrize("kwargs, message", message_tests)
-def test_split_message(kwargs, message):
-    receiver, sender, conversation_id, message_id, data = utils.split_message(message)
-    assert receiver == kwargs.get('receiver')
-    assert conversation_id == kwargs.get('conversation_id', b"")
-    assert sender == kwargs.get('sender', "")
-    assert message_id == kwargs.get('message_id', b"")
-    assert data == kwargs.get("data")
+from pyleco.core.message import Message
 
 
 class Test_Message_from_frames:
     @pytest.fixture
     def message(self):
-        return utils.Message.from_frames(b"\xffo", b"rec", b"send", b"x;y",
-                                         b'[["GET", [1, 2]], ["GET", 3]]')
+        return Message.from_frames(b"\xffo", b"rec", b"send", b"x;y",
+                                   b'[["GET", [1, 2]], ["GET", 3]]')
 
     def test_payload(self, message):
         assert message.payload == [b'[["GET", [1, 2]], ["GET", 3]]']
@@ -101,13 +51,13 @@ class Test_Message_from_frames:
         assert message.header == b"x;y"
 
     def test_multi_payload(self):
-        message = utils.Message.from_frames(
+        message = Message.from_frames(
             b"\xffo", b"broker", b"", b";", b'[["GET", [1, 2]], ["GET", 3]]', b"additional stuff"
         )
         assert message.payload == [b'[["GET", [1, 2]], ["GET", 3]]', b"additional stuff"]
 
     def test_no_payload(self):
-        message = utils.Message.from_frames(VERSION_B, b"broker", b"", b";")
+        message = Message.from_frames(VERSION_B, b"broker", b"", b";")
         assert message.payload == []
 
     def test_get_frames_list(self, message):
@@ -118,7 +68,7 @@ class Test_Message_from_frames:
 class Test_Message_create_message:
     @pytest.fixture
     def message(self):
-        return utils.Message(
+        return Message(
             receiver=b"rec",
             sender=b"send",
             data=[["GET", [1, 2]], ["GET", 3]],
@@ -155,33 +105,52 @@ class Test_Message_create_message:
         assert message.get_frames_list() == [VERSION_B, b"rec", b"send", b"x;y"]
 
 
+class Test_Message_with_strings:
+    @pytest.fixture
+    def str_message(self):
+        message = Message("N2.receiver", "N1.sender")
+        return message
+
+    def test_receiver_is_bytes(self, str_message):
+        assert str_message.receiver == b"N2.receiver"
+
+    def test_sender_is_bytes(self, str_message):
+        assert str_message.sender == b"N1.sender"
+
+    def test_str_return_values(self, str_message):
+        assert str_message.receiver_str == "N2.receiver"
+        assert str_message.sender_str == "N1.sender"
+        assert str_message.receiver_node_str == "N2"
+        assert str_message.sender_name_str == "sender"
+
+
 class Test_Message_data_payload_conversion:
     def test_data_to_payload(self):
-        message = utils.Message(b"r", b"s", data=([{5: "1asfd"}], 8))
+        message = Message(b"r", b"s", data=([{5: "1asfd"}], 8))
         assert message.payload == [b'[[{"5": "1asfd"}], 8]']
         assert message.data == ([{5: "1asfd"}], 8)
 
     def test_payload_to_data(self):
-        message = utils.Message.from_frames(b"v", b"r", b"s", b"h", b'[["G", ["nodes"]]]', b'p2')
+        message = Message.from_frames(b"v", b"r", b"s", b"h", b'[["G", ["nodes"]]]', b'p2')
         assert message.payload == [b'[["G", ["nodes"]]]', b'p2']
         assert message.data == [["G", ["nodes"]]]
 
 
 def test_message_comparison():
-    m1 = utils.Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
-    m2 = utils.Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
+    m1 = Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
+    m2 = Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
     assert m1 == m2
 
 
 @pytest.mark.parametrize("property", ("receiver", "sender", "header"))
 def test_set_property_resets_cache(property):
-    m = utils.Message(b"r")
+    m = Message(b"r")
     setattr(m, f"_{property}_elements", [b"some", b"value"])
     setattr(m, property, b"new value")
     assert getattr(m, f"_{property}_elements") is None
 
 
 def test_get_frames_list_raises_error_on_empty_sender():
-    m = utils.Message(b"r")
+    m = Message(b"r")
     with pytest.raises(ValueError):
         m.get_frames_list()

@@ -24,9 +24,13 @@
 
 import pytest
 
-from pyleco.utils import VERSION_B, FakeContext, Commands, Errors, Message
-from pyleco.coordinator import Coordinator
-from pyleco.coordinator_utils import FakeMultiSocket, FakeNode
+from pyleco.core import VERSION_B
+from pyleco.core.enums import Commands, Errors
+from pyleco.core.message import Message
+from pyleco.utils.coordinator_utils import FakeMultiSocket, FakeNode
+from pyleco.test import FakeContext
+
+from pyleco.coordinators.coordinator import Coordinator
 
 
 @pytest.fixture
@@ -57,8 +61,7 @@ def fake_perf_counter():
 @pytest.fixture()
 def fake_counting(monkeypatch):
     # TODO adjust to pyleco
-    # monkeypatch.setattr("devices.coordinator.perf_counter", fake_perf_counter)
-    monkeypatch.setattr("devices.coordinator_utils.perf_counter", fake_perf_counter)
+    monkeypatch.setattr("pyleco.utils.coordinator_utils.perf_counter", fake_perf_counter)
 
 
 class Test_clean_addresses:

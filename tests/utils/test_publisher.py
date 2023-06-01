@@ -24,9 +24,9 @@
 
 import pytest
 
-from pyleco.utils import FakeContext
+from pyleco.test import FakeContext
 
-from pyleco.publisher import Publisher
+from pyleco.utils.publisher import Publisher
 
 
 @pytest.fixture

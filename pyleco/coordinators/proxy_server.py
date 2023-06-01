@@ -22,6 +22,32 @@
 # THE SOFTWARE.
 #
 
+"""
+Zero MQ Proxy server for data exchange.
+
+methods
+-------
+pub_sub_proxy
+    Listens on port 11100 and publishes to 11099, available to all IP addresses.
+pub_sub_remote_proxy
+    Connects two local proxy servers on different computers, connecting to their
+    publisher port at 11099 and publishing to the local proxy at 11100
+start_proxy
+    Start a proxy server of either type. If it is merely local, a local server
+    is started, otherwise a connecting proxy.
+
+
+Execute this module to start a proxy server. If no remote connection given, a
+local proxy is created (necessary for remote proxies).
+command line arguments:
+    -v show all the data passing through the proxy
+    -s NAME/IP Subscribe to the local proxy of some other computer
+    -p NAME/IP Publish to the local proxy of some other computer
+
+
+Created on Mon Jun 27 09:57:05 2022 by Benedikt Moneke
+"""
+
 import logging
 import sys
 import threading
@@ -30,15 +56,17 @@ import zmq
 
 log = logging.Logger(__name__)
 
+port = 11100
+
 
 # Technical method to start the proxy server. Use `start_proxy` instead.
-def pub_sub_proxy(context, captured=False):
+def pub_sub_proxy(context, captured=False, offset=0):
     """Start a publisher subscriber proxy."""
-    log.info("Start local proxy server.")
+    log.info(f"Start local proxy server with offset {offset}.")
     s = context.socket(zmq.XSUB)
     p = context.socket(zmq.XPUB)
-    s.bind("tcp://*:11100")
-    p.bind("tcp://*:11099")
+    s.bind(f"tcp://*:{port - 2 * offset}")
+    p.bind(f"tcp://*:{port -1 - 2 * offset}")
     if captured:
         c = context.socket(zmq.PUB)
         c.bind("inproc://capture")
@@ -53,13 +81,13 @@ def pub_sub_proxy(context, captured=False):
 
 
 # Technical method to start the proxy server. Use `start_proxy` instead.
-def pub_sub_remote_proxy(context, captured=False, sub="localhost", pub="localhost"):
+def pub_sub_remote_proxy(context, captured=False, sub="localhost", pub="localhost", offset=0):
     """Start a publisher subscriber remote proxy between two local proxies."""
     log.info(f"Start remote proxy server subsribing to {sub} and publishing to {pub}.")
     s = context.socket(zmq.XSUB)
     p = context.socket(zmq.XPUB)
-    s.connect(f"tcp://{sub}:11099")
-    p.connect(f"tcp://{pub}:11100")
+    s.connect(f"tcp://{sub}:{port -1 - 2 * offset}")
+    p.connect(f"tcp://{pub}:{port - 2 * offset}")
     if captured:
         c = context.socket(zmq.PUB)
         c.bind("inproc://capture")
@@ -73,7 +101,7 @@ def pub_sub_remote_proxy(context, captured=False, sub="localhost", pub="localhos
         log.exception("Some other exception on proxy happened.", exc)
 
 
-def start_proxy(context=None, captured=False, sub="localhost", pub="localhost"):
+def start_proxy(context=None, captured=False, sub="localhost", pub="localhost", offset=0):
     """Start a proxy server, either local or remote, in its own thread.
 
     Examples:
@@ -100,10 +128,10 @@ def start_proxy(context=None, captured=False, sub="localhost", pub="localhost"):
     """
     context = context or zmq.Context.instance()
     if sub == "localhost" and pub == "localhost":
-        thread = threading.Thread(target=pub_sub_proxy, args=(context, captured))
+        thread = threading.Thread(target=pub_sub_proxy, args=(context, captured, offset))
     else:
         thread = threading.Thread(target=pub_sub_remote_proxy,
-                                  args=(context, captured, sub, pub))
+                                  args=(context, captured, sub, pub, offset))
     thread.daemon = True
     thread.start()
     log.info("Proxy thread started.")
@@ -125,15 +153,18 @@ if __name__ == "__main__":
         except IndexError:
             pass
     if kwargs:
-        print(f"Remote proxy from {kwargs.get('sub', 'localhost')} to {kwargs.get('pub', 'localhost')}.")
+        print(f"Remote proxy from {kwargs.get('sub', 'localhost')} "
+              f"to {kwargs.get('pub', 'localhost')}.")
     else:
         print(
             "This data broker manages the data between measurement software, "
-            "which publishe on port 11100, and all the consumers of data "
-            " (DataLogger, Beamprofiler etc.), which subscribe on port 11099."
+            f"which publishe on port {port}, and all the consumers of data "
+            f" (DataLogger, Beamprofiler etc.), which subscribe on port {port -1}."
         )
 
     context = start_proxy(captured=captured, **kwargs)
+    if not kwargs:
+        start_proxy(offset=1)  # for log entries
     reader = context.socket(zmq.SUB)
     reader.connect("inproc://capture")
     reader.subscribe(b"")

@@ -24,23 +24,28 @@
 
 import pytest
 
-from pyleco.utils import Message, VERSION_B, Commands, compose_message, FakeContext
+from pyleco.core import VERSION_B
 
-from pyleco.listener import BaseListener
+from pyleco.core.message import Message
+from pyleco.core.enums import Commands
+from pyleco.core.serialization import compose_message
+from pyleco.test import FakeContext
+
+from pyleco.utils.listener import BaseListener
 
 
 @pytest.fixture
-def listener():
+def listener() -> BaseListener:
     listener = BaseListener(name="test", context=FakeContext())
     listener.node = "N1"
-    listener.fname = "N1.test"
+    listener.full_name = "N1.test"
     return listener
 
 
 cid = b"7"  # conversation_id
 # the result
-msg = Message.create_message_with_conversion("r", "s", conversation_id=b"7", message_id=b"1")
-msg_list = ["r", "s", b"7", b"", None]
+msg = Message(b"r", b"s", conversation_id=b"7", message_id=b"1")
+msg_list = ("r", "s", b"7", b"", None)
 # some different message
 other = Message(b"r", b"s", conversation_id=b"9", message_id=b"1")
 

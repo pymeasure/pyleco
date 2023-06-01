@@ -24,15 +24,17 @@
 
 import pytest
 
-from pyleco.utils import VERSION_B, FakeContext
-from pyleco.controller import MessageHandler, InfiniteEvent
+from pyleco.core import VERSION_B
+from pyleco.test import FakeContext
+
+from pyleco.utils.message_handler import MessageHandler, InfiniteEvent
 
 
 @pytest.fixture()
-def handler():
+def handler() -> MessageHandler:
     handler = MessageHandler(name="test", context=FakeContext())
     handler.node = "N1"
-    handler.fname = "N1.test"
+    handler.full_name = "N1.test"
     handler.stop_event = InfiniteEvent()
     return handler
 
