@@ -22,26 +22,30 @@
 # THE SOFTWARE.
 #
 
-from typing import Any
+import logging
+from typing import Dict
 
-from jsonrpcobjects.objects import ErrorObject, ErrorObjectData, ErrorResponseObject
-
-# TODO define valid error codes
-
-# Routing errors (Coordinator)
-NOT_SIGNED_IN = ErrorObject(code=1234, message="You did not sign in!")
-DUPLICATE_NAME = ErrorObject(code=456, message="The name is already taken.")
-NODE_UNKNOWN = ErrorObject(code=4324, message="Node is not known.")
-RECEIVER_UNKNOWN = ErrorObject(code=123213, message="Receiver is not in addresses list.")
+from .director import Director as Director
 
 
-def generate_error_with_data(error: ErrorObject, data: Any) -> ErrorObjectData:
-    return ErrorObjectData(code=error.code, message=error.message, data=data)
+log = logging.getLogger(__name__)
+log.addHandler(logging.NullHandler())
 
 
-class CommunicationError(ConnectionError):
-    """Something went wrong, send a `error_msg` to the recipient."""
+class CoordinatorDirector(Director):
+    """Direct a Coordinator."""
 
-    def __init__(self, text: str, error_payload: ErrorResponseObject, *args: Any) -> None:
-        super().__init__(text, *args)
-        self.error_payload = error_payload
+    def __init__(self, actor="COORDINATOR", **kwargs) -> None:
+        super().__init__(actor=actor, **kwargs)
+
+    def get_directory(self) -> dict:
+        """Get the directory."""
+        return self.call_method_rpc(method="compose_local_directory")
+
+    def get_global_directory(self) -> dict:
+        """Get the directory."""
+        return self.call_method_rpc(method="compose_global_directory")
+
+    def set_directory(self, coordinators: Dict[str, str]) -> None:
+        """Tell the Coordinator about other coordinators (dict)."""
+        return self.call_method_rpc(method="set_nodes", nodes=coordinators)

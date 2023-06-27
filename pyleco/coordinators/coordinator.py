@@ -24,22 +24,26 @@
 
 import logging
 from socket import gethostname
+from typing import List, Optional
 
+from jsonrpcobjects.objects import ErrorResponseObject, RequestObject, RequestObjectParams
+from openrpc import RPCServer
 import zmq
 
 try:
     from ..utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket
-    from ..core.enums import Commands, Errors
     from ..core.message import Message
-    from ..core.serialization import deserialize_data
     from ..errors import CommunicationError
+    from ..errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
     from ..utils.timers import RepeatingTimer
     from ..utils.zmq_log_handler import ZmqLogHandler
 except ImportError as exc:
-    import_error = exc
+    from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket
     from pyleco.core.message import Message
-else:
-    import_error = None
+    from pyleco.errors import CommunicationError
+    from pyleco.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
+    from pyleco.utils.timers import RepeatingTimer
+    from pyleco.utils.zmq_log_handler import ZmqLogHandler
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -61,6 +65,10 @@ class Coordinator:
     :param expiration_time: Time, when a stored address expires in s.
     :param context: ZMQ context or similar.
     """
+
+    current_message: Message
+    current_identity: bytes
+    closed: bool = False
 
     def __init__(self, namespace: str | bytes | None = None,
                  host: str | None = None, port: int = 12300,
@@ -88,14 +96,34 @@ class Coordinator:
                                       args=(expiration_time,))
 
         self.cleaner.start()
-        self.closed = False
 
         context = zmq.Context.instance() if context is None else context
         self.sock = ZmqMultiSocket(context) if multi_socket is None else multi_socket
         self.context = context
         self.sock.bind(port=port)
 
+        self.register_methods()
+
         super().__init__(**kwargs)
+
+    def register_methods(self):
+        """Add methods to the OpenRPC register and change the name."""
+        rpc = RPCServer(title="COORDINATOR", debug=True)
+        rpc.title = self.fname.decode()
+        rpc.method(self.sign_in)
+        rpc.method(self.sign_out)
+        rpc.method(self.coordinator_sign_in)
+        rpc.method(self.coordinator_sign_out)
+        rpc.method(self.set_nodes)
+        rpc.method(self.set_remote_components)
+        rpc.method(self.set_log_level)
+        rpc.method(self.compose_global_directory)
+        rpc.method(self.compose_local_directory, description=self.compose_local_directory.__doc__)
+        rpc.method(self.directory.get_component_names)
+        rpc.method(self.clean_addresses, description=self.clean_addresses.__doc__)
+        rpc.method(self.shutdown)
+        rpc.method(self.pong)
+        self.rpc = rpc
 
     def __del__(self) -> None:
         self.close()
@@ -110,19 +138,19 @@ class Coordinator:
         """Sign out and close the sockets."""
         log.debug("Closing Coordinator.")
         if not self.closed:
-            self.sign_out()
+            self.sign_out_from_all_coordinators()
             self.sock.close(1)
             self.cleaner.cancel()
             log.info(f"Coordinator {self.fname} closed.")
             self.closed = True
 
-    def create_message(self, receiver: bytes, data: object = None, **kwargs) -> Message:
+    def create_message(self, receiver: bytes, data: Optional[bytes | str | object] = None,
+                       **kwargs) -> Message:
         return Message(receiver=receiver, sender=self.fname, data=data, **kwargs)
 
     def send_message(self, receiver: bytes, data: object = None, **kwargs) -> None:
         """Send a message with any socket, including routing.
 
-        :param identity: Connection identity to send to.
         :param receiver: Receiver name
         :param data: Object to send.
         :param \\**kwargs: Keyword arguments for the header.
@@ -132,7 +160,7 @@ class Coordinator:
                                              **kwargs))
 
     def send_main_sock_reply(self, sender_identity: bytes, original_message: Message,
-                             data: object = None) -> None:
+                             data: Optional[bytes | str | object] = None) -> None:
         response = self.create_message(receiver=original_message.sender,
                                        data=data,
                                        conversation_id=original_message.conversation_id,)
@@ -151,14 +179,15 @@ class Coordinator:
         to_admonish = self.directory.find_expired_components(expiration_time=expiration_time)
         for identity, name in to_admonish:
             message = self.create_message(receiver=b".".join((self.namespace, name)),
-                                          data=[[Commands.PING]])
+                                          data=RequestObject(id=0, method="pong"))
             self.sock.send_message(identity, message)
         self.publish_directory_update()
 
-    def routing(self, coordinators: list | None = None) -> None:
+    def routing(self, coordinators: Optional[List[str]] = None) -> None:
         """Route all messages.
 
         Connect to Coordinators at the beginning.
+
         :param list coordinators: list of coordinator addresses.
         """
         # Connect to Coordinators.
@@ -187,7 +216,10 @@ class Coordinator:
             self.deliver_message(sender_identity=sender_identity, message=message)
 
     def deliver_message(self, sender_identity: bytes, message: Message) -> None:
-        """Deliver a message `msg` from some `sender_identity` to some recipient."""
+        """Deliver a message `message` from some `sender_identity` to some recipient.
+
+        Messages from this Coordinator must have :code:`sender_identity = b""`.
+        """
         log.debug(f"From identity {sender_identity}, from {message.sender}, to {message.receiver},"
                   f" mid {message.message_id}, cid {message.conversation_id}, {message.payload}")
         # Update heartbeat
@@ -206,9 +238,9 @@ class Coordinator:
             try:
                 self.directory.send_node_message(namespace=message.receiver_node, message=message)
             except ValueError:
+                error = generate_error_with_data(NODE_UNKNOWN, data=message.receiver_node_str)
                 self.send_message(receiver=message.sender,
-                                  data=[[Commands.ERROR, Errors.NODE_UNKNOWN,
-                                         message.receiver_node.decode()]],
+                                  data=ErrorResponseObject(id=None, error=error),
                                   conversation_id=message.conversation_id,
                                   )
         elif message.receiver_name == b"COORDINATOR":
@@ -219,9 +251,10 @@ class Coordinator:
                 receiver_identity = self.directory.get_component_id(name=message.receiver_name)
             except ValueError:
                 log.error(f"Receiver '{message.receiver}' is not in the addresses list.")
+                error = generate_error_with_data(RECEIVER_UNKNOWN, data=message.receiver_str)
                 self.send_message(receiver=message.sender, conversation_id=message.conversation_id,
-                                  data=[[Commands.ERROR, Errors.RECEIVER_UNKNOWN,
-                                         message.receiver.decode()]])
+                                  data=ErrorResponseObject(id=None, error=error),
+                                  )
             else:
                 self.sock.send_message(receiver_identity, message)
 
@@ -233,135 +266,89 @@ class Coordinator:
         """
         if not message.payload:
             return  # Empty payload, just heartbeat.
-        try:
-            data = deserialize_data(content=message.payload[0])
-        except ValueError as exc:
-            log.exception("Payload decoding error.", exc_info=exc)
-            return  # TODO error message
-        log.debug(f"Coordinator commands: {data}")
-        reply = []
-        try:
-            for command in data:  # type: ignore due to try clause
-                if not command:
-                    continue  # nothing to handle.
-                elif command[0] == Commands.ACKNOWLEDGE:
-                    # Handle requestes responses.
-                    # No requests implemented yet.
-                    return  # A response should not cause an answer
-                # Component sign-in / sign-out
-                elif command[0] == Commands.SIGNIN:
-                    try:
-                        self.directory.add_component(name=message.sender_name,
-                                                     identity=sender_identity)
-                    except ValueError:
-                        log.info(f"Another Component at {sender_identity} "
-                                 f"tries to sign in as {message.sender_name}.")
-                        self.send_main_sock_reply(sender_identity=sender_identity,
-                                                  original_message=message,
-                                                  data=[[Commands.ERROR, Errors.DUPLICATE_NAME]])
-                        return
-                    else:
-                        log.info(f"New Component {message.sender_name} at {sender_identity}.")
-                        reply.append([Commands.ACKNOWLEDGE])
-                        self.publish_directory_update()
-                elif command[0] == Commands.SIGNOUT:
-                    try:
-                        self.directory.remove_component(name=message.sender_name,
-                                                        identity=sender_identity)
-                    except ValueError:
-                        self.send_main_sock_reply(sender_identity=sender_identity,
-                                                  original_message=message,
-                                                  data=[[Commands.ERROR, Errors.NAME_NOT_FOUND]])
-                    else:
-                        reply.append([Commands.ACKNOWLEDGE])
-                        log.info(f"Component {message.sender_name} signed out.")
-                        self.publish_directory_update()
-                # Coordinator sign-in / sign-out
-                elif command[0] == Commands.CO_SIGNIN:
-                    try:
-                        self.directory.add_node_receiver(identity=sender_identity,
-                                                         namespace=message.sender_node)
-                    except ValueError:
-                        log.info(f"Another Coordinator at {sender_identity} "
-                                 f"tries to sign in as {message.sender}.")
-                        self.send_main_sock_reply(sender_identity=sender_identity,
-                                                  original_message=message,
-                                                  data=[[Commands.ERROR, Errors.DUPLICATE_NAME]])
-                    else:
-                        self.send_main_sock_reply(sender_identity=sender_identity,
-                                                  original_message=message,
-                                                  data=[[Commands.ACKNOWLEDGE]])
-                    return
-                elif command[0] == Commands.CO_SIGNOUT and message.sender_name == b"COORDINATOR":
-                    try:
-                        node = self.directory.get_node(namespace=message.sender_node)
-                    except ValueError:
-                        log.warning(f"Not signed in Coordinator {message.sender_node} signs out.")
-                        return  # TBD what to do, if it is not known
-                    try:
-                        self.directory.remove_node(namespace=message.sender_node,
-                                                   identity=sender_identity)
-                    except CommunicationError as exc:
-                        self.send_main_sock_reply(sender_identity=sender_identity,
-                                                  original_message=message,
-                                                  data=[exc.error_payload])
-                    else:
-                        node.send_message(Message(
-                            receiver=message.sender_node + b".COORDINATOR",
-                            sender=self.fname,
-                            conversation_id=message.conversation_id,
-                            data=[[Commands.CO_SIGNOUT]],
-                        ))
-                    return
-                # Control the Coordinator itself
-                elif command[0] == Commands.OFF:
-                    self.running = False
-                    self.sign_out()
-                    reply.append([Commands.ACKNOWLEDGE])
-                elif command[0] == Commands.CLEAR:
-                    self.clean_addresses(0)
-                    reply.append([Commands.ACKNOWLEDGE])
-                elif command[0] == Commands.LIST:
-                    reply.append([Commands.ACKNOWLEDGE, self.compose_global_directory()])
-                elif command[0] == Commands.SET:
-                    for key, value in command[1].items():
-                        if key == "directory":
-                            # TODO assumes to receive always full updates, no diffs
-                            self.global_directory[message.sender_node] = value
-                        elif key == "nodes":
-                            for node, address in value.items():
-                                node = node.encode()
-                                try:
-                                    self.directory.add_node_sender(ZmqNode(context=self.context),
-                                                                   address=address, namespace=node)
-                                except ValueError:
-                                    pass  # already connected
-                    reply.append([Commands.ACKNOWLEDGE])
-                elif command[0] == Commands.GET:
-                    if len(command) > 1 and isinstance(command[1], (list, tuple)):
-                        data = {}
-                        for prop in command[1]:
-                            if prop == "directory":
-                                data["directory"] = self.directory.get_component_names()
-                            elif prop == "nodes":
-                                data["nodes"] = self.compose_local_directory()["nodes"]
-                        reply.append([Commands.ACKNOWLEDGE, data])
-                    else:
-                        reply.append([Commands.ERROR, Errors.EXECUTION_FAILED])
-                elif command[0] == Commands.LOG:
-                    log.setLevel(command[1])
-                    reply.append([Commands.ACKNOWLEDGE])
-        except Exception as exc:
-            log.exception("Handling commands failed.", exc_info=exc)
-        log.debug(f"Reply {reply} to {message.sender} at node {message.sender_node}.")
-        if message.sender_node == self.namespace or message.sender_node == b"":
+        self.current_message = message
+        self.current_identity = sender_identity
+        if b'"jsonrpc"' in message.payload[0]:
+            log.warning(f"Message {message} as command!")
+            log.debug(f"Coordinator json commands: {message.payload[0]}")
+            if b'"method":' in message.payload[0]:
+                self.handle_rpc_call(sender_identity=sender_identity, message=message)
+            elif b'"error"' in message.payload[0]:
+                log.error(f"Error from {message.sender} received: {message.payload[0]}.")
+            elif b'"result": null' in message.payload[0]:
+                pass  # acknowledgement == heartbeat
+            else:
+                log.error(f"Unknown message from {message.sender} received: {message.payload[0]}")
+            return
+        else:
+            # TODO raise an error?
+            log.error(f"Unknown message from {message.sender} received: {message.payload[0]}")
+
+    def handle_rpc_call(self, sender_identity: bytes, message: Message) -> None:
+        reply = self.rpc.process_request(message.payload[0])
+        log.debug(f"Reply {repr(reply)} to {message.sender} at node {message.sender_node}.")
+        if (message.sender_node == self.namespace or message.sender_node == b""):
             self.send_main_sock_reply(sender_identity=sender_identity, original_message=message,
                                       data=reply)
         else:
-            self.send_message(receiver=message.sender, conversation_id=message.conversation_id,
-                              data=reply)
+            reply_message = Message(receiver=message.sender,
+                                    conversation_id=message.conversation_id, data=reply)
+            self.deliver_message(sender_identity=b"", message=reply_message)
+
+    def sign_in(self) -> None:
+        message = self.current_message
+        sender_identity = self.current_identity
+        self.directory.add_component(name=message.sender_name, identity=sender_identity)
+        log.info(f"New Component {message.sender_name} at {sender_identity}.")
+        self.publish_directory_update()
 
     def sign_out(self) -> None:
+        message = self.current_message
+        sender_identity = self.current_identity
+        self.directory.remove_component(name=message.sender_name, identity=sender_identity)
+        log.info(f"Component {message.sender_name} signed out.")
+        self.publish_directory_update()
+
+    def coordinator_sign_in(self) -> None:
+        message = self.current_message
+        sender_identity = self.current_identity
+        sender_node = message.sender_node
+        message.sender = message.sender_name  # remove node in order to respond via main socket
+        self.directory.add_node_receiver(identity=sender_identity,
+                                         namespace=sender_node)
+
+    def coordinator_sign_out(self) -> None:
+        message = self.current_message
+        sender_identity = self.current_identity
+        assert message.sender_name == b"COORDINATOR", (
+            "Only Coordinators may use coordinator sign out.")
+        node = self.directory.get_node(namespace=message.sender_node)
+        self.directory.remove_node(namespace=message.sender_node, identity=sender_identity)
+        node.send_message(Message(
+                receiver=message.sender_node + b".COORDINATOR",
+                sender=self.fname,
+                conversation_id=message.conversation_id,
+                data=RequestObject(id=100, method="coordinator_sign_out")
+            ))
+
+    def set_nodes(self, nodes: dict) -> None:  # : Dict[str, str]
+        for node, address in nodes.items():
+            node = node.encode()
+            try:
+                self.directory.add_node_sender(ZmqNode(context=self.context),
+                                               address=address, namespace=node)
+            except ValueError:
+                pass  # already connected
+
+    def set_remote_components(self, components: List[str]) -> None:
+        message = self.current_message
+        self.global_directory[message.sender_node] = components
+
+    @staticmethod
+    def set_log_level(level: int) -> None:
+        log.setLevel(level)
+
+    def sign_out_from_all_coordinators(self) -> None:
         """Sign out from other Coordinators."""
         self.directory.sign_out_from_all_nodes()
 
@@ -384,20 +371,28 @@ class Coordinator:
         # TODO TBD whether to send the whole directory or only a diff.
         directory = self.compose_local_directory()
         for node in self.directory.get_nodes().keys():
-            self.send_message(receiver=b".".join((node, b"COORDINATOR")),
-                              data=[[Commands.SET, directory]])
+            # self.send_message(receiver=b".".join((node, b"COORDINATOR")),
+            #                   data=[[Commands.SET, directory]])
+            self.send_message(
+                receiver=b".".join((node, b"COORDINATOR")),
+                data=[RequestObjectParams(id=2, method="set_nodes",
+                                          params={"nodes": directory.get("nodes", {})}).dict(),
+                      RequestObjectParams(
+                        id=3, method="set_remote_components",
+                        params={"components": directory.get("directory", [])}).dict()])
+
+    def shutdown(self) -> None:
+        self.running = False
+        self.sign_out_from_all_coordinators()
+
+    def pong(self) -> None:
+        """Respond in order to test the connection"""
+        pass
 
 
 if __name__ == "__main__":
     # Absolute imports if the file is executed.
     from argparse import ArgumentParser  # noqa: F811
-    from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket  # noqa: F811
-    from pyleco.core.enums import Commands, Errors  # noqa: F811
-    from pyleco.core.message import Message  # noqa: F811
-    from pyleco.core.serialization import deserialize_data  # noqa: F811
-    from pyleco.errors import CommunicationError  # noqa: F811
-    from pyleco.utils.timers import RepeatingTimer  # noqa: F811
-    from pyleco.utils.zmq_log_handler import ZmqLogHandler  # noqa: F811
     from pyleco.utils.parser import parse_command_line_parameters  # noqa: F811
 
     # Define parser
@@ -425,6 +420,3 @@ if __name__ == "__main__":
         handler.fullname = c.fname.decode()
         log.addHandler(handler)
         c.routing(coordinators=coordinators)
-elif import_error is not None:
-    # Raise the error, if the file is not executed.
-    raise import_error

@@ -23,6 +23,7 @@
 #
 
 import pytest
+from jsonrpcobjects.objects import RequestObject
 
 from pyleco.core import VERSION_B
 
@@ -78,3 +79,15 @@ def test_split_message(kwargs, message):
     assert sender == kwargs.get('sender', "")
     assert message_id == kwargs.get('message_id', b"")
     assert data == kwargs.get("data")
+
+
+class Test_serialize:
+    def test_json_object(self):
+        obj = RequestObject(id=3, method="whatever")
+        expected = b'{"id": 3, "method": "whatever", "jsonrpc": "2.0"}'
+        assert serialization.serialize_data(obj) == expected
+
+    def test_dict(self):
+        raw = {"some": "item", "key": "value", 5: [7, 3.1]}
+        expected = b'{"some": "item", "key": "value", "5": [7, 3.1]}'
+        assert serialization.serialize_data(raw) == expected

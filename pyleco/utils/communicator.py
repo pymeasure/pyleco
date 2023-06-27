@@ -22,77 +22,26 @@
 # THE SOFTWARE.
 #
 
-from abc import abstractmethod
 import logging
 from time import perf_counter
-from typing import Protocol, Optional
+from typing import Optional, Any
 
+from jsonrpc2pyclient._irpcclient import JSONRPCError
 import zmq
 
+from ..core.protocols import Communicator
 from ..core.message import Message
-from ..core.enums import Commands, Errors
 from ..core.serialization import generate_conversation_id, split_message
-
-
-class Communicator(Protocol):
-    """Definition of a Communicator."""
-
-    name: str
-    node: str | None = None
-
-    # def __init__(
-    #         self,
-    #         name: str,
-    #         host: str = "localhost",
-    #         port: int = 12300,
-    #         protocol: str = "tcp",
-    #         **kwargs
-    # ) -> None:
-    #     self.name = name
-
-    @abstractmethod
-    def send(self, receiver: str | bytes,
-             conversation_id: bytes = b"",
-             data: object = None,
-             **kwargs) -> None:
-        """Send a message based on kwargs."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def send_message(self, message: Message) -> None:
-        """Send a message."""
-        raise NotImplementedError
-
-    # implement?
-    # @abstractmethod
-    # def poll(self, timeout: float | None = 0) -> bool:
-    #     """Check whether a message can be read."""
-    #     raise NotImplementedError
-
-    # @abstractmethod
-    # def read(self) -> Message:
-    #     """Read a message."""
-    #     raise NotImplementedError
-
-    @abstractmethod
-    def ask(self, receiver: bytes | str, conversation_id: bytes = b"",
-            data: object = None,
-            **kwargs) -> Message:
-        """Send a message based on kwargs and retrieve the response."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def ask_message(self, message: Message) -> Message:
-        """Send a message and retrieve the response"""
-        raise NotImplementedError
-
-    @abstractmethod
-    def close(self) -> None:
-        raise NotImplementedError
+from ..core.rpc_generator import RPCGenerator
+from ..errors import NOT_SIGNED_IN
 
 
 class SimpleCommunicator(Communicator):
-    """Sending requests via zmq and reading the answer.
+    """A simple Communicator, which sends requests and reads the answer.
+
+    This Communicator does not listen for incoming messages. It only handles messages, whenever
+    you try to read one. It is intended for sending messages and reading the answer without
+    implementing threading.
 
     The communicator can be used in a context, which ensures sign-in and sign-out:
 
@@ -133,6 +82,7 @@ class SimpleCommunicator(Communicator):
         self.node = None
         self._last_beat = 0
         self._reading = None
+        self.rpc_generator = RPCGenerator()
         super().__init__(**kwargs)
 
     def open(self) -> None:
@@ -148,8 +98,9 @@ class SimpleCommunicator(Communicator):
     def close(self) -> None:
         """Close the connection."""
         try:
-            self.sign_out()
-            self.connection.close(1)
+            if not self.connection.closed:
+                self.sign_out()
+                self.connection.close(1)
         except (AttributeError, TimeoutError):
             pass
 
@@ -188,19 +139,6 @@ class SimpleCommunicator(Communicator):
         frames = message.get_frames_list()
         self.connection.send_multipart(frames)
 
-    def send(self, receiver: str | bytes, conversation_id=b"", data=None,
-             **kwargs) -> None:
-        """Send an `data` object. No node check."""
-        if isinstance(receiver, str):
-            receiver = receiver.encode()
-        msg = Message(
-            receiver=receiver,
-            conversation_id=conversation_id,
-            data=data,
-            **kwargs,
-        )
-        self.send_message(message=msg)
-
     def read_raw(self, timeout=None) -> list:
         if self.connection.poll(timeout or self.timeout):
             return self.connection.recv_multipart()
@@ -216,38 +154,54 @@ class SimpleCommunicator(Communicator):
         return Message.from_frames(*self.read_raw())
 
     def ask_raw(self, message: Message) -> Message:
-        """Send and read the answer, without error checking."""
+        """Send and read the answer, signing in if necessary."""
         self.send_message(message=message)
         while True:
             response = self.read()
-            if response.data == [[Commands.PING]]:
-                continue
-            elif response.data == [[Commands.ERROR, Errors.NOT_SIGNED_IN]]:
-                self.sign_in()
-                self.send_message(message=message)
-                continue
+            # skip pings as we either are still signed in or going to sign in again.
+            if b"jsonrpc" in response.payload[0] and isinstance(response.data, dict):
+                if response.data.get("method") == "pong":
+                    continue
+                elif ((error := response.data.get("error"))
+                      and error.get("code") == NOT_SIGNED_IN.code):
+                    self.log.error("I'm not signed in, signing in.")
+                    self.sign_in()
+                    self.send_message(message=message)
+                    continue
             return response
 
     def ask_message(self, message: Message) -> Message:
         response = self.ask_raw(message=message)
-        if (response.sender_name == b"COORDINATOR"
-                and response.data
-                and response.data[0][0] == Commands.ERROR):
-            raise ConnectionError(
-                "CommunicationError, Coordinator response.", " ".join(response.data[0][1:])
-            )
+        if response.sender_name == b"COORDINATOR":
+            try:
+                error = response.data.get("error")  # type: ignore
+            except AttributeError:
+                pass
+            else:
+                if error:
+                    # TODO define how to transmit that information
+                    raise ConnectionError(str(error))
         return response
 
-    def ask(self, receiver: str | bytes, conversation_id=b"", data=None, **kwargs) -> Message:
-        """Send and read the answer, including error checking.
+    def ask_rpc(self, receiver: bytes | str, method: str, **kwargs) -> Any:
+        """Send a rpc call and return the result or raise an error."""
+        send_json = self.rpc_generator.build_request_str(method=method, params=kwargs)
+        response_json = self.ask_json(receiver=receiver, json_string=send_json)
+        try:
+            result = self.rpc_generator.get_result_from_response(response_json)
+        except JSONRPCError as exc:
+            if exc.rpc_error.code == -32000:
+                self.log.exception(f"Decoding failed for {response_json}.", exc_info=exc)
+                return
+            else:
+                self.log.exception(f"Some error happened {response_json}.", exc_info=exc)
+                raise
+        return result
 
-        :return: receiver, sender, conversation_id, message_id, data
-        :raises ConnectionError: Second argument is the Coordinator response.
-        """
-        if isinstance(receiver, str):
-            receiver = receiver.encode()
-        message = Message(receiver=receiver, conversation_id=conversation_id, data=data, **kwargs)
-        return self.ask_message(message=message)
+    def ask_json(self, receiver: bytes | str, json_string: str) -> bytes:
+        message = Message(receiver=receiver, data=json_string)
+        response = self.ask_message(message=message)
+        return response.payload[0]
 
     # Messages
     def sign_in(self) -> str:
@@ -255,8 +209,11 @@ class SimpleCommunicator(Communicator):
         self.node = None
         cid0 = generate_conversation_id()
         self._last_beat = perf_counter()  # to not sign in again...
-        request = Message(receiver=b"COORDINATOR", data=[[Commands.SIGNIN]], conversation_id=cid0)
+        json_string = self.rpc_generator.build_request_str(method="sign_in", params=None)
+        request = Message(receiver=b"COORDINATOR", conversation_id=cid0, data=json_string)
         response = self.ask_raw(message=request)
+        if b"error" in response.payload[0]:
+            raise ConnectionError
         assert (
             response.conversation_id == cid0
         ), (f"Answer to another request (mine {cid0}) received from {response.sender}: "
@@ -264,14 +221,16 @@ class SimpleCommunicator(Communicator):
         self.node = response.sender_node.decode()
         return self.node
 
+    def sign_out(self) -> None:
+        """Tell the Coordinator to drop references."""
+        try:
+            self.ask_rpc(b"COORDINATOR", method="sign_out")
+        except JSONRPCError:
+            self.log.error("JSON decoding at sign out failed.")
+
+    def get_capabalities(self, receiver: bytes | str):
+        return self.ask_rpc(receiver=receiver, method="rpc.discover")
+
     def heartbeat(self) -> None:
         """Send a heartbeat to the connected Coordinator."""
         self.send_message(message=Message(receiver=b"COORDINATOR"))
-
-    def sign_out(self) -> None:
-        """Tell the Coordinator to drop references."""
-        self.ask_message(message=Message(receiver=b"COORDINATOR", data=[[Commands.SIGNOUT]]))
-
-    # backward compatibility
-    def retrieve_header_and_data(self, message: Message) -> tuple:
-        return split_message(msg_frames=message.get_frames_list())

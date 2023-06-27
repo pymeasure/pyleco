@@ -31,26 +31,26 @@ from pyleco.core.message import Message
 
 class Test_Message_from_frames:
     @pytest.fixture
-    def message(self):
+    def message(self) -> Message:
         return Message.from_frames(b"\xffo", b"rec", b"send", b"x;y",
                                    b'[["GET", [1, 2]], ["GET", 3]]')
 
-    def test_payload(self, message):
+    def test_payload(self, message: Message):
         assert message.payload == [b'[["GET", [1, 2]], ["GET", 3]]']
 
-    def test_version(self, message):
+    def test_version(self, message: Message):
         assert message.version == b"\xffo"
 
-    def test_receiver(self, message):
+    def test_receiver(self, message: Message):
         assert message.receiver == b"rec"
 
-    def test_sender(self, message):
+    def test_sender(self, message: Message):
         assert message.sender == b"send"
 
-    def test_header(self, message):
+    def test_header(self, message: Message):
         assert message.header == b"x;y"
 
-    def test_multi_payload(self):
+    def test_multiple_payload_frames(self):
         message = Message.from_frames(
             b"\xffo", b"broker", b"", b";", b'[["GET", [1, 2]], ["GET", 3]]', b"additional stuff"
         )
@@ -60,14 +60,14 @@ class Test_Message_from_frames:
         message = Message.from_frames(VERSION_B, b"broker", b"", b";")
         assert message.payload == []
 
-    def test_get_frames_list(self, message):
+    def test_get_frames_list(self, message: Message):
         assert message.get_frames_list() == [b"\xffo", b"rec", b"send", b"x;y",
                                              b'[["GET", [1, 2]], ["GET", 3]]']
 
 
 class Test_Message_create_message:
     @pytest.fixture
-    def message(self):
+    def message(self) -> Message:
         return Message(
             receiver=b"rec",
             sender=b"send",
@@ -76,22 +76,22 @@ class Test_Message_create_message:
             message_id=b"y",
         )
 
-    def test_payload(self, message):
+    def test_payload(self, message: Message):
         assert message.payload == [b'[["GET", [1, 2]], ["GET", 3]]']
 
-    def test_version(self, message):
+    def test_version(self, message: Message):
         assert message.version == VERSION_B
 
-    def test_receiver(self, message):
+    def test_receiver(self, message: Message):
         assert message.receiver == b"rec"
 
-    def test_sender(self, message):
+    def test_sender(self, message: Message):
         assert message.sender == b"send"
 
-    def test_header(self, message):
+    def test_header(self, message: Message):
         assert message.header == b"x;y"
 
-    def test_get_frames_list(self, message):
+    def test_get_frames_list(self, message: Message):
         assert message.get_frames_list() == [
             VERSION_B,
             b"rec",
@@ -100,27 +100,49 @@ class Test_Message_create_message:
             b'[["GET", [1, 2]], ["GET", 3]]',
         ]
 
-    def test_get_frames_list_without_payload(self, message):
+    def test_get_frames_list_without_payload(self, message: Message):
         message.payload = []
         assert message.get_frames_list() == [VERSION_B, b"rec", b"send", b"x;y"]
 
+    def test_message_without_data_does_not_have_payload_frame(self):
+        message = Message(b"rec", "send")
+        assert message.payload == []
+        assert message.get_frames_list() == [VERSION_B, b"rec", b"send", b";"]
+
+    def test_message_binary_data(self):
+        message = Message(b"rec", data=b"binary data")
+        assert message.payload[0] == b"binary data"
+
+    def test_message_data_str_to_binary_data(self):
+        message = Message(b"rec", data="some string")
+        assert message.payload[0] == b"some string"
 
 class Test_Message_with_strings:
     @pytest.fixture
-    def str_message(self):
-        message = Message("N2.receiver", "N1.sender")
+    def str_message(self) -> Message:
+        message = Message(receiver="N2.receiver", sender="N1.sender")
         return message
 
-    def test_receiver_is_bytes(self, str_message):
+    def test_receiver_is_bytes(self, str_message: Message):
         assert str_message.receiver == b"N2.receiver"
 
-    def test_sender_is_bytes(self, str_message):
+    def test_sender_is_bytes(self, str_message: Message):
         assert str_message.sender == b"N1.sender"
 
-    def test_str_return_values(self, str_message):
+    def test_set_receiver_as_string(self, str_message: Message):
+        str_message.receiver_str = "New.Receiver"
+        assert str_message.receiver == b"New.Receiver"
+
+    def test_set_sender_as_string(self, str_message: Message):
+        str_message.sender_str = "New.Sender"
+        assert str_message.sender == b"New.Sender"
+
+    def test_str_return_values(self, str_message: Message):
         assert str_message.receiver_str == "N2.receiver"
         assert str_message.sender_str == "N1.sender"
         assert str_message.receiver_node_str == "N2"
+        assert str_message.receiver_name_str == "receiver"
+        assert str_message.sender_node_str == "N1"
         assert str_message.sender_name_str == "sender"
 
 
@@ -154,3 +176,17 @@ def test_get_frames_list_raises_error_on_empty_sender():
     m = Message(b"r")
     with pytest.raises(ValueError):
         m.get_frames_list()
+
+
+class TestComparison:
+    def test_dictionary_order_is_irrelevant(self):
+        assert Message(b"r", data={"a": 1, "b": 2}) == Message(b"r", data={"b": 2, "a": 1})
+
+    def test_distinguish_empty_payload_frame(self):
+        m1 = Message("r")
+        m1.payload = [b""]
+        m2 = Message("r")
+        assert m2.payload == []  # verify that it does not have a payload
+        assert m1 != m2
+
+

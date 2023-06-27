@@ -22,6 +22,13 @@
 # THE SOFTWARE.
 #
 
+from typing import List
+
+from .core.message import Message
+from .core.protocols import Communicator
+from .core.rpc_generator import RPCGenerator
+
+
 class FakeContext:
     """A fake context instance, similar to the result of `zmq.Context.instance()."""
 
@@ -63,7 +70,7 @@ class FakeSocket:
         return 1 if len(self._r) else 0
 
     def recv_multipart(self):
-        return self._r.pop()
+        return self._r.pop(0)
 
     def send_multipart(self, parts):
         print(parts)
@@ -76,3 +83,30 @@ class FakeSocket:
     def close(self, linger=None):
         self.addr = None
         self.closed = True
+
+
+class FakeCommunicator(Communicator):
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
+        self.rpc_generator = RPCGenerator()
+        self._r: List[Message] = []
+        self._s: List[Message] = []
+
+    def sign_in(self) -> None:
+        return super().sign_in()
+
+    def sign_out(self) -> None:
+        return super().sign_out()
+
+    def close(self) -> None:
+        return super().close()
+
+    def send_message(self, message: Message) -> None:
+        if not message.sender:
+            message.sender = self.name.encode()
+        self._s.append(message)
+
+    def ask_message(self, message: Message) -> Message:
+        self.send_message(message)
+        return self._r.pop(0)

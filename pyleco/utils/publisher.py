@@ -24,6 +24,7 @@
 
 import logging
 import pickle
+from typing import Any, Dict, Optional
 
 import zmq
 
@@ -45,10 +46,11 @@ class Publisher:
     Quantities may be expressed as a (magnitude number, units str) tuple.
     """
 
-    def __init__(self, host="localhost", port=11100, log=None,
-                 standalone=False,
+    def __init__(self, host: str = "localhost", port: int = 11100,
+                 log: Optional[logging.Logger] = None,
+                 standalone: bool = False,
                  context=zmq.Context.instance(),
-                 **kwargs):
+                 **kwargs) -> None:
         if log is None:
             self.log = logging.getLogger(f"{__name__}.Publisher")
         else:
@@ -67,20 +69,20 @@ class Publisher:
         self.port = port
         super().__init__(**kwargs)
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.socket.close(1)
 
-    def __call__(self, data):
+    def __call__(self, data: Dict[str, Any]) -> None:
         """Publish the dictionary `data`."""
-        self.send(data)
+        self.send(data=data)
 
     @property
-    def port(self):
+    def port(self) -> int:
         """The TCP port to publish to."""
         return self._port
 
     @port.setter
-    def port(self, port):
+    def port(self, port: int) -> None:
         self.log.debug(f"Port changed to {port}.")
         if self._port == port:
             return
@@ -89,13 +91,13 @@ class Publisher:
         self._connecting(f"tcp://{self.host}:{port}")
         self._port = port
 
-    def send(self, data):
+    def send(self, data: Dict[str, Any]) -> None:
         """Send the dictionay `data`."""
         assert isinstance(data, dict), "Data has to be a dictionary."
         for key, value in data.items():
             self.socket.send_multipart((key.encode(), pickle.dumps(value)))
 
-    def send_quantities(self, data):
+    def send_quantities(self, data: dict) -> None:
         """Send the dictionay `data` containing Quantities."""
         assert isinstance(data, dict), "Data has to be a dictionary."
         for key, value in data.items():

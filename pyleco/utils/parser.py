@@ -28,7 +28,7 @@ from typing import List, Optional
 
 
 def parse_command_line_parameters(parser: ArgumentParser,
-                                  logger: Optional[logging.Logger]=None,
+                                  logger: Optional[logging.Logger] = None,
                                   arguments: Optional[List[str]] = None,
                                   parser_description: Optional[str] = None,
                                   logging_default: int = logging.WARNING,

@@ -22,11 +22,15 @@
 # THE SOFTWARE.
 #
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from pyleco.core import VERSION_B
+from pyleco.core.message import Message
+from pyleco.errors import NOT_SIGNED_IN
 
-from pyleco.utils.communicator import SimpleCommunicator as Communicator
+from pyleco.utils.communicator import SimpleCommunicator
 from pyleco.test import FakeSocket
 
 
@@ -54,28 +58,28 @@ def fake_counting(monkeypatch):
     monkeypatch.setattr("pyleco.core.serialization.random.randbytes", fake_randbytes)
 
 
-# intercom2
-class FakeCommunicator(Communicator):
+# intercom
+class FakeCommunicator(SimpleCommunicator):
     def open(self):
         self.connection = FakeSocket("")
 
 
 @pytest.fixture()
-def communicator():
+def communicator() -> SimpleCommunicator:
     communicator = FakeCommunicator(name="Test")
-    communicator._last_beat = 0
+    communicator._last_beat = float("inf")
     return communicator
 
 
 @pytest.mark.parametrize("kwargs, message", message_tests)
-def test_communicator_send(communicator, kwargs, message, monkeypatch):
+def test_communicator_send(communicator: SimpleCommunicator, kwargs, message, monkeypatch):
     monkeypatch.setattr("pyleco.utils.communicator.perf_counter", fake_time)
     communicator.send(**kwargs)
     assert communicator.connection._s.pop() == message
 
 
 @pytest.mark.parametrize("kwargs, message", message_tests)
-def test_communicator_read(communicator, kwargs, message):
+def test_communicator_read(communicator: SimpleCommunicator, kwargs, message):
     communicator.connection._r.append(message)
     response = communicator.read()
     assert response.receiver == kwargs.get('receiver').encode()
@@ -85,14 +89,50 @@ def test_communicator_read(communicator, kwargs, message):
     assert response.data == kwargs.get("data")
 
 
-def test_communicator_sign_in(communicator, fake_counting):
-    communicator.connection._r = [[VERSION_B, b"N2.n", b"N2.COORDINATOR",
-                                   b"\x00\x00\x00\x00\x00\x00\x00\x00\x01\x01;", b'[["A"]]']]
+class Test_ask_raw:
+    request = Message(receiver=b"N1.receiver", data="whatever")
+    response = Message(receiver=b"N1.Test", sender=b"N1.receiver", data=["xyz"])
+
+    def test_ignore_ping(self, communicator: SimpleCommunicator):
+        ping_message = Message(receiver=b"N1.Test", sender=b"N1.COORDINATOR",
+                               data={"id": 0, "method": "pong", "jsonrpc": "2.0"})
+        communicator.connection._r = [ping_message.get_frames_list(),
+                                      self.response.get_frames_list()]
+        communicator.ask_raw(self.request)
+        assert communicator.connection._s == [self.request.get_frames_list()]
+
+    def test_sign_in(self, communicator: SimpleCommunicator):
+        communicator.sign_in = MagicMock()
+        not_signed_in = Message(receiver="N1.Test", sender="N1.COORDINATOR",
+                                data={"id": None,
+                                      "error": NOT_SIGNED_IN.dict(),
+                                      "jsonrpc": "2.0"},
+                                )
+        communicator.connection._r = [not_signed_in.get_frames_list(),
+                                      self.response.get_frames_list()]
+        response = communicator.ask_raw(self.request)
+        print("result", response)
+        assert communicator.connection._s.pop(0) == self.request.get_frames_list()
+        communicator.sign_in.assert_called()
+        assert communicator.connection._s == [self.request.get_frames_list()]
+
+
+def test_ask_rpc(communicator: SimpleCommunicator):
+    received = Message(receiver=b"N1.Test", sender=b"N1.receiver",
+                       conversation_id=b'\x00\x00\x00\x00\x00\x00\x00\x00\x01\x01')
+    received.payload = [b"""{"jsonrpc": "2.0", "result": 123.45, "id": "1"}"""]
+    communicator.connection._r = [received.get_frames_list()]
+    response = communicator.ask_rpc(receiver="N1.receiver", method="test_method", some_arg=4)
+    assert communicator.connection._s == [
+        [b'\x00', b'N1.receiver', b'Test', b';',
+         b'{"id": 1, "method": "test_method", "params": {"some_arg": 4}, "jsonrpc": "2.0"}']]
+    assert response == 123.45
+
+
+def test_communicator_sign_in(communicator: SimpleCommunicator, fake_counting):
+    communicator.connection._r = [[
+        VERSION_B, b"N2.n", b"N2.COORDINATOR",
+        b"\x00\x00\x00\x00\x00\x00\x00\x00\x01\x01;",
+        b"""{"id": 1, "result": null, "jsonrpc": "2.0"}"""]]
     communicator.sign_in()
     assert communicator.node == "N2"
-
-
-def test_communicator_sign_in_fails(communicator, fake_counting):
-    communicator.connection._r = [[VERSION_B, b"N2.n", b"N2.COORDINATOR", b"3;", b'[["A"]]']]
-    with pytest.raises(AssertionError, match="Answer"):
-        communicator.sign_in()

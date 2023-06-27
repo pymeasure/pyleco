@@ -27,6 +27,9 @@ import random
 from time import time
 import struct
 from typing import List, Tuple, Optional
+from warnings import warn
+
+from pydantic import BaseModel
 
 from . import VERSION, VERSION_B
 
@@ -52,6 +55,7 @@ def create_message(receiver: bytes, sender: bytes = b"",
     :param \\**kwargs: Keyword arguments for the header creation.
     :return: list of byte messages, ready to send as frames.
     """
+    warn("Deprecated, use `Message` instead.", FutureWarning)
     if payload:
         if isinstance(payload, bytes):
             payload = [payload]
@@ -62,6 +66,7 @@ def create_message(receiver: bytes, sender: bytes = b"",
 
 def divide_message(msg_frames: List[bytes]) -> tuple[bytes, bytes, bytes, bytes, List[bytes]]:
     """Return version, receiver, sender, header frame, and payload frames of a message."""
+    warn("Deprecated, use `Message` instead.", FutureWarning)
     return msg_frames[0], msg_frames[1], msg_frames[2], msg_frames[3], msg_frames[4:]
 
 
@@ -97,7 +102,10 @@ def serialize_data(data: object) -> bytes:
 
     Due to json serialization, data must not contain a bytes object!
     """
-    return json.dumps(data).encode()
+    if isinstance(data, BaseModel):
+        return data.json().encode()
+    else:
+        return json.dumps(data).encode()
 
 
 def deserialize_data(content: bytes) -> object:
@@ -127,6 +135,7 @@ def compose_message(receiver: bytes | str, sender: bytes | str = "",
     :param data: Python object to send or bytes object.
     :return: list of byte messages, sent as frames.
     """
+    warn("Deprecated, use `Message` instead.", FutureWarning)
     if isinstance(receiver, str):
         receiver = receiver.encode()
     if isinstance(sender, str):
@@ -136,6 +145,8 @@ def compose_message(receiver: bytes | str, sender: bytes | str = "",
     if isinstance(message_id, str):
         message_id = message_id.encode()
 
+    if isinstance(data, str):
+        data = data.encode()
     if data is not None and not isinstance(data, bytes):
         data = serialize_data(data)
     return create_message(receiver=receiver, sender=sender, payload=data,
@@ -149,6 +160,7 @@ def split_message(msg_frames: List[bytes]) -> Tuple[str, str, bytes, bytes, obje
     :return: receiver, sender, conversation_id, message_id, data
     """
     # Store necessary data like address and maybe conversation ID
+    warn("Deprecated, use `Message` instead.", FutureWarning)
     version, receiver, sender, header, payload = divide_message(msg_frames=msg_frames)
     assert (v := int.from_bytes(version, byteorder="big")) <= VERSION, (
         f"Version {v} is above current version {VERSION}.")

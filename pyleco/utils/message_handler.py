@@ -24,13 +24,16 @@
 
 import logging
 import time
-from typing import Optional
+from typing import Any, Dict, List, Optional, Protocol, Tuple
 
+# from jsonrpc2pyclient._irpcclient import IRPCClient
+from openrpc import RPCServer
 import zmq
 
+from ..core.protocols import ExtendedComponent
 from ..core.message import Message
-from ..core.enums import Commands, Errors
-from ..core.serialization import compose_message
+from ..errors import NOT_SIGNED_IN, DUPLICATE_NAME
+from ..core.rpc_generator import RPCGenerator
 from .zmq_log_handler import ZmqLogHandler
 
 
@@ -38,7 +41,15 @@ from .zmq_log_handler import ZmqLogHandler
 heartbeat_interval = 10  # s
 
 
-class InfiniteEvent:
+class Event(Protocol):
+    """Check compatibility with threading.Event."""
+    def is_set(self) -> bool: ...
+
+    def set(self) -> None: ...
+
+
+class InfiniteEvent(Event):
+    """A simple Event if the one from `threading` module is not necessary."""
     def __init__(self):
         self._flag = False
 
@@ -49,7 +60,7 @@ class InfiniteEvent:
         self._flag = True
 
 
-class MessageHandler:
+class MessageHandler(ExtendedComponent):
     """Maintain connection to the Coordinator and listen to incoming messages.
 
     This class is inteded to run in a thread, maintain the connection to the coordinator
@@ -67,13 +78,16 @@ class MessageHandler:
     """
 
     def __init__(self, name: str, host: str = "localhost", port: int = 12300, protocol: str = "tcp",
-                 log=None,
+                 log: Optional[logging.Logger] = None,
                  context=None,
                  **kwargs):
         self.name = name
         self.node: None | str = None
         self.full_name = name
         context = context or zmq.Context.instance()
+        self.rpc = RPCServer(title=name)
+        self.rpc_generator = RPCGenerator()
+        self.publish_rpc_methods()
 
         if log is None:
             log = logging.getLogger("__main__")
@@ -96,76 +110,67 @@ class MessageHandler:
 
         super().__init__(**kwargs)  # for cooperation
 
+    def publish_rpc_methods(self) -> None:
+        """Publish methods for RPC."""
+        self.rpc.method(self.shutdown)
+        self.rpc.method(self.set_log_level)
+        self.rpc.method(self.pong)
+
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         """Close the connection."""
         self.socket.close(1)
 
     # Base communication
-    def sign_in(self):
-        self._send_final_message(Message(b"COORDINATOR", data=[[Commands.SIGNIN]]))
+    def sign_in(self) -> None:
+        self._send_message(Message(
+            receiver=b"COORDINATOR", data=self.rpc_generator.build_request_str(method="sign_in")))
 
-    def heartbeat(self):
+    def heartbeat(self) -> None:
         """Send a heartbeat to the router."""
         self.log.debug("heartbeat")
-        self._send_final_message(Message(b"COORDINATOR"))
+        self._send_message(Message(b"COORDINATOR"))
 
-    def sign_out(self):
-        self._send_final_message(Message(b"COORDINATOR", data=[[Commands.SIGNOUT]]))
+    def sign_out(self) -> None:
+        self._send_message(Message(
+            receiver=b"COORDINATOR", data=self.rpc_generator.build_request_str(method="sign_out")))
 
-    def _send_frames(self, frames):
-        """Send frames over the connection."""
-        # TODO deprecated
-        self.log.debug(f"Sending {frames}")
-        self.socket.send_multipart(frames)
-
-    def _send_final_message(self, message: Message) -> None:
+    def _send_message(self, message: Message) -> None:
+        """Send a message, supplying sender information."""
         if not message.sender:
             message.sender = self.full_name.encode()
         frames = message.get_frames_list()
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
 
-    def _compose_message(self, receiver, sender=None, data=None, conversation_id=b"",
-                         **kwargs) -> list:
-        if sender is None:
-            sender = self.full_name
-        # TODO decide on timestamp
-        # if message_id == None:
-        #     message_id = datetime.datetime.now(datetime.timezone.utc).strftime(
-        #                                                           "%H:%M:%S.%f").encode()
+    def _send(self, receiver: bytes | str, sender: bytes | str = b"", data: Optional[Any] = None,
+              conversation_id: bytes = b"", **kwargs) -> None:
+        """Compose and send a message to a `receiver` with serializable `data`."""
         try:
-            msg = compose_message(receiver=receiver, sender=sender,
-                                  conversation_id=conversation_id, data=data,
-                                  **kwargs)
+            message = Message(receiver=receiver, sender=sender, data=data,
+                              conversation_id=conversation_id, **kwargs)
         except Exception as exc:
             self.log.exception(f"Composing message with data {data} failed.", exc_info=exc)
-            msg = compose_message(receiver, sender, conversation_id=conversation_id,
-                                  data=[[Commands.ERROR, Errors.EXECUTION_FAILED,
-                                         type(exc).__name__, str(exc)]])
-        return msg
+            # TODO send an error message?
+        else:
+            self._send_message(message)
 
-    def _send(self, receiver, sender=None, data=None, conversation_id=b"", **kwargs):
-        """Compose and send a message to a `receiver` with serializable `data`."""
-        frames = self._compose_message(receiver, sender, data, conversation_id, **kwargs)
-        message = Message.from_frames(*frames)
-        self._send_final_message(message)
-
-    # User commands
-    def send(self, receiver, data=None, conversation_id=b"", **kwargs):
+    # User commands, implements Communicator
+    def send(self, receiver: bytes | str, data: Optional[Any] = None,
+             conversation_id: bytes = b"", **kwargs) -> None:
         """Send a message to a receiver with serializable `data`."""
         self._send(receiver=receiver, data=data, conversation_id=conversation_id, **kwargs)
 
     def send_message(self, message: Message) -> None:
-        self._send_final_message(message)
+        self._send_message(message)
 
     # Continuous listening and message handling
-    def listen(self, stop_event=InfiniteEvent(), waiting_time=100):
+    def listen(self, stop_event: Event = InfiniteEvent(), waiting_time: int = 100) -> None:
         """Listen for zmq communication until `stop_event` is set or until KeyboardInterrupt.
 
         :param stop_event: Event to stop the listening loop.
@@ -190,7 +195,7 @@ class MessageHandler:
                     self.heartbeat()
                     next_beat = now + heartbeat_interval
         except KeyboardInterrupt:
-            pass
+            pass  # User stops the loop
         except Exception:
             raise
         # Close
@@ -205,11 +210,15 @@ class MessageHandler:
         """
         msg = Message.from_frames(*self.socket.recv_multipart())
         self.log.debug(f"Handling {msg}")
-        if msg.data is None:
+        if not msg.payload:
             return
-        if msg.sender_name == b"COORDINATOR" and isinstance(msg.data, (tuple, list)):
-            for message in msg.data:
-                if message == [Commands.ERROR, Errors.NOT_SIGNED_IN]:
+        if msg.sender_name == b"COORDINATOR" and isinstance(msg.data, dict):
+            if self.node is None and msg.data.get("result", False) is None:
+                # TODO additional check, that this is the answer to sign_in?
+                self.finish_sign_in(msg)
+                return
+            elif (error := msg.data.get("error")):
+                if error.get("code") == NOT_SIGNED_IN.code:
                     self.node = None
                     self.full_name = self.name
                     try:
@@ -219,121 +228,53 @@ class MessageHandler:
                     self.sign_in()
                     self.log.warning("I was not signed in, signing in.")
                     return
-                elif self.node is None and message[0] == Commands.ACKNOWLEDGE:
-                    self.node = msg.sender_node.decode()
-                    self.full_name = ".".join((self.node, self.name))
-                    try:
-                        self.logHandler.fullname = self.full_name
-                    except AttributeError:
-                        pass
-                    self.log.info(f"Signed in to Node '{self.node}'.")
-                    return
-                elif message == [Commands.PING]:
-                    self.heartbeat()
-                    return
-                elif message == [Commands.ERROR, Errors.DUPLICATE_NAME]:
+                elif error.get("code") == DUPLICATE_NAME.code:
                     self.log.warning("Sign in failed, the name is already used.")
                     return
-            self.log.warning(f"Message from the Coordinator: '{msg.data}'")
+            # TODO what happens with a returned ping request?
         self.handle_commands(msg)
 
-    def handle_commands(self, msg: Message):
-        """Handle the list of commands.
+    def finish_sign_in(self, message: Message) -> None:
+        self.node = message.sender_node.decode()
+        self.full_name = ".".join((self.node, self.name))
+        self.rpc.title = self.full_name
+        try:
+            self.logHandler.fullname = self.full_name
+        except AttributeError:
+            pass
+        self.log.info(f"Signed in to Node '{self.node}'.")
 
-        :param str old_receiver: receiver frame.
-        :param str old_sender: sender frame.
-        :param str conversation_id: conversation_id.
-        :param object data: deserialized data.
-        """
-        reply = []
-        if isinstance(msg.data, (list, tuple)):
-            for message in msg.data:
-                if message[0] == Commands.OFF:
-                    reply.append([Commands.ACKNOWLEDGE])
-                    self.stop_event.set()
-                elif message[0] == Commands.LOG:
-                    try:
-                        self.root_logger.setLevel(message[1])
-                    except Exception as exc:
-                        reply.append([Commands.ERROR, Errors.EXECUTION_FAILED,
-                                      type(exc).__name__, str(exc)])
-                    else:
-                        reply.append([Commands.ACKNOWLEDGE])
-                elif message[0] == Commands.PING:
-                    pass  # empty message
-                else:
-                    reply.append(self.handle_command(*message))
-            self.handle_reply(original_message=msg, reply=reply)
+    def handle_commands(self, msg: Message) -> None:
+        """Handle the list of commands in the message."""
+        if msg.payload and b'"jsonrpc":' in msg.payload[0]:
+            if b'"method": ' in msg.payload[0]:
+                self.log.info(f"Handling {msg}.")
+                reply = self.rpc.process_request(msg.payload[0])
+                response = Message(msg.sender, conversation_id=msg.conversation_id, data=reply)
+                self.send_message(response)
+            else:
+                self.log.error(f"Unknown message from {msg.sender} received: {msg.payload[0]}")
         else:
-            self.log.warning(f"Unknown message received: '{msg.data}'.")
+            self.log.warning(f"Unknown message from {msg.sender} received: '{msg.data}', {msg.payload}.")
 
-    def handle_command(self, command, content=None):
-        """Handle a command with optional content.
+    def set_log_level(self, level: int) -> None:
+        """Set the log level."""
+        self.root_logger.setLevel(level)
 
-        :param command: Command
-        :param content: Content for the command.
-        :return: Response to send to the requester.
-        """
-        raise NotImplementedError("Implement in subclass.")
-
-    def handle_reply(self, original_message: Message, reply: list) -> None:
-        """Handle the created reply."""
-        response = Message(receiver=original_message.sender,
-                           conversation_id=original_message.conversation_id,
-                           data=reply)
-        self.send_message(message=response)
+    def shutdown(self) -> None:
+        self.stop_event.set()
 
 
 class BaseController(MessageHandler):
     """Control something, allow to get/set properties and call methods."""
 
-    def handle_command(self, command: str, content: Optional[object] = None) -> tuple:
-        """Handle commands."""
-        # HACK noqa while flake does not recognize "match"
-        match command:  # noqa
-            case Commands.GET:
-                return self._get_properties(content)
-            case Commands.SET:
-                return self._set_properties(content)
-            case Commands.CALL:
-                return self._call(content)
-            case _:
-                return ()
+    def publish_rpc_methods(self) -> None:
+        super().publish_rpc_methods()
+        self.rpc.method(self.get_properties)
+        self.rpc.method(self.set_properties)
+        self.rpc.method(self.call_method)
 
-    def _get_properties(self, properties: list | tuple) -> tuple:
-        """Internal method, includes response Command type."""
-        # TODO error handling
-        try:
-            return Commands.ACKNOWLEDGE, self.get_properties(properties)
-        except AttributeError as exc:
-            return Commands.ERROR, Errors.NAME_NOT_FOUND, str(exc)
-        except Exception as exc:
-            return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
-
-    def _set_properties(self, properties: dict) -> tuple:
-        """Internal method, includes response Command type."""
-        try:
-            self.set_properties(properties)
-        except AttributeError as exc:
-            return Commands.ERROR, Errors.NAME_NOT_FOUND, str(exc)
-        except Exception as exc:
-            self.log.exception("Setting properties failed", exc_info=exc)
-            return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
-        else:
-            return Commands.ACKNOWLEDGE,
-
-    def _call(self, content: dict):
-        """Internal method, includes response Command type."""
-        method = content.pop("_name")
-        args = content.pop("_args", ())
-        try:
-            return Commands.ACKNOWLEDGE, self.call(method, args, content)
-        except AttributeError as exc:
-            return Commands.ERROR, Errors.NAME_NOT_FOUND, str(exc)
-        except Exception as exc:
-            return Commands.ERROR, Errors.EXECUTION_FAILED, type(exc).__name__, str(exc)
-
-    def get_properties(self, properties: list | tuple) -> dict:
+    def get_properties(self, properties: List[str] | Tuple[str, ...]) -> Dict[str, Any]:
         """Get properties from the list `properties`."""
         data = {}
         for key in properties:
@@ -342,11 +283,26 @@ class BaseController(MessageHandler):
                 raise TypeError(f"Attribute '{key}' is a callable!")
         return data
 
-    def set_properties(self, properties: dict) -> None:
+    def set_properties(self, properties: Dict[str, Any]) -> None:
         """Set properties from a dictionary."""
         for key, value in properties.items():
             setattr(self, key, value)
 
-    def call(self, method, args, kwargs):
-        """Call a method with arguments dictionary `kwargs`."""
+    def call(self, method: str, args: list | tuple, kwargs: Dict[str, Any]) -> Any:
+        """Call a method with arguments dictionary `kwargs`.
+
+        Any method can be called, even if not setup as rpc call.
+        It is preferred though, to add methods of your device with a rpc call.
+        """
+        # Deprecated
         return getattr(self, method)(*args, **kwargs)
+
+    def call_method(self, method: str, _args: Optional[list | tuple] = None, **kwargs) -> Any:
+        """Call a method with arguments dictionary `kwargs`.
+
+        Any method can be called, even if not setup as rpc call.
+        It is preferred though, to add methods of your device with a rpc call.
+        """
+        if _args is None:
+            _args = ()
+        return getattr(self, method)(*_args, **kwargs)

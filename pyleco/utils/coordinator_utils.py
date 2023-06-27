@@ -28,12 +28,13 @@ import logging
 from time import perf_counter
 from typing import List, Dict, Tuple, Protocol, Optional
 
+from jsonrpcobjects.objects import ErrorResponseObject, RequestObject
 import zmq
 
-from ..errors import CommunicationError
-from ..core.enums import Commands, Errors
+from ..errors import CommunicationError, NOT_SIGNED_IN, DUPLICATE_NAME, generate_error_with_data
 from ..core.message import Message
 from ..core.serialization import deserialize_data
+from ..core.rpc_generator import RPCGenerator
 
 
 log = logging.getLogger()
@@ -44,28 +45,22 @@ class MultiSocket(Protocol):
     """Represents a socket with multiple connections."""
 
     @abstractmethod
-    def bind(self, host: str, port: int | str) -> None:
-        raise NotImplementedError("Implement in subclass")
+    def bind(self, host: str, port: int | str) -> None: ...
 
     @abstractmethod
-    def unbind(self) -> None:
-        raise NotImplementedError("Implement in subclass")
+    def unbind(self) -> None: ...
 
     @abstractmethod
-    def close(self, timeout: float) -> None:
-        raise NotImplementedError("Implement in subclass")
+    def close(self, timeout: float) -> None: ...
 
     @abstractmethod
-    def send_message(self, identity: bytes, message: Message) -> None:
-        raise NotImplementedError("Implement in subclass")
+    def send_message(self, identity: bytes, message: Message) -> None: ...
 
     @abstractmethod
-    def message_received(self, timeout: float = 0) -> bool:
-        raise NotImplementedError("Implement in subclass")
+    def message_received(self, timeout: float = 0) -> bool: ...
 
     @abstractmethod
-    def read_message(self) -> Tuple[bytes, Message]:
-        raise NotImplementedError("Implement in subclass")
+    def read_message(self) -> Tuple[bytes, Message]: ...
 
 
 class ZmqMultiSocket(MultiSocket):
@@ -234,10 +229,12 @@ class Directory:
         self.namespace = namespace
         self.full_name = full_name
         self._address = address
+        self.rpc_generator = RPCGenerator()
 
     def add_component(self, name: bytes, identity: bytes) -> None:
         if name in self._components:
-            raise ValueError("Component already present.")
+            log.error(f"Cannot add component {name} as the name is already taken.")
+            raise ValueError(DUPLICATE_NAME.message)
         self._components[name] = Component(identity=identity, heartbeat=perf_counter())
 
     def remove_component(self, name: bytes, identity: Optional[bytes]) -> None:
@@ -260,8 +257,11 @@ class Directory:
             raise ValueError("Already trying to connect.")
         node.heartbeat = perf_counter()
         node.connect(address)
-        node.send_message(Message(receiver=b"COORDINATOR", sender=self.full_name,
-                                  data=[[Commands.CO_SIGNIN]]))
+        # node.send_message(Message(receiver=b"COORDINATOR", sender=self.full_name,
+        #                           data=[[Commands.CO_SIGNIN]]))
+        node.send_message(message=Message(
+            receiver=b"COORDINATOR", sender=self.full_name,
+            data=self.rpc_generator.build_request_str(method="coordinator_sign_in")))
         self._waiting_nodes[address] = node
 
     def add_node_receiver(self, identity: bytes, namespace: bytes) -> None:
@@ -287,11 +287,10 @@ class Directory:
 
     def _handle_node_message(self, key: str, msg: Message) -> None:
         data = deserialize_data(content=msg.payload[0])
-        if data == [[Commands.ACKNOWLEDGE]]:
+        if (isinstance(data, dict) and data.get("result", False) is None):
             self._finish_sign_in_to_remote(key=key, msg=msg)
-        elif (data == [[Commands.ERROR, Errors.DUPLICATE_NAME]]
-              or data == [[Commands.ERROR, Errors.NOT_SIGNED_IN]]):  # TODO due to log in to itself
-            log.error(f"Coordinator Sign in to node {msg.sender_node} failed. My name was rejected.")  # noqa: E501
+        elif (isinstance(data, dict) and (error := data.get("error") is not None)):
+            log.error(f"Coordinator sign in to node {msg.sender_node} failed with {error}")
             self._remove_waiting_node(key=key)
         # TODO this is only useful, if we read the DEALER sockets regularly
         # elif data == [[Commands.ERROR, Errors.NOT_SIGNED_IN]]:
@@ -310,8 +309,17 @@ class Directory:
         node.send_message(Message(
                 receiver=msg.sender,
                 sender=self.full_name,
-                data=[[Commands.SET, {'directory': self.get_component_names(),
-                                      'nodes': self.get_nodes_str_dict()}]]))
+                data=("[" +
+                      self.rpc_generator.build_request_str(method="set_nodes",
+                                                           nodes=self.get_nodes_str_dict())
+                      + ", " +
+                      self.rpc_generator.build_request_str(method="set_remote_components",
+                                                           components=self.get_component_names())
+                      + "]"
+                      )
+                # data=[[Commands.SET, {'directory': self.get_component_names(),
+                #                       'nodes': self.get_nodes_str_dict()}]],
+        ))
 
     def _combine_sender_and_receiver_nodes(self, node: Node) -> None:
         for identity, receiver_node in self._node_ids.items():
@@ -325,9 +333,7 @@ class Directory:
         if node and node.namespace == namespace:
             self._remove_node_without_checks(namespace=namespace)
         else:
-            raise CommunicationError(
-                "Identities do not match.",
-                error_payload=[Commands.ERROR, Errors.EXECUTION_FAILED, "You are not you!"])
+            raise ValueError("Identities do not match: You are not you!")
 
     def _remove_node_without_checks(self, namespace: bytes) -> None:
         node = self._nodes.get(namespace)
@@ -354,27 +360,28 @@ class Directory:
         elif sender_identity in self._node_ids.keys():
             # Message from another Coordinator's DEALER socket
             self._node_ids[sender_identity].heartbeat = perf_counter()
-        elif message.sender_name == b"COORDINATOR" and (
-                message.payload == [f'[["{Commands.CO_SIGNIN}"]]'.encode()]
-                or message.payload == [f'[["{Commands.CO_SIGNOUT}"]]'.encode()]):
+        elif (message.sender_name == b"COORDINATOR"
+              and message.payload
+              and b'coordinator_sign_' in message.payload[0]  # "method": "
+              ):
             pass  # Signing in/out, no heartbeat yet
         else:
             # Either a Component communicates with the wrong namespace setting or
             # the other Coordinator is not known yet (reconnection)
             raise CommunicationError(
                 f"Message {message.payload} from not signed in Component {message.sender_node}.{message.sender_name} or node.",  # noqa: E501
-                error_payload=[[Commands.ERROR, Errors.NOT_SIGNED_IN]])
+                error_payload=ErrorResponseObject(id=None, error=NOT_SIGNED_IN))
 
     def _update_local_sender_heartbeat(self, sender_identity: bytes, message: Message) -> None:
         component = self._components.get(message.sender_name)
         if component and sender_identity == component.identity:
             component.heartbeat = perf_counter()
-        elif message.payload == [f'[["{Commands.SIGNIN}"]]'.encode()]:
+        elif message.payload and b'"sign_in"' in message.payload[0]:
             pass  # Signing in, no heartbeat yet
         else:
             raise CommunicationError(
                 f"Message {message.payload} from not signed in Component {message.sender_node}.{message.sender_name}.",  # noqa: E501
-                error_payload=[[Commands.ERROR, Errors.NOT_SIGNED_IN]])
+                error_payload=ErrorResponseObject(id=None, error=NOT_SIGNED_IN))
 
     def find_expired_components(self, expiration_time: float) -> List[Tuple[bytes, bytes]]:
         """Find expired components, return those to admonish, and remove those too old."""
@@ -416,7 +423,7 @@ class Directory:
                 node.send_message(Message(
                     receiver=node.namespace + b".COORDINATOR",
                     sender=self.full_name,
-                    data=[[Commands.PING]]))
+                    data=RequestObject(id=0, method="pong")))
 
     def get_components(self) -> Dict[bytes, Component]:
         return self._components
@@ -470,7 +477,7 @@ class Directory:
         node.send_message(Message(
             receiver=b".".join((namespace, b"COORDINATOR")),
             sender=self.full_name,
-            data=[[Commands.CO_SIGNOUT]],
+            data=self.rpc_generator.build_request_str("coordinator_sign_out")
             ))
         node.disconnect()
         self._remove_node_without_checks(namespace)

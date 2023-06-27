@@ -22,7 +22,8 @@
 # THE SOFTWARE.
 #
 
-from typing import List, Optional
+from json import JSONDecodeError
+from typing import Any, List, Optional
 
 
 from . import VERSION_B
@@ -49,17 +50,29 @@ class Message:
 
     version: bytes = VERSION_B
 
-    def __init__(self, receiver: bytes | str, sender: bytes | str = b"", data: object = None,
-                 header: Optional[bytes] = None, **kwargs) -> None:
-        # setup caches
+    def __init__(self, receiver: bytes | str, sender: bytes | str = b"",
+                 data: Optional[bytes | str | Any] = None,
+                 header: Optional[bytes] = None,
+                 conversation_id: bytes = b"",
+                 **kwargs) -> None:
+        self.setup_caches()
         self.receiver = receiver if isinstance(receiver, bytes) else receiver.encode()
         self.sender = sender if isinstance(sender, bytes) else sender.encode()
-        self.header = create_header_frame(**kwargs) if header is None else header
-        self._data = data
+        self.header = (create_header_frame(conversation_id=conversation_id, **kwargs)
+                       if header is None else header)
+        if isinstance(data, (bytes)):
+            self.payload = [data]
+        if isinstance(data, str):
+            self.payload = [data.encode()]
+        else:
+            self._data = data
+
+    def setup_caches(self) -> None:
         self._payload: List[bytes] = []
-        self._header_elements = None  # cache
-        self._sender_elements = None  # cache
-        self._receiver_elements = None  # cache
+        self._header_elements = None
+        self._sender_elements = None
+        self._receiver_elements = None
+        self._data = None
 
     @classmethod
     def from_frames(cls, version: bytes, receiver: bytes, sender: bytes, header: bytes,
@@ -165,11 +178,23 @@ class Message:
             self._data = deserialize_data(self.payload[0])
         return self._data
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Message):
             return NotImplemented
-        return (self.version == other.version and self.receiver == other.receiver
-                and self.sender == other.sender and self.payload == other.payload)
+        partial_comparison = (
+            self.version == other.version
+            and self.receiver == other.receiver
+            and self.sender == other.sender
+            and self.header == other.header
+        )
+        try:
+            my_data = self.data
+            other_data = other.data
+        except JSONDecodeError:
+            return partial_comparison and self.payload == other.payload
+        else:
+            return (partial_comparison and my_data == other_data
+                    and self.payload[1:] == other.payload[1:])
 
     def __repr__(self) -> str:
         return f"Message.from_frames({self._get_frames_without_check()})"

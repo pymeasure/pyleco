@@ -23,10 +23,11 @@
 #
 
 import time
+from typing import Any, Callable, Optional
 
 import zmq
 
-from ..utils.message_handler import BaseController, InfiniteEvent, heartbeat_interval
+from ..utils.message_handler import BaseController, InfiniteEvent, heartbeat_interval, Event
 from ..utils.publisher import Publisher
 from ..utils.timers import RepeatingTimer
 
@@ -37,7 +38,7 @@ class Actor(BaseController):
     .. code::
 
         a = Actor("testing", TestClass)
-        # define some function `readout(device, publisher)`
+        # define some function `readout(device: Instrument, publisher: Publisher)`
         a.read_publish = readout
         a.connect("COM5")  # connect to device
         # in listen everything happens until told to stop from elsewhere
@@ -55,7 +56,8 @@ class Actor(BaseController):
     :param \\**kwargs: Keywoard arguments for the general message handling.
     """
 
-    def __init__(self, name, cls, periodic_reading=-1, auto_connect: None | dict = None,
+    def __init__(self, name: str, cls, periodic_reading: float = -1,
+                 auto_connect: Optional[dict] = None,
                  context=zmq.Context.instance(),
                  **kwargs) -> None:
         super().__init__(name=name, context=context, **kwargs)
@@ -76,6 +78,18 @@ class Actor(BaseController):
             self.connect(**auto_connect)
         self.log.info(f"Actor '{name}' initialized.")
 
+    def publish_rpc_methods(self) -> None:
+        super().publish_rpc_methods()
+        self.rpc.method(self.start_timer)
+        self.rpc.method(self.stop_timer)
+        self.rpc.method(self.connect)
+        self.rpc.method(self.disconnect)
+        # TODO decide how to call the actor and how to call the device?
+
+    def register_device_method(self, method: Callable):
+        name = method.__name__
+        self.rpc.method(method, name="device." + name)
+
     def __del__(self) -> None:
         self.disconnect()
 
@@ -83,7 +97,7 @@ class Actor(BaseController):
         super().__exit__(*args, **kwargs)
         self.disconnect()
 
-    def listen(self, stop_event=InfiniteEvent(), waiting_time=100) -> None:
+    def listen(self, stop_event: Event = InfiniteEvent(), waiting_time: int = 100) -> None:
         """Listen for zmq communication until `stop_event` is set.
 
         :param waiting_time: Time to wait for a readout signal in ms.
@@ -116,7 +130,7 @@ class Actor(BaseController):
     def queue_readout(self) -> None:
         self.pipe.send(b"")
 
-    def publish(self, data) -> None:
+    def publish(self, data: Any) -> None:
         """Publish `data` over the data channel."""
         self.publisher.send(data=data)
 
@@ -124,7 +138,7 @@ class Actor(BaseController):
         """Deprecated, use `read_publish` instead."""
         pass
 
-    def read_publish(self, device, publisher) -> None:
+    def read_publish(self, device, publisher: Publisher) -> None:
         """Read the device and publish the results.
 
         Defaults to doing nothing. Implement in a subclass.
@@ -204,9 +218,11 @@ class Actor(BaseController):
             else:
                 setattr(self.device, key, value)
 
-    def call(self, method, args, kwargs):
+    def call_method(self, method: str, _args: Optional[list | tuple] = None, **kwargs) -> Any:
         """Call a method with arguments dictionary `kwargs`."""
+        if _args is None:
+            _args = ()
         if method == "_actor":
             method = kwargs.pop("_actor")
-            return super().call(method=method, args=args, kwargs=kwargs)
-        return getattr(self.device, method)(*args, **kwargs)
+            return super().call_method(method=method, _args=_args, kwargs=kwargs)
+        return getattr(self.device, method)(*_args, **kwargs)

@@ -7,7 +7,7 @@ Created on Tue Nov 29 17:34:36 2022
 @author: moneke
 """
 
-from typing import Dict
+from typing import Dict, Optional
 
 # import PyTrinamic
 from pytrinamic.connections import ConnectionManager
@@ -31,7 +31,8 @@ class MotorController(BaseController):
     :variable motorDict: Contain mappings of names to motor numbers.
     """
 
-    def __init__(self, name: str, port: str | int, motorDict: dict | None = None, **kwargs):
+    def __init__(self, name: str, port: str | int, motorDict: Optional[dict] = None,
+                 **kwargs) -> None:
         super().__init__(name, **kwargs)
         if isinstance(port, str):
             port = motors.getPort(port)
@@ -39,14 +40,6 @@ class MotorController(BaseController):
         self.card = TMCM6110(self.connectionManager.connect())
         self.configs = {}
         self.motorDict: Dict[str, int] = {} if motorDict is None else motorDict
-
-    def call(self, method: str, args: list | tuple, kwargs: dict) -> object:
-        try:
-            value = getattr(self, method)(*args, **kwargs)
-        except AttributeError:
-            return f"Method {method} unknown."
-        else:
-            return value
 
     def _get_motor_number(self, motor: int | str) -> int:
         """Get a motor number from the input, using the dictionary."""

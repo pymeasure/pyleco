@@ -25,23 +25,24 @@
 import json
 import pickle
 from threading import Thread, Lock, Event
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
-from PyQt6 import QtCore
 import zmq
 
 from .message_handler import MessageHandler
 from .publisher import Publisher
 from ..core.message import Message
-from ..core.enums import Commands
 from ..core.serialization import create_header_frame, generate_conversation_id, compose_message
+from ..core.rpc_generator import RPCGenerator
 from .timers import RepeatingTimer
 
 
 class BaseListener(MessageHandler):
     """Listening on published data and opening a configuration port, both in a separate thread.
 
-    It works like a :class:`Communicator`.
+    It works on one side like a :class:`Communicator`, offering communication to the network,
+    and on the other side handles simultaneously incoming messages.
+    For that reason, the main part is in a separate thread.
 
     Call :meth:`.start_listen()` to actually listen.
 
@@ -69,13 +70,15 @@ class BaseListener(MessageHandler):
         self.pipeL = self.context.socket(zmq.PAIR)  # for the listening thread
         self.pipeL.connect(f"inproc://listenerPipe:{pipe_port}")
         self.heartbeat_interval = heartbeat_interval
-        self._subscriptions = []  # List of all subscriptions
+        self._subscriptions: List[str] = []  # List of all subscriptions
 
         # Storage for returning asked messages
-        self._buffer = []
+        self._buffer: List[Message] = []
         self._buffer_lock = Lock()
         self._event = Event()
-        self.cids = []  # List of conversation_ids of asked questions.
+        self.cids: List[bytes] = []  # List of conversation_ids of asked questions.
+
+        self.rpc_generator = RPCGenerator()
 
     class Pipe:
         """Pipe endpoint with lock."""
@@ -93,6 +96,12 @@ class BaseListener(MessageHandler):
 
         def close(self, linger: float = 0) -> None:
             self.socket.close(linger)
+
+    def publish_rpc_methods(self) -> None:
+        super().publish_rpc_methods()
+        self.rpc.method(self.subscribe)
+        self.rpc.method(self.unsubscribe)
+        self.rpc.method(self.unsubscribe_all)
 
     def close(self) -> None:
         """Close everything."""
@@ -114,7 +123,7 @@ class BaseListener(MessageHandler):
             pass
 
     #   Control protocol
-    def send(self, receiver: str | bytes, conversation_id=b"", data: object = None,
+    def send(self, receiver: str | bytes, conversation_id: bytes = b"", data: object = None,
              **kwargs) -> None:
         """Send a message via control protocol."""
         self.pipe.send_multipart((b"SND", *compose_message(receiver=receiver, sender=self.full_name,
@@ -131,7 +140,7 @@ class BaseListener(MessageHandler):
         sender, conversation_id = header
         self.send(receiver=sender, conversation_id=conversation_id, data=content)
 
-    def _check_message_in_buffer(self, conversation_id) -> Message | None:
+    def _check_message_in_buffer(self, conversation_id: bytes) -> Message | None:
         """Check the buffer for a message with the specified id."""
         with self._buffer_lock:
             for (i, message) in enumerate(self._buffer):
@@ -143,6 +152,7 @@ class BaseListener(MessageHandler):
     def read_answer(self, conversation_id: bytes, tries: int = 10,
                     timeout: float = 0.1) -> Tuple[str, str, bytes, bytes, object]:
         """Read the answer of the original message with `conversation_id`."""
+        # TODO deprecated?
         msg = self.read_answer_as_message(conversation_id=conversation_id, tries=tries,
                                           timeout=timeout)
         return self._turn_message_to_list(msg=msg)
@@ -169,7 +179,7 @@ class BaseListener(MessageHandler):
         # No result found:
         raise TimeoutError("Reading timed out.")
 
-    def ask(self, receiver: bytes | str, conversation_id: bytes | None = None, data=None,
+    def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None, data=None,
             **kwargs) -> Message:
         if conversation_id is None:
             conversation_id = generate_conversation_id()
@@ -191,6 +201,11 @@ class BaseListener(MessageHandler):
             self.cids.append(message.conversation_id)
         self.send_message(message)
         return self.read_answer_as_message(conversation_id=message.conversation_id)
+
+    def ask_rpc(self, receiver: bytes | str, method: str, **kwargs):
+        string = self.rpc_generator.build_request_str(method=method, **kwargs)
+        response = self.ask(receiver=receiver, data=string)
+        return self.rpc_generator.get_result_from_response(response.payload[0])
 
     #   Data protocol
     def subscribe(self, topics: str | list | tuple) -> None:
@@ -234,7 +249,7 @@ class BaseListener(MessageHandler):
         """Rename the listener to `new_name`."""
         self.pipe.send_multipart((b"REN", new_name.encode()))
 
-    def start_listen(self, host: None | str = None, dataPort: None | int = None) -> None:
+    def start_listen(self, host: Optional[str] = None, dataPort: Optional[int] = None) -> None:
         """Start to listen in a thread.
 
         :param str host: Host name to listen to.
@@ -333,6 +348,11 @@ class BaseListener(MessageHandler):
         raise NotImplementedError("Implement in subclass.")
 
     # Control protocol
+    def _send_frames(self, frames):
+        """Send frames over the connection."""
+        self.log.debug(f"Sending {frames}")
+        self.socket.send_multipart(frames)
+
     def handle_commands(self, message: Message) -> None:
         """Handle commands: collect a requested response or give to :meth:`finish_handle_message`.
 
@@ -342,13 +362,14 @@ class BaseListener(MessageHandler):
         :param object data: deserialized data.
         """
         try:
-            fc = message.data[0][0]  # type: ignore
-        except (IndexError, TypeError):
-            fc = None
+            json = b"id" in message.payload[0] and (b"result" in message.payload[0]
+                                                    or b"error" in message.payload[0])
+        except (IndexError, KeyError):
+            json = False
         if (message.conversation_id
                 and message.conversation_id in self.cids
-                and fc in (Commands.ACKNOWLEDGE, Commands.ERROR)):
-            # give message to the calling application
+                and json):
+            # give requested message to the calling application
             with self._buffer_lock:
                 self._buffer.append(message)
                 del self.cids[self.cids.index(message.conversation_id)]
@@ -387,13 +408,14 @@ class Republisher(BaseListener):
                 break
     """
 
-    def __init__(self, name="", handlings={}, *args, **kwargs):
+    def __init__(self, name: str = "Republisher", handlings: Optional[dict] = None,
+                 *args, **kwargs):
         super().__init__(name, *args, **kwargs)
         self.publisher = Publisher()
-        self.handlings = handlings
+        self.handlings = {} if handlings is None else handlings
 
-    def start_listen(self, port=None):
-        super().start_listen(port)
+    def start_listen(self, port: Optional[int] = None, **kwargs) -> None:
+        super().start_listen(dataPort=port, **kwargs)
         for key in self.handlings.keys():
             self.subscribe(key)
 
@@ -410,47 +432,3 @@ class Republisher(BaseListener):
                     self.log.exception(f"Handling of '{key}' failed.")
         if new:
             self.publisher(new)
-
-
-class QtMixin:
-    """
-    Mixin for the Listener to publish Qt signals.
-    """
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.signals = self.ListenerSignals()
-
-    class ListenerSignals(QtCore.QObject):
-        """Signals for the Listener."""
-        dataReady = QtCore.pyqtSignal(dict)
-        message = QtCore.pyqtSignal(Message)
-
-    def handle_subscription_data(self, data: dict) -> None:
-        """Handle incoming subscription data."""
-        self.signals.dataReady.emit(data)
-
-    def finish_handle_commands(self, message: Message) -> None:
-        """Handle the list of commands: Redirect them to the application."""
-        self.signals.message.emit(message)
-
-
-class Listener(QtMixin, BaseListener):
-    """
-    Listening on published data and opening a configuration port. PyQt version.
-
-    Call `listener.start_listen()` to actually listen.
-
-    You may send a dictionary to the configuration port, which will be handed
-    to the parent program via the 'command' signal. The listener responds with
-    an acknowledgement or error.
-    Special dictionary keys:
-        - 'query': The listener does not respond, but places the response address
-        into the 'query' entry, that the parent program may respond.
-        - 'save': The listener does not respond, but emits a 'save' signal
-        with the response address.
-
-    :param int port: Configure the port to be used for configuration.
-    :param log: Logger instance whose logs should be published. Defaults to "__main__".
-    """
-    pass

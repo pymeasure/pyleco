@@ -30,22 +30,22 @@ from pyleco.utils.publisher import Publisher
 
 
 @pytest.fixture
-def publisher():
+def publisher() -> Publisher:
     return Publisher(host="localhost", context=FakeContext())  # type: ignore
 
 
 class Test_init:
-    def test_host(self, publisher):
+    def test_host(self, publisher: Publisher):
         assert publisher.host == "localhost"
 
-    def test_socket_address(self, publisher):
+    def test_socket_address(self, publisher: Publisher):
         assert publisher.socket.addr == "tcp://localhost:11100"
 
-    def test_socket_type(self, publisher):
+    def test_socket_type(self, publisher: Publisher):
         assert publisher.socket.socket_type == 1
 
 
 class Test_Publisher:
-    def test_setPort(self, publisher):
+    def test_setPort(self, publisher: Publisher):
         publisher.port = 12345
         assert publisher._port == 12345
