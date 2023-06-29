@@ -1,6 +1,6 @@
 [project]
 name = "pyleco"
-version = "0.0.1dev"
+version = "0.0.1.dev"
 authors = [
   { name="PyMeasure Developers" },
 ]
@@ -17,6 +17,8 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
   "pyzmq",
+  "openrpc",
+  "jsonrpc2-pyclient",
 ]
 
 [project.optional-dependencies]
