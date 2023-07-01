@@ -23,12 +23,12 @@
 #
 
 from json import JSONDecodeError
-from typing import Any, List, Optional, Self, Tuple
+from typing import Any, Optional, Self
 
 
 from . import VERSION_B
 from .serialization import (create_header_frame, serialize_data, interpret_header, split_name,
-                            deserialize_data,
+                            deserialize_data, FullName, Header
                             )
 
 
@@ -63,18 +63,18 @@ class Message:
         self.header = (create_header_frame(conversation_id=conversation_id, message_id=message_id,
                                            message_type=message_type)
                        if header is None else header)
-        if isinstance(data, (bytes)):
+        if isinstance(data, bytes):
             self.payload = [data]
-        if isinstance(data, str):
+        elif isinstance(data, str):
             self.payload = [data.encode()]
         else:
             self._data = data
 
     def _setup_caches(self) -> None:
-        self._payload: List[bytes] = []
-        self._header_elements: Optional[Tuple[bytes, bytes, bytes]] = None
-        self._sender_elements: Optional[Tuple[bytes, bytes]] = None
-        self._receiver_elements: Optional[Tuple[bytes, bytes]] = None
+        self._payload: list[bytes] = []
+        self._header_elements: None | Header = None
+        self._sender_elements: None | FullName = None
+        self._receiver_elements: None | FullName = None
         self._data = None
 
     @classmethod
@@ -92,13 +92,13 @@ class Message:
         inst.payload = list(payload)
         return inst
 
-    def to_frames(self) -> List[bytes]:
+    def to_frames(self) -> list[bytes]:
         """Get a list representation of the message, ready for sending it."""
         if not self.sender:
             raise ValueError("Empty sender frame not allowed to send.")
         return self._to_frames_without_sender_check()
 
-    def _to_frames_without_sender_check(self) -> List[bytes]:
+    def _to_frames_without_sender_check(self) -> list[bytes]:
         return [self.version, self.receiver, self.sender, self.header] + self.payload
 
     @property
@@ -129,13 +129,13 @@ class Message:
         self._header_elements = None  # reset cache
 
     @property
-    def payload(self) -> List[bytes]:
+    def payload(self) -> list[bytes]:
         if self._payload == [] and self._data is not None:
             self._payload = [serialize_data(self._data)]
         return self._payload
 
     @payload.setter
-    def payload(self, value: List[bytes]) -> None:
+    def payload(self, value: list[bytes]) -> None:
         self._payload = value
         self._data = None  # reset data
 
@@ -143,43 +143,43 @@ class Message:
     def conversation_id(self) -> bytes:
         if self._header_elements is None:
             self._header_elements = interpret_header(self.header)
-        return self._header_elements[0]
+        return self._header_elements.conversation_id
 
     @property
     def message_id(self) -> bytes:
         if self._header_elements is None:
             self._header_elements = interpret_header(self.header)
-        return self._header_elements[1]
+        return self._header_elements.message_id
 
     @property
     def message_type(self) -> bytes:
         if self._header_elements is None:
             self._header_elements = interpret_header(self.header)
-        return self._header_elements[2]
+        return self._header_elements.message_type
 
     @property
     def receiver_node(self) -> bytes:
         if self._receiver_elements is None:
             self._receiver_elements = split_name(self.receiver)
-        return self._receiver_elements[0]
+        return self._receiver_elements.namespace
 
     @property
     def receiver_name(self) -> bytes:
         if self._receiver_elements is None:
             self._receiver_elements = split_name(self.receiver)
-        return self._receiver_elements[1]
+        return self._receiver_elements.name
 
     @property
     def sender_node(self) -> bytes:
         if self._sender_elements is None:
             self._sender_elements = split_name(self.sender)
-        return self._sender_elements[0]
+        return self._sender_elements.namespace
 
     @property
     def sender_name(self) -> bytes:
         if self._sender_elements is None:
             self._sender_elements = split_name(self.sender)
-        return self._sender_elements[1]
+        return self._sender_elements.name
 
     @property
     def data(self) -> object:
@@ -197,9 +197,11 @@ class Message:
             and self.header == other.header
         )
         try:
+            # Try to compare the data (python objects) instead of their bytes representation.
             my_data = self.data
             other_data = other.data
         except JSONDecodeError:
+            # Maybe the payload is binary, compare the raw payload
             return partial_comparison and self.payload == other.payload
         else:
             return (partial_comparison and my_data == other_data

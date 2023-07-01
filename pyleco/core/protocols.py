@@ -22,10 +22,10 @@
 # THE SOFTWARE.
 #
 
-from typing import Any, Dict, List, Optional, Protocol, Tuple
+from typing import Any, Optional, Protocol, Union
 
 from .message import Message
-from ..core.rpc_generator import RPCGenerator
+from .rpc_generator import RPCGenerator
 
 
 """
@@ -34,7 +34,7 @@ These classes show the remotely available methods via rpc.
 
 
 class Component(Protocol):
-    """Any Component of the pyleco protocol."""
+    """Any Component of the LECO protocol."""
 
     def pong(self) -> None:
         """Respond to any request."""
@@ -46,7 +46,7 @@ class ExtendedComponent(Component, Protocol):
 
     def set_log_level(self, level: int) -> None: ...
 
-    def shutdown(self) -> None: ...
+    def shut_down(self) -> None: ...
 
 
 class Coordinator(Component, Protocol):
@@ -60,7 +60,7 @@ class Coordinator(Component, Protocol):
 
     def coordinator_sign_out(self) -> None: ...
 
-    def set_nodes(self, nodes: Dict[str, str]) -> None: ...
+    def set_nodes(self, nodes: dict[str, str]) -> None: ...
 
     def compose_global_directory(self) -> dict: ...
 
@@ -70,11 +70,11 @@ class Coordinator(Component, Protocol):
 class Actor(Component, Protocol):
     """An Actor Component."""
 
-    def get_properties(self, properties: List[str] | Tuple[str, ...]) -> Dict[str, Any]: ...
+    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]: ...
 
-    def set_properties(self, properties: Dict[str, Any]) -> None: ...
+    def set_parameters(self, parameters: dict[str, Any]) -> None: ...
 
-    def call_method(self, method: str, _args: Optional[list | tuple] = None, **kwargs) -> Any: ...
+    def call_action(self, action: str, _args: Optional[list | tuple] = None, **kwargs) -> Any: ...
 
 
 class PollingActor(Actor, Protocol):
@@ -100,7 +100,7 @@ class LockingActor(Actor, Protocol):
 
 
 """
-These classes show the API of tools, which talk with the LECO protocol.
+These classes show the API of tools that talk with the LECO protocol.
 
 Any Component could use these tools in order to send and read messsages.
 For example a Director might use these tools to direct an Actor.

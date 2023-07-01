@@ -23,10 +23,35 @@
 #
 
 import json
-from typing import Optional, Tuple
+from typing import Optional, NamedTuple
 
 from uuid_extensions import uuid7  # as long as uuid does not yet support UUIDv7
-from pydantic import BaseModel
+from jsonrpcobjects.objects import (RequestObject, RequestObjectParams,
+                                    ResultResponseObject,
+                                    ErrorResponseObject,
+                                    NotificationObject, NotificationObjectParams,
+                                    )
+
+
+json_objects = (
+    RequestObject,
+    RequestObjectParams,
+    ResultResponseObject,
+    ErrorResponseObject,
+    NotificationObject,
+    NotificationObjectParams,
+)
+
+
+class FullName(NamedTuple):
+    namespace: bytes
+    name: bytes
+
+
+class Header(NamedTuple):
+    conversation_id: bytes
+    message_id: bytes
+    message_type: bytes
 
 
 def create_header_frame(conversation_id: Optional[bytes] = None,
@@ -35,7 +60,7 @@ def create_header_frame(conversation_id: Optional[bytes] = None,
     """Create the header frame.
 
     :param bytes conversation_id: ID of the conversation.
-    :param bytes message_id: Message ID of this message, must not contain.
+    :param bytes message_id: Message ID of this message.
     :return: header frame.
     """
     if conversation_id is None:
@@ -53,21 +78,21 @@ def create_header_frame(conversation_id: Optional[bytes] = None,
     return b"".join((conversation_id, message_id, message_type))
 
 
-def split_name(name: bytes, node: bytes = b"") -> Tuple[bytes, bytes]:
+def split_name(name: bytes, node: bytes = b"") -> FullName:
     """Split a sender/receiver name with given default node."""
     s = name.split(b".")
     n = s.pop(-1)
-    return (s.pop() if s else node), n
+    return FullName((s.pop() if s else node), n)
 
 
-def split_name_str(name: str, node: str = "") -> Tuple[str, str]:
+def split_name_str(name: str, node: str = "") -> tuple[str, str]:
     """Split a sender/receiver name with given default node."""
     s = name.split(".")
     n = s.pop(-1)
     return (s.pop() if s else node), n
 
 
-def interpret_header(header: bytes) -> Tuple[bytes, bytes, bytes]:
+def interpret_header(header: bytes) -> Header:
     """Interpret the header frame.
 
     :return: conversation_id, message_id, message_type
@@ -75,7 +100,7 @@ def interpret_header(header: bytes) -> Tuple[bytes, bytes, bytes]:
     conversation_id = header[:16]
     message_id = header[16:19]
     message_type = header[19:20]
-    return conversation_id, message_id, message_type
+    return Header(conversation_id, message_id, message_type)
 
 
 def serialize_data(data: object) -> bytes:
@@ -83,8 +108,8 @@ def serialize_data(data: object) -> bytes:
 
     Due to json serialization, data must not contain a bytes object!
     """
-    if isinstance(data, BaseModel):
-        return data.json().encode()
+    if isinstance(data, json_objects):
+        return data.json().encode()  # type: ignore
     else:
         return json.dumps(data).encode()
 

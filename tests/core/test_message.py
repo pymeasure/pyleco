@@ -32,32 +32,67 @@ from pyleco.core.message import Message
 cid = b"conversation_id;"
 
 
-class Test_Message_from_frames:
-    @pytest.fixture
-    def message(self) -> Message:
-        return Message.from_frames(b"\xffo", b"rec", b"send", b"conversation_id;mid0",
-                                   b'[["GET", [1, 2]], ["GET", 3]]')
+@pytest.fixture
+def message() -> Message:
+    return Message(
+        receiver=b"N1.receiver",
+        sender=b"N2.sender",
+        data=[["GET", [1, 2]], ["GET", 3]],
+        conversation_id=cid,
+        message_id=b"mid",
+        message_type=b"T"
+    )
 
+
+class Test_Message_create_message:
     def test_payload(self, message: Message):
         assert message.payload == [b'[["GET", [1, 2]], ["GET", 3]]']
 
     def test_version(self, message: Message):
-        assert message.version == b"\xffo"
+        assert message.version == VERSION_B
 
     def test_receiver(self, message: Message):
-        assert message.receiver == b"rec"
+        assert message.receiver == b"N1.receiver"
 
     def test_sender(self, message: Message):
-        assert message.sender == b"send"
+        assert message.sender == b"N2.sender"
 
     def test_header(self, message: Message):
-        assert message.header == b"conversation_id;mid0"
+        assert message.header == b"conversation_id;midT"
 
-    def test_conversation_id(self, message: Message):
-        assert message.conversation_id == b"conversation_id;"
+    def test_to_frames(self, message: Message):
+        assert message.to_frames() == [
+            VERSION_B,
+            b"N1.receiver",
+            b"N2.sender",
+            b"conversation_id;midT",
+            b'[["GET", [1, 2]], ["GET", 3]]',
+        ]
 
-    def test_message_id(self, message: Message):
-        assert message.message_id == b"mid"
+    def test_message_without_data_does_not_have_payload_frame(self):
+        message = Message(b"N1.receiver", b"N2.sender", conversation_id=b"conversation_id;")
+        assert message.payload == []
+        assert message.to_frames() == [VERSION_B, b"N1.receiver", b"N2.sender",
+                                       b"conversation_id;\x00\x00\x00\x00"]
+
+    def test_message_binary_data(self):
+        message = Message(b"N1.receiver", data=b"binary data")
+        assert message.payload[0] == b"binary data"
+
+    def test_message_data_str_to_binary_data(self):
+        message = Message(b"rec", data="some string")
+        assert message.payload[0] == b"some string"
+
+
+class Test_Message_from_frames:
+    def test_message_from_frames(self, message: Message):
+        message.version = b"diff"  # also if the version is different
+        assert Message.from_frames(*message.to_frames()) == message
+
+    def test_different_version(self, message: Message):
+        message.version = b"diff"  # also if the version is different
+        new_message = Message.from_frames(*message.to_frames())
+        assert new_message.version == b"diff"
 
     def test_multiple_payload_frames(self):
         message = Message.from_frames(
@@ -66,69 +101,17 @@ class Test_Message_from_frames:
         assert message.payload == [b'[["GET", [1, 2]], ["GET", 3]]', b"additional stuff"]
 
     def test_no_payload(self):
-        message = Message.from_frames(VERSION_B, b"broker", b"", b";")
+        message = Message.from_frames(VERSION_B, b"broker", b"", b"")
         assert message.payload == []
 
-    def test_get_frames_list(self, message: Message):
-        assert message.to_frames() == [b"\xffo", b"rec", b"send", b"conversation_id;mid0",
-                                       b'[["GET", [1, 2]], ["GET", 3]]']
+
+def test_to_frames_without_payload(message: Message):
+    message.payload = []
+    assert message.to_frames() == [VERSION_B, b"N1.receiver", b"N2.sender",
+                                   b"conversation_id;midT"]
 
 
-class Test_Message_create_message:
-    @pytest.fixture
-    def message(self) -> Message:
-        return Message(
-            receiver=b"rec",
-            sender=b"send",
-            data=[["GET", [1, 2]], ["GET", 3]],
-            conversation_id=b"conversation_id;",
-            message_id=b"mid",
-        )
-
-    def test_payload(self, message: Message):
-        assert message.payload == [b'[["GET", [1, 2]], ["GET", 3]]']
-
-    def test_version(self, message: Message):
-        assert message.version == VERSION_B
-
-    def test_receiver(self, message: Message):
-        assert message.receiver == b"rec"
-
-    def test_sender(self, message: Message):
-        assert message.sender == b"send"
-
-    def test_header(self, message: Message):
-        assert message.header == b"conversation_id;mid\x00"
-
-    def test_to_frames(self, message: Message):
-        assert message.to_frames() == [
-            VERSION_B,
-            b"rec",
-            b"send",
-            b"conversation_id;mid\x00",
-            b'[["GET", [1, 2]], ["GET", 3]]',
-        ]
-
-    def test_to_frames_without_payload(self, message: Message):
-        message.payload = []
-        assert message.to_frames() == [VERSION_B, b"rec", b"send", b"conversation_id;mid\x00"]
-
-    def test_message_without_data_does_not_have_payload_frame(self):
-        message = Message(b"rec", "send", conversation_id=b"conversation_id;")
-        assert message.payload == []
-        assert message.to_frames() == [VERSION_B, b"rec", b"send",
-                                       b"conversation_id;\x00\x00\x00\x00"]
-
-    def test_message_binary_data(self):
-        message = Message(b"rec", data=b"binary data")
-        assert message.payload[0] == b"binary data"
-
-    def test_message_data_str_to_binary_data(self):
-        message = Message(b"rec", data="some string")
-        assert message.payload[0] == b"some string"
-
-
-class Test_Message_with_strings:
+class Test_Message_with_string_parameters:
     @pytest.fixture
     def str_message(self) -> Message:
         message = Message(receiver="N2.receiver", sender="N1.sender")
@@ -169,12 +152,6 @@ class Test_Message_data_payload_conversion:
         assert message.data == [["G", ["nodes"]]]
 
 
-def test_message_comparison():
-    m1 = Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
-    m2 = Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
-    assert m1 == m2
-
-
 @pytest.mark.parametrize("property", ("receiver", "sender", "header"))
 def test_set_property_resets_cache(property):
     m = Message(b"r")
@@ -190,6 +167,11 @@ def test_get_frames_list_raises_error_on_empty_sender():
 
 
 class TestComparison:
+    def test_message_comparison(self):
+        m1 = Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
+        m2 = Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
+        assert m1 == m2
+
     def test_dictionary_order_is_irrelevant(self):
         m1 = Message(b"r", conversation_id=cid, data={"a": 1, "b": 2})
         m2 = Message(b"r", conversation_id=cid, data={"b": 2, "a": 1})

@@ -40,7 +40,7 @@ def generate_error_with_data(error: ErrorObject, data: Any) -> ErrorObjectData:
 
 
 class CommunicationError(ConnectionError):
-    """Something went wrong, send a `error_msg` to the recipient."""
+    """Something went wrong, send an `error_msg` to the recipient."""
 
     def __init__(self, text: str, error_payload: ErrorResponseObject, *args: Any) -> None:
         super().__init__(text, *args)
