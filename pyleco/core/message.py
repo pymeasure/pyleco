@@ -23,7 +23,7 @@
 #
 
 from json import JSONDecodeError
-from typing import Any, List, Optional, Self
+from typing import Any, List, Optional, Self, Tuple
 
 
 from . import VERSION_B
@@ -53,12 +53,15 @@ class Message:
     def __init__(self, receiver: bytes | str, sender: bytes | str = b"",
                  data: Optional[bytes | str | Any] = None,
                  header: Optional[bytes] = None,
-                 conversation_id: bytes = b"",
+                 conversation_id: Optional[bytes] = None,
+                 message_id: Optional[bytes] = None,
+                 message_type: Optional[bytes] = None,
                  **kwargs) -> None:
         self._setup_caches()
         self.receiver = receiver if isinstance(receiver, bytes) else receiver.encode()
         self.sender = sender if isinstance(sender, bytes) else sender.encode()
-        self.header = (create_header_frame(conversation_id=conversation_id, **kwargs)
+        self.header = (create_header_frame(conversation_id=conversation_id, message_id=message_id,
+                                           message_type=message_type)
                        if header is None else header)
         if isinstance(data, (bytes)):
             self.payload = [data]
@@ -69,9 +72,9 @@ class Message:
 
     def _setup_caches(self) -> None:
         self._payload: List[bytes] = []
-        self._header_elements = None
-        self._sender_elements = None
-        self._receiver_elements = None
+        self._header_elements: Optional[Tuple[bytes, bytes, bytes]] = None
+        self._sender_elements: Optional[Tuple[bytes, bytes]] = None
+        self._receiver_elements: Optional[Tuple[bytes, bytes]] = None
         self._data = None
 
     @classmethod
@@ -147,6 +150,12 @@ class Message:
         if self._header_elements is None:
             self._header_elements = interpret_header(self.header)
         return self._header_elements[1]
+
+    @property
+    def message_type(self) -> bytes:
+        if self._header_elements is None:
+            self._header_elements = interpret_header(self.header)
+        return self._header_elements[2]
 
     @property
     def receiver_node(self) -> bytes:

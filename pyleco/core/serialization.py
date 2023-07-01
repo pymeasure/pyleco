@@ -23,22 +23,34 @@
 #
 
 import json
-import random
-from time import time
-import struct
-from typing import Tuple
+from typing import Optional, Tuple
 
+from uuid_extensions import uuid7  # as long as uuid does not yet support UUIDv7
 from pydantic import BaseModel
 
 
-def create_header_frame(conversation_id: bytes = b"", message_id: bytes = b"") -> bytes:
+def create_header_frame(conversation_id: Optional[bytes] = None,
+                        message_id: Optional[bytes] = None,
+                        message_type: Optional[bytes] = None) -> bytes:
     """Create the header frame.
 
     :param bytes conversation_id: ID of the conversation.
-    :param bytes message_id: Message ID of this message, must not contain ";".
+    :param bytes message_id: Message ID of this message, must not contain.
     :return: header frame.
     """
-    return b";".join((conversation_id, message_id))
+    if conversation_id is None:
+        conversation_id = generate_conversation_id()
+    elif len(conversation_id) != 16:
+        raise ValueError("Length of 'conversation_id' is not 16 bytes.")
+    if message_id is None:
+        message_id = b"\x00" * 3
+    elif len(message_id) != 3:
+        raise ValueError("Length of 'message_id' is not 3 bytes.")
+    if message_type is None:
+        message_type = b"\x00"
+    elif len(message_type) != 1:
+        raise ValueError("Length of 'message_type' is not 1 bytes.")
+    return b"".join((conversation_id, message_id, message_type))
 
 
 def split_name(name: bytes, node: bytes = b"") -> Tuple[bytes, bytes]:
@@ -55,17 +67,15 @@ def split_name_str(name: str, node: str = "") -> Tuple[str, str]:
     return (s.pop() if s else node), n
 
 
-def interpret_header(header: bytes) -> Tuple[bytes, bytes]:
+def interpret_header(header: bytes) -> Tuple[bytes, bytes, bytes]:
     """Interpret the header frame.
 
-    :return: conversation_id, message_id
+    :return: conversation_id, message_id, message_type
     """
-    try:
-        conversation_id, message_id = header.rsplit(b";", maxsplit=1)
-    except (IndexError, ValueError):
-        conversation_id = b""
-        message_id = b""
-    return conversation_id, message_id
+    conversation_id = header[:16]
+    message_id = header[16:19]
+    message_type = header[19:20]
+    return conversation_id, message_id, message_type
 
 
 def serialize_data(data: object) -> bytes:
@@ -86,7 +96,4 @@ def deserialize_data(content: bytes) -> object:
 
 def generate_conversation_id() -> bytes:
     """Generate a conversation_id."""
-    # struct.pack uses 8 bytes and takes 0.1 seconds for 1 Million repetitions.
-    # str().encode() uses 14 bytes and takes 0.5 seconds for 1 Million repetitions.
-    # !d is a double (8 bytes) in network byte order (big-endian)
-    return struct.pack("!d", time()) + random.randbytes(2)
+    return uuid7(as_type="bytes")  # type: ignore

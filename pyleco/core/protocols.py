@@ -76,10 +76,9 @@ class Actor(Component, Protocol):
 
     def call_method(self, method: str, _args: Optional[list | tuple] = None, **kwargs) -> Any: ...
 
+
 class PollingActor(Actor, Protocol):
     """An Actor which allows regular polling."""
-
-    polling_interval: float
 
     def start_polling(self, polling_interval: Optional[float]) -> None: ...
 
@@ -121,7 +120,7 @@ class Communicator(Component, Protocol):
 
     def send(self,
              receiver: str | bytes,
-             conversation_id: bytes = b"",
+             conversation_id: Optional[bytes] = None,
              data: Optional[Any] = None,
              **kwargs) -> None:
         """Send a message based on kwargs."""
@@ -131,7 +130,7 @@ class Communicator(Component, Protocol):
 
     def send_message(self, message: Message) -> None: ...
 
-    def ask(self, receiver: bytes | str, conversation_id: bytes = b"",
+    def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
             data: Optional[Any] = None,
             **kwargs) -> Message:
         """Send a message based on kwargs and retrieve the response."""

@@ -29,10 +29,13 @@ from pyleco.core import VERSION_B
 from pyleco.core.message import Message
 
 
+cid = b"conversation_id;"
+
+
 class Test_Message_from_frames:
     @pytest.fixture
     def message(self) -> Message:
-        return Message.from_frames(b"\xffo", b"rec", b"send", b"x;y",
+        return Message.from_frames(b"\xffo", b"rec", b"send", b"conversation_id;mid0",
                                    b'[["GET", [1, 2]], ["GET", 3]]')
 
     def test_payload(self, message: Message):
@@ -48,7 +51,13 @@ class Test_Message_from_frames:
         assert message.sender == b"send"
 
     def test_header(self, message: Message):
-        assert message.header == b"x;y"
+        assert message.header == b"conversation_id;mid0"
+
+    def test_conversation_id(self, message: Message):
+        assert message.conversation_id == b"conversation_id;"
+
+    def test_message_id(self, message: Message):
+        assert message.message_id == b"mid"
 
     def test_multiple_payload_frames(self):
         message = Message.from_frames(
@@ -61,8 +70,8 @@ class Test_Message_from_frames:
         assert message.payload == []
 
     def test_get_frames_list(self, message: Message):
-        assert message.to_frames() == [b"\xffo", b"rec", b"send", b"x;y",
-                                             b'[["GET", [1, 2]], ["GET", 3]]']
+        assert message.to_frames() == [b"\xffo", b"rec", b"send", b"conversation_id;mid0",
+                                       b'[["GET", [1, 2]], ["GET", 3]]']
 
 
 class Test_Message_create_message:
@@ -72,8 +81,8 @@ class Test_Message_create_message:
             receiver=b"rec",
             sender=b"send",
             data=[["GET", [1, 2]], ["GET", 3]],
-            conversation_id=b"x",
-            message_id=b"y",
+            conversation_id=b"conversation_id;",
+            message_id=b"mid",
         )
 
     def test_payload(self, message: Message):
@@ -89,25 +98,26 @@ class Test_Message_create_message:
         assert message.sender == b"send"
 
     def test_header(self, message: Message):
-        assert message.header == b"x;y"
+        assert message.header == b"conversation_id;mid\x00"
 
-    def test_get_frames_list(self, message: Message):
+    def test_to_frames(self, message: Message):
         assert message.to_frames() == [
             VERSION_B,
             b"rec",
             b"send",
-            b"x;y",
+            b"conversation_id;mid\x00",
             b'[["GET", [1, 2]], ["GET", 3]]',
         ]
 
-    def test_get_frames_list_without_payload(self, message: Message):
+    def test_to_frames_without_payload(self, message: Message):
         message.payload = []
-        assert message.to_frames() == [VERSION_B, b"rec", b"send", b"x;y"]
+        assert message.to_frames() == [VERSION_B, b"rec", b"send", b"conversation_id;mid\x00"]
 
     def test_message_without_data_does_not_have_payload_frame(self):
-        message = Message(b"rec", "send")
+        message = Message(b"rec", "send", conversation_id=b"conversation_id;")
         assert message.payload == []
-        assert message.to_frames() == [VERSION_B, b"rec", b"send", b";"]
+        assert message.to_frames() == [VERSION_B, b"rec", b"send",
+                                       b"conversation_id;\x00\x00\x00\x00"]
 
     def test_message_binary_data(self):
         message = Message(b"rec", data=b"binary data")
@@ -116,6 +126,7 @@ class Test_Message_create_message:
     def test_message_data_str_to_binary_data(self):
         message = Message(b"rec", data="some string")
         assert message.payload[0] == b"some string"
+
 
 class Test_Message_with_strings:
     @pytest.fixture
@@ -180,13 +191,13 @@ def test_get_frames_list_raises_error_on_empty_sender():
 
 class TestComparison:
     def test_dictionary_order_is_irrelevant(self):
-        assert Message(b"r", data={"a": 1, "b": 2}) == Message(b"r", data={"b": 2, "a": 1})
+        m1 = Message(b"r", conversation_id=cid, data={"a": 1, "b": 2})
+        m2 = Message(b"r", conversation_id=cid, data={"b": 2, "a": 1})
+        assert m1 == m2
 
     def test_distinguish_empty_payload_frame(self):
-        m1 = Message("r")
+        m1 = Message("r", conversation_id=b"conversation_id;")
         m1.payload = [b""]
-        m2 = Message("r")
+        m2 = Message("r", conversation_id=b"conversation_id;")
         assert m2.payload == []  # verify that it does not have a payload
         assert m1 != m2
-
-
