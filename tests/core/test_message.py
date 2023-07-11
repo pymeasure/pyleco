@@ -111,6 +111,31 @@ def test_to_frames_without_payload(message: Message):
                                    b"conversation_id;midT"]
 
 
+class Test_Message_frame_splitting:
+    """Test whether the splitting of header/sender/receiver works as expected."""
+
+    def test_receiver_namespace(self, message: Message):
+        assert message.receiver_elements.namespace == b"N1"
+
+    def test_receiver_name(self, message: Message):
+        assert message.receiver_elements.name == b"receiver"
+
+    def test_sender_namespace(self, message: Message):
+        assert message.sender_elements.namespace == b"N2"
+
+    def test_sender_name(self, message: Message):
+        assert message.sender_elements.name == b"sender"
+
+    def test_header_conversation_id(self, message: Message):
+        assert message.header_elements.conversation_id == cid
+
+    def test_header_message_id(self, message: Message):
+        assert message.header_elements.message_id == b"mid"
+
+    def test_header_message_type(self, message: Message):
+        assert message.header_elements.message_type == b"T"
+
+
 class Test_Message_with_string_parameters:
     @pytest.fixture
     def str_message(self) -> Message:
@@ -134,30 +159,26 @@ class Test_Message_with_string_parameters:
     def test_str_return_values(self, str_message: Message):
         assert str_message.receiver_str == "N2.receiver"
         assert str_message.sender_str == "N1.sender"
-        assert str_message.receiver_node_str == "N2"
-        assert str_message.receiver_name_str == "receiver"
-        assert str_message.sender_node_str == "N1"
-        assert str_message.sender_name_str == "sender"
+        assert str_message.receiver_elements_str == ("N2", "receiver")
+        assert str_message.sender_elements_str == ("N1", "sender")
 
 
 class Test_Message_data_payload_conversion:
     def test_data_to_payload(self):
         message = Message(b"r", b"s", data=([{5: "1asfd"}], 8))
         assert message.payload == [b'[[{"5": "1asfd"}], 8]']
-        assert message.data == ([{5: "1asfd"}], 8)
+        assert message.data == [[{'5': "1asfd"}], 8]  # converted to and from json, so modified!
 
     def test_payload_to_data(self):
-        message = Message.from_frames(b"v", b"r", b"s", b"h", b'[["G", ["nodes"]]]', b'p2')
+        frames = [b"v", b"r", b"s", b"h", b'[["G", ["nodes"]]]', b'p2']
+        message = Message.from_frames(*frames)
         assert message.payload == [b'[["G", ["nodes"]]]', b'p2']
         assert message.data == [["G", ["nodes"]]]
 
-
-@pytest.mark.parametrize("property", ("receiver", "sender", "header"))
-def test_set_property_resets_cache(property):
-    m = Message(b"r")
-    setattr(m, f"_{property}_elements", [b"some", b"value"])
-    setattr(m, property, b"new value")
-    assert getattr(m, f"_{property}_elements") is None
+    def test_no_payload_is_no_data(self):
+        message = Message(b"r")
+        message.payload = []  # make sure, that there is no payload
+        assert message.data is None
 
 
 def test_get_frames_list_raises_error_on_empty_sender():
@@ -168,8 +189,9 @@ def test_get_frames_list_raises_error_on_empty_sender():
 
 class TestComparison:
     def test_message_comparison(self):
-        m1 = Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
-        m2 = Message.from_frames(VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]')
+        frames = [VERSION_B, b"rec", b"send", b"x;y", b'[["GET", [1, 2]]']
+        m1 = Message.from_frames(*frames)
+        m2 = Message.from_frames(*frames)
         assert m1 == m2
 
     def test_dictionary_order_is_irrelevant(self):

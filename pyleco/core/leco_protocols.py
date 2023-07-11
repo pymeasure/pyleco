@@ -22,18 +22,54 @@
 # THE SOFTWARE.
 #
 
+"""
+These classes show which methods have to be available via RPC in order to comply with LECO message
+definitions.
+
+A combination of type checking and unit tests can test the compliance with LECO definitions.
+
+For example, if you want to verify, that the class `Actor` fulfills the requirements for a
+Component, for an Actor which supports Polling and setting the log level, you may use the following
+tests.
+
+For a static test, that all the methods are present with the correct types, the following works:
+
+.. code::
+
+    class ExtendedActorProtocol(ExtendedComponentProtocol, PollingActorProtocol, Protocol):
+        "Combine all required Protocols for the class under test."
+        pass
+
+    def static_test_methods_are_present():
+        def testing(component: ExtendedActorProtocol):
+            pass
+        testing(Actor(name="test", cls=FantasyInstrument))
+
+For unit test, that all the necessary methods are reachable via RPC, the following works:
+
+.. code::
+
+    protocol_methods = [m for m in dir(ExtendedActorProtocol) if not m.startswith("_")]
+
+    @pytest.fixture
+    def component_methods(actor: Actor):
+        response = actor.rpc.process_request(
+            '{"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}')
+        result = actor.rpc_generator.get_result_from_response(response)  # type: ignore
+        return result.get('methods')
+
+    @pytest.mark.parametrize("method", protocol_methods)
+    def test_method_is_available(component_methods, method):
+        for m in component_methods:
+            if m.get('name') == method:
+                return
+        raise AssertionError(f"Method {method} is not available.")
+"""
+
 from typing import Any, Optional, Protocol, Union
 
-from .message import Message
-from .rpc_generator import RPCGenerator
 
-
-"""
-These classes show the remotely available methods via rpc.
-"""
-
-
-class Component(Protocol):
+class ComponentProtocol(Protocol):
     """Any Component of the LECO protocol."""
 
     def pong(self) -> None:
@@ -41,7 +77,7 @@ class Component(Protocol):
         return  # always succeeds.
 
 
-class ExtendedComponent(Component, Protocol):
+class ExtendedComponentProtocol(ComponentProtocol, Protocol):
     """A Component which supports more features."""
 
     def set_log_level(self, level: int) -> None: ...
@@ -49,7 +85,7 @@ class ExtendedComponent(Component, Protocol):
     def shut_down(self) -> None: ...
 
 
-class Coordinator(Component, Protocol):
+class CoordinatorProtocol(ComponentProtocol, Protocol):
     """A command protocol Coordinator"""
 
     def sign_in(self) -> None: ...
@@ -67,7 +103,7 @@ class Coordinator(Component, Protocol):
     def compose_local_directory(self) -> dict: ...
 
 
-class Actor(Component, Protocol):
+class ActorProtocol(ComponentProtocol, Protocol):
     """An Actor Component."""
 
     def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]: ...
@@ -77,7 +113,7 @@ class Actor(Component, Protocol):
     def call_action(self, action: str, _args: Optional[list | tuple] = None, **kwargs) -> Any: ...
 
 
-class PollingActor(Actor, Protocol):
+class PollingActorProtocol(ActorProtocol, Protocol):
     """An Actor which allows regular polling."""
 
     def start_polling(self, polling_interval: Optional[float]) -> None: ...
@@ -89,7 +125,7 @@ class PollingActor(Actor, Protocol):
     def stop_polling(self) -> None: ...
 
 
-class LockingActor(Actor, Protocol):
+class LockingActorProtocol(ActorProtocol, Protocol):
     """An Actor which allows to lock the device or channels of the device."""
 
     def lock(self, resource: Optional[str] = None) -> bool: ...
@@ -97,46 +133,3 @@ class LockingActor(Actor, Protocol):
     def unlock(self, resource: Optional[str] = None) -> None: ...
 
     def force_unlock(self, resource: Optional[str] = None) -> None: ...
-
-
-"""
-These classes show the API of tools that talk with the LECO protocol.
-
-Any Component could use these tools in order to send and read messsages.
-For example a Director might use these tools to direct an Actor.
-"""
-
-
-class Communicator(Component, Protocol):
-    """A helper class for a Component, to communicate via the LECO protocol."""
-
-    name: str
-    node: Optional[str] = None
-    rpc_generator: RPCGenerator
-
-    def sign_in(self) -> None: ...
-
-    def sign_out(self) -> None: ...
-
-    def send(self,
-             receiver: str | bytes,
-             conversation_id: Optional[bytes] = None,
-             data: Optional[Any] = None,
-             **kwargs) -> None:
-        """Send a message based on kwargs."""
-        self.send_message(message=Message(
-            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
-        ))
-
-    def send_message(self, message: Message) -> None: ...
-
-    def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
-            data: Optional[Any] = None,
-            **kwargs) -> Message:
-        """Send a message based on kwargs and retrieve the response."""
-        return self.ask_message(message=Message(
-            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs))
-
-    def ask_message(self, message: Message) -> Message: ...
-
-    def close(self) -> None: ...

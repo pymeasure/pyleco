@@ -28,7 +28,7 @@ from typing import Any, Optional, Self
 
 from . import VERSION_B
 from .serialization import (create_header_frame, serialize_data, interpret_header, split_name,
-                            deserialize_data, FullName, Header
+                            deserialize_data, FullName, Header, FullNameStr, split_name_str,
                             )
 
 
@@ -44,11 +44,16 @@ class Message:
         - 0 or more `payload` frames
 
     If you do not specify a sender, the sending program shall add it itself.
-    The :attr:`data` attribute is the content of the first :attr:`payload` frame.
+    The :attr:`data` attribute is the content of the first :attr:`payload` frame. It can be set with
+    the corresponding argument.
     All attributes, except the official frames, are for convenience.
     """
 
     version: bytes = VERSION_B
+    receiver: bytes
+    sender: bytes
+    header: bytes
+    payload: list[bytes]
 
     def __init__(self, receiver: bytes | str, sender: bytes | str = b"",
                  data: Optional[bytes | str | Any] = None,
@@ -56,10 +61,12 @@ class Message:
                  conversation_id: Optional[bytes] = None,
                  message_id: Optional[bytes] = None,
                  message_type: Optional[bytes] = None,
-                 **kwargs) -> None:
-        self._setup_caches()
+                 ) -> None:
         self.receiver = receiver if isinstance(receiver, bytes) else receiver.encode()
         self.sender = sender if isinstance(sender, bytes) else sender.encode()
+        if header and (conversation_id or message_id or message_type):
+            raise ValueError(
+                "You may not specify the header and some header element at the same time!")
         self.header = (create_header_frame(conversation_id=conversation_id, message_id=message_id,
                                            message_type=message_type)
                        if header is None else header)
@@ -67,15 +74,10 @@ class Message:
             self.payload = [data]
         elif isinstance(data, str):
             self.payload = [data.encode()]
+        elif data is None:
+            self.payload = []
         else:
-            self._data = data
-
-    def _setup_caches(self) -> None:
-        self._payload: list[bytes] = []
-        self._header_elements: None | Header = None
-        self._sender_elements: None | FullName = None
-        self._receiver_elements: None | FullName = None
-        self._data = None
+            self.payload = [serialize_data(data)]
 
     @classmethod
     def from_frames(cls, version: bytes, receiver: bytes, sender: bytes, header: bytes,
@@ -101,91 +103,34 @@ class Message:
     def _to_frames_without_sender_check(self) -> list[bytes]:
         return [self.version, self.receiver, self.sender, self.header] + self.payload
 
+    # Convenience methods to access elements
     @property
-    def receiver(self) -> bytes:
-        return self._receiver
-
-    @receiver.setter
-    def receiver(self, value: bytes):
-        self._receiver = value
-        self._receiver_elements = None  # reset cache
+    def receiver_elements(self) -> FullName:
+        return split_name(self.receiver)
 
     @property
-    def sender(self) -> bytes:
-        return self._sender
-
-    @sender.setter
-    def sender(self, value: bytes):
-        self._sender = value
-        self._sender_elements = None  # reset cache
+    def sender_elements(self) -> FullName:
+        return split_name(self.sender)
 
     @property
-    def header(self) -> bytes:
-        return self._header
-
-    @header.setter
-    def header(self, value: bytes):
-        self._header = value
-        self._header_elements = None  # reset cache
-
-    @property
-    def payload(self) -> list[bytes]:
-        if self._payload == [] and self._data is not None:
-            self._payload = [serialize_data(self._data)]
-        return self._payload
-
-    @payload.setter
-    def payload(self, value: list[bytes]) -> None:
-        self._payload = value
-        self._data = None  # reset data
+    def header_elements(self) -> Header:
+        return interpret_header(self.header)
 
     @property
     def conversation_id(self) -> bytes:
-        if self._header_elements is None:
-            self._header_elements = interpret_header(self.header)
-        return self._header_elements.conversation_id
+        return self.header_elements.conversation_id
 
     @property
     def message_id(self) -> bytes:
-        if self._header_elements is None:
-            self._header_elements = interpret_header(self.header)
-        return self._header_elements.message_id
+        return self.header_elements.message_id
 
     @property
     def message_type(self) -> bytes:
-        if self._header_elements is None:
-            self._header_elements = interpret_header(self.header)
-        return self._header_elements.message_type
-
-    @property
-    def receiver_node(self) -> bytes:
-        if self._receiver_elements is None:
-            self._receiver_elements = split_name(self.receiver)
-        return self._receiver_elements.namespace
-
-    @property
-    def receiver_name(self) -> bytes:
-        if self._receiver_elements is None:
-            self._receiver_elements = split_name(self.receiver)
-        return self._receiver_elements.name
-
-    @property
-    def sender_node(self) -> bytes:
-        if self._sender_elements is None:
-            self._sender_elements = split_name(self.sender)
-        return self._sender_elements.namespace
-
-    @property
-    def sender_name(self) -> bytes:
-        if self._sender_elements is None:
-            self._sender_elements = split_name(self.sender)
-        return self._sender_elements.name
+        return self.header_elements.message_type
 
     @property
     def data(self) -> object:
-        if self._data is None and self.payload:
-            self._data = deserialize_data(self.payload[0])
-        return self._data
+        return deserialize_data(self.payload[0]) if self.payload else None
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Message):
@@ -228,17 +173,9 @@ class Message:
         self.sender = value.encode()
 
     @property
-    def receiver_node_str(self) -> str:
-        return self.receiver_node.decode()
+    def receiver_elements_str(self) -> FullNameStr:
+        return split_name_str(self.receiver_str)
 
     @property
-    def receiver_name_str(self) -> str:
-        return self.receiver_name.decode()
-
-    @property
-    def sender_node_str(self) -> str:
-        return self.sender_node.decode()
-
-    @property
-    def sender_name_str(self) -> str:
-        return self.sender_name.decode()
+    def sender_elements_str(self) -> FullNameStr:
+        return split_name_str(self.sender_str)

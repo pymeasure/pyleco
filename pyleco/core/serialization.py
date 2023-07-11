@@ -48,6 +48,11 @@ class FullName(NamedTuple):
     name: bytes
 
 
+class FullNameStr(NamedTuple):
+    namespace: str
+    name: str
+
+
 class Header(NamedTuple):
     conversation_id: bytes
     message_id: bytes
@@ -78,18 +83,18 @@ def create_header_frame(conversation_id: Optional[bytes] = None,
     return b"".join((conversation_id, message_id, message_type))
 
 
-def split_name(name: bytes, node: bytes = b"") -> FullName:
-    """Split a sender/receiver name with given default node."""
+def split_name(name: bytes, namespace: bytes = b"") -> FullName:
+    """Split a sender/receiver name with given default namespace."""
     s = name.split(b".")
     n = s.pop(-1)
-    return FullName((s.pop() if s else node), n)
+    return FullName((s.pop() if s else namespace), n)
 
 
-def split_name_str(name: str, node: str = "") -> tuple[str, str]:
-    """Split a sender/receiver name with given default node."""
+def split_name_str(name: str, namespace: str = "") -> FullNameStr:
+    """Split a sender/receiver name with given default namespace."""
     s = name.split(".")
     n = s.pop(-1)
-    return (s.pop() if s else node), n
+    return FullNameStr((s.pop() if s else namespace), n)
 
 
 def interpret_header(header: bytes) -> Header:
