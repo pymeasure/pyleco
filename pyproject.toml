@@ -16,10 +16,10 @@ classifiers = [
 
 requires-python = ">=3.10"
 dependencies = [
-  "pyzmq" >= 22.3.0,
-  "openrpc" >= 6.3.17,
-  "jsonrpc2-pyclient" >= 2.2.12,
-  "uuid7" >= 0.1.0,
+  "pyzmq >= 22.3.0",
+  "openrpc >= 6.3.17",
+  "jsonrpc2-pyclient >= 2.2.12",
+  "uuid7 >= 0.1.0",
 ]
 
 [project.optional-dependencies]
