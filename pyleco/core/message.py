@@ -28,7 +28,7 @@ from typing import Any, Optional, Self
 
 from . import VERSION_B
 from .serialization import (create_header_frame, serialize_data, interpret_header, split_name,
-                            deserialize_data, FullName, Header, FullNameStr, split_name_str,
+                            deserialize_data, FullName, Header
                             )
 
 
@@ -121,14 +121,6 @@ class Message:
         return self.header_elements.conversation_id
 
     @property
-    def message_id(self) -> bytes:
-        return self.header_elements.message_id
-
-    @property
-    def message_type(self) -> bytes:
-        return self.header_elements.message_type
-
-    @property
     def data(self) -> object:
         return deserialize_data(self.payload[0]) if self.payload else None
 
@@ -154,28 +146,3 @@ class Message:
 
     def __repr__(self) -> str:
         return f"Message.from_frames({self._to_frames_without_sender_check()})"
-
-    # String access properties
-    @property
-    def receiver_str(self) -> str:
-        return self.receiver.decode()
-
-    @receiver_str.setter
-    def receiver_str(self, value: str):
-        self.receiver = value.encode()
-
-    @property
-    def sender_str(self) -> str:
-        return self.sender.decode()
-
-    @sender_str.setter
-    def sender_str(self, value: str):
-        self.sender = value.encode()
-
-    @property
-    def receiver_elements_str(self) -> FullNameStr:
-        return split_name_str(self.receiver_str)
-
-    @property
-    def sender_elements_str(self) -> FullNameStr:
-        return split_name_str(self.sender_str)

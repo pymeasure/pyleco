@@ -148,20 +148,6 @@ class Test_Message_with_string_parameters:
     def test_sender_is_bytes(self, str_message: Message):
         assert str_message.sender == b"N1.sender"
 
-    def test_set_receiver_as_string(self, str_message: Message):
-        str_message.receiver_str = "New.Receiver"
-        assert str_message.receiver == b"New.Receiver"
-
-    def test_set_sender_as_string(self, str_message: Message):
-        str_message.sender_str = "New.Sender"
-        assert str_message.sender == b"New.Sender"
-
-    def test_str_return_values(self, str_message: Message):
-        assert str_message.receiver_str == "N2.receiver"
-        assert str_message.sender_str == "N1.sender"
-        assert str_message.receiver_elements_str == ("N2", "receiver")
-        assert str_message.sender_elements_str == ("N1", "sender")
-
 
 class Test_Message_data_payload_conversion:
     def test_data_to_payload(self):
