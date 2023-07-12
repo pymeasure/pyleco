@@ -16,10 +16,10 @@ classifiers = [
 
 requires-python = ">=3.10"
 dependencies = [
-  "pyzmq",
-  "openrpc",
-  "jsonrpc2-pyclient",
-  "uuid7",
+  "pyzmq" >= 22.3.0,
+  "openrpc" >= 6.3.17,
+  "jsonrpc2-pyclient" >= 2.2.12,
+  "uuid7" >= 0.1.0,
 ]
 
 [project.optional-dependencies]
@@ -39,3 +39,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 # write_to = "pyleco/_version.py"
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
