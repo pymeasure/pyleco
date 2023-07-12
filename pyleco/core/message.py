@@ -23,7 +23,7 @@
 #
 
 from json import JSONDecodeError
-from typing import Any, Optional, Self
+from typing import Any, Optional
 
 
 from . import VERSION_B
@@ -81,7 +81,7 @@ class Message:
 
     @classmethod
     def from_frames(cls, version: bytes, receiver: bytes, sender: bytes, header: bytes,
-                    *payload: bytes) -> Self:
+                    *payload: bytes):  # -> typing.Self for py>=3.11
         """Create a message from a frames list, for example after reading from a socket.
 
         .. code::
