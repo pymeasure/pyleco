@@ -22,10 +22,8 @@
 # THE SOFTWARE.
 #
 
-from typing import List
-
 from .core.message import Message
-from .core.protocols import Communicator
+from .core.internal_protocols import CommunicatorProtocol
 from .core.rpc_generator import RPCGenerator
 
 
@@ -79,7 +77,7 @@ class FakeSocket:
         return self._r.pop(0)
 
     def send_multipart(self, parts):
-        print(parts)
+        # print(parts)
         for i, part in enumerate(parts):
             if not isinstance(part, bytes):
                 # Similar to real error message.
@@ -91,13 +89,13 @@ class FakeSocket:
         self.closed = True
 
 
-class FakeCommunicator(Communicator):
+class FakeCommunicator(CommunicatorProtocol):
     def __init__(self, name: str):
         super().__init__()
         self.name = name
         self.rpc_generator = RPCGenerator()
-        self._r: List[Message] = []
-        self._s: List[Message] = []
+        self._r: list[Message] = []
+        self._s: list[Message] = []
 
     def sign_in(self) -> None:
         return super().sign_in()

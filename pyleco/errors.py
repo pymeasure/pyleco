@@ -26,13 +26,15 @@ from typing import Any
 
 from jsonrpcobjects.objects import ErrorObject, ErrorObjectData, ErrorResponseObject
 
-# TODO define valid error codes
+# JSON specification:
+# -32000 to -32099  Server error    reserved for implementation-defined server-errors
 
-# Routing errors (Coordinator)
-NOT_SIGNED_IN = ErrorObject(code=1234, message="You did not sign in!")
-DUPLICATE_NAME = ErrorObject(code=456, message="The name is already taken.")
-NODE_UNKNOWN = ErrorObject(code=4324, message="Node is not known.")
-RECEIVER_UNKNOWN = ErrorObject(code=123213, message="Receiver is not in addresses list.")
+# TODO define valid error codes: Proposal:
+# Routing errors (Coordinator) between -32000 and -32009
+NOT_SIGNED_IN = ErrorObject(code=-32000, message="You did not sign in!")
+DUPLICATE_NAME = ErrorObject(code=-32001, message="The name is already taken.")
+NODE_UNKNOWN = ErrorObject(code=-32002, message="Node is not known.")
+RECEIVER_UNKNOWN = ErrorObject(code=-32003, message="Receiver is not in addresses list.")
 
 
 def generate_error_with_data(error: ErrorObject, data: Any) -> ErrorObjectData:
