@@ -23,10 +23,6 @@ jobs:
           environment-file: environment.yml
           cache-environment-key: py3.10-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
           cache-downloads: false
-      - name: Mamba info & list
-        run: |
-          mamba info
-          mamba list
       - name: Set up flake8 annotations
         uses: rbialon/flake8-annotations@v1
       - name: Lint with flake8
@@ -74,10 +70,6 @@ jobs:
         run: pip install .[dev]
       - name: Pyleco version
         run: python -c "import pyleco;print(pyleco.__version__)"
-      - name: Mamba info & list
-        run: |
-          mamba info
-          mamba list
       - name: Run pytest with xvfb
         if: runner.os == 'Linux'
         run: |

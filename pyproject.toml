@@ -49,4 +49,6 @@ profile = "black"
 [tool.ruff]
 select = ["E", "F", "W"]
 line-length = 100
-per-file-ignores = {"__init__.py": ["F401"]}
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
