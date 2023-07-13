@@ -41,7 +41,7 @@ jobs:
           echo "::add-matcher::.github/sphinx.json"
           make doctest SPHINXOPTS="-W --keep-going"
   type_checking:
-    name: Static Type Checking and Code Coverage
+    name: Static Type Checking
     runs-on: "ubuntu-latest"
     defaults:
       run:
@@ -61,6 +61,23 @@ jobs:
         run: pip install mypy
       - name: Run mypy
         run: mypy .
+  test_coverage:
+    name: Code Coverage
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install pyleco requirements
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          python-version: "3.11"
+          environment-file: environment.yml
+          cache-environment-key: py3.11-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-downloads: false
       - name: Install Pyleco
         # If the pytest problem matcher stops working because of bad paths, do an editable install
         run: pip install .[dev]
