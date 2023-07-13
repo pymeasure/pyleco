@@ -64,3 +64,11 @@ exclude = [
 "__init__.py" = ["F401"]
 
 [mypy]
+
+[tool.coverage.run]
+branch = true
+omit = [
+    # Omit LECO definitions
+    "pyleco/errors.py",
+    "pyleco/core/leco_protocols.py",
+]
