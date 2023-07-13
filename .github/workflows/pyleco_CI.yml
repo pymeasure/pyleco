@@ -61,6 +61,23 @@ jobs:
         run: pip install mypy
       - name: Run mypy
         run: mypy .
+      - name: Coverage
+        run: pytest --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=pyleco | tee pytest-coverage.txt
+      - name: Pytest coverage comment
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          title: Coverage Report
+          badge-title: PyLECO Coverage
+          hide-badge: false
+          hide-report: false
+          create-new-comment: false
+          hide-comment: false
+          report-only-changed-files: false
+          remove-link-from-badge: false
+          unique-id-for-comment: python3.8
+          junitxml-path: ./pytest.xml
+          junitxml-title: Coverage Summary
   test:
     name: Python ${{ matrix.python-version }}, ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
