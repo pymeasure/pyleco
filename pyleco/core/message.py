@@ -44,13 +44,13 @@ class Message:
         - 0 or more `payload` frames
 
     If you do not specify a sender, the sending program shall add it itself.
-    The :attr:`data` attribute is the content of the first :attr:`payload` frame. It can be set with
+    The :attr:`data` attribute is the content of the first :attr:`payload` frame. It can be set with asfd asd
     the corresponding argument.
     All attributes, except the official frames, are for convenience.
     """
 
     version: bytes = VERSION_B
-    receiver: bytes
+    receiver: str
     sender: bytes
     header: bytes
     payload: list[bytes]
