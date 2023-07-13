@@ -32,7 +32,7 @@ try:
     # If a user has setuptools_scm installed, assume they want the most up to date version string.
     # Alternatively, we could use a dummy dev module that is never packaged whose presence signals
     # that we are in an editable install/repo, see https://github.com/pycalphad/pycalphad/pull/341
-    import setuptools_scm
+    import setuptools_scm  # type: ignore
     __version__ = setuptools_scm.get_version(root='..', relative_to=__file__)
     del setuptools_scm
 except (ImportError, LookupError):

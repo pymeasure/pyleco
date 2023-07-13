@@ -28,7 +28,7 @@ from pyleco.core import VERSION_B
 
 from pyleco.core.message import Message
 
-#                                                 asdf                                   asdf               asfd
+
 cid = b"conversation_id;"
 
 
@@ -85,7 +85,7 @@ class Test_Message_create_message:
 
 
 class Test_Message_from_frames:
-    def test_message_from_frames(self, message: str):
+    def test_message_from_frames(self, message: Message):
         message.version = b"diff"  # also if the version is different
         assert Message.from_frames(*message.to_frames()) == message
 

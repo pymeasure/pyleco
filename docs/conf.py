@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 #
 # PyLeco documentation build configuration file, created by
 # sphinx-quickstart on Mon Apr  6 13:06:00 2015.
