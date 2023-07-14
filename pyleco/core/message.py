@@ -51,7 +51,7 @@ class Message:
 
     version: bytes = VERSION_B
     receiver: bytes
-    sender: bytes
+    sender: str
     header: bytes
     payload: list[bytes]
 

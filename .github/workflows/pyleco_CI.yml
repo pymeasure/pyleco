@@ -80,7 +80,7 @@ jobs:
           cache-downloads: false
       - name: Install Pyleco
         # If the pytest problem matcher stops working because of bad paths, do an editable install
-        run: pip install .[dev]
+        run: pip install -e .[dev]  # editable for covtest
       - name: Test for Coverage
         run: pytest --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=pyleco | tee pytest-coverage.txt
       - name: Pytest Coverage Comment
