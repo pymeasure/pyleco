@@ -35,7 +35,7 @@ try:
     import setuptools_scm  # type: ignore
     __version__ = setuptools_scm.get_version(root='..', relative_to=__file__)
     del setuptools_scm
-except (ImportError, LookupError):
+except (ImportError, LookupError):  # pragma: no cover
     # Setuptools_scm was not found, or it could not find a version, so use installation metadata.
     from importlib.metadata import version, PackageNotFoundError
     try:
