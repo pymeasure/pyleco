@@ -19,10 +19,13 @@ jobs:
       - name: Install pyleco requirements
         uses: mamba-org/setup-micromamba@v1
         with:
-          python-version: "3.10"
           environment-file: environment.yml
-          cache-environment-key: py3.10-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-environment-key: pylatest-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
           cache-downloads: false
+      - name: Python and Mamba version
+        run: |
+          python --version
+          micromamba info
       - name: Lint with ruff
         uses: chartboost/ruff-action@v1
         with:
@@ -53,10 +56,11 @@ jobs:
       - name: Install pyleco requirements
         uses: mamba-org/setup-micromamba@v1
         with:
-          python-version: "3.11"
           environment-file: environment.yml
-          cache-environment-key: py3.11-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-environment-key: pylatest-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
           cache-downloads: false
+      - name: Python version
+        run: python --version
       - name: Install mypy
         run: pip install mypy
       - name: Run mypy
@@ -74,10 +78,11 @@ jobs:
       - name: Install pyleco requirements
         uses: mamba-org/setup-micromamba@v1
         with:
-          python-version: "3.11"
           environment-file: environment.yml
-          cache-environment-key: py3.11-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-environment-key: pylatest-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
           cache-downloads: false
+      - name: Python version
+        run: python --version
       - name: Install Pyleco
         # If the pytest problem matcher stops working because of bad paths, do an editable install
         run: pip install -e .[dev]  # editable for covtest
@@ -118,8 +123,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           environment-file: environment.yml
+          create-args: python=${{ matrix.python-version }}
           cache-environment-key: py${{ matrix.python-version }}-${{ matrix.os }}-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
           cache-downloads: false
+      - name: Python version
+        run: python --version
       - name: Install Pyleco
         # If the pytest problem matcher stops working because of bad paths, do an editable install
         run: pip install .[dev]
