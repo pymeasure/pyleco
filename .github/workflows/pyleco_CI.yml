@@ -1,0 +1,145 @@
+name: PyLECO CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  docs_lint:
+    name: Docs and Linting
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install pyleco requirements
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: environment.yml
+          cache-environment-key: pylatest-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-downloads: false
+      - name: Python and Mamba version
+        run: |
+          python --version
+          micromamba info
+      - name: Lint with ruff
+        uses: chartboost/ruff-action@v1
+        with:
+          args: --extend-select=E9,F63,F7,F82 --show-source
+      - uses: ammaraskar/sphinx-problem-matcher@master
+      - name: Generate docs
+        if: always()  # run even if the previous step failed
+        working-directory: ./docs
+        run: |
+          echo "::add-matcher::.github/sphinx.json"
+          make html SPHINXOPTS="-W --keep-going"
+      - name: Run doctests
+        if: always()  # run even if the previous step failed
+        working-directory: ./docs
+        run: |
+          echo "::add-matcher::.github/sphinx.json"
+          make doctest SPHINXOPTS="-W --keep-going"
+  type_checking:
+    name: Static Type Checking
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install pyleco requirements
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: environment.yml
+          cache-environment-key: pylatest-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-downloads: false
+      - name: Python version
+        run: python --version
+      - name: Install mypy
+        run: pip install mypy
+      - name: Run mypy
+        run: mypy .
+  test_coverage:
+    name: Code Coverage
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install pyleco requirements
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: environment.yml
+          cache-environment-key: pylatest-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-downloads: false
+      - name: Python version
+        run: python --version
+      - name: Install Pyleco
+        # If the pytest problem matcher stops working because of bad paths, do an editable install
+        run: pip install -e .[dev]  # editable for covtest
+      - name: Test for Coverage
+        run: pytest --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=pyleco | tee pytest-coverage.txt
+      - name: Pytest Coverage Comment
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          title: Coverage Report
+          badge-title: PyLECO Coverage
+          hide-badge: false
+          hide-report: false
+          create-new-comment: false
+          hide-comment: false
+          report-only-changed-files: false
+          remove-link-from-badge: false
+          unique-id-for-comment: python3.8
+          junitxml-path: ./pytest.xml
+          junitxml-title: Coverage Summary
+  test:
+    name: Python ${{ matrix.python-version }}, ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install pyleco requirements
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+          environment-file: environment.yml
+          create-args: python=${{ matrix.python-version }}
+          cache-environment-key: py${{ matrix.python-version }}-${{ matrix.os }}-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-downloads: false
+      - name: Python version
+        run: python --version
+      - name: Install Pyleco
+        # If the pytest problem matcher stops working because of bad paths, do an editable install
+        run: pip install .[dev]
+      - name: Pyleco version
+        run: python -c "import pyleco;print(pyleco.__version__)"
+      - name: Run pytest with xvfb
+        if: runner.os == 'Linux'
+        run: |
+          echo "::add-matcher::.github/pytest.json"
+          xvfb-run -a pytest
+      - name: Run pytest
+        if: runner.os != 'Linux'
+        run: |
+          echo "::add-matcher::.github/pytest.json"
+          pytest
