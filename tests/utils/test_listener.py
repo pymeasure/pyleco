@@ -148,4 +148,4 @@ class Test_ask:
 
     def test_message_sent(self, listener_asked: BaseListener):
         assert listener_asked.pipe.socket._s == [[b"SND", *Message(
-            sender="N1.test", **self.msg_outbound).to_frames()]]
+            sender="N1.test", **self.msg_outbound).to_frames()]]  # type: ignore

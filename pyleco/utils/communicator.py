@@ -26,7 +26,7 @@ import logging
 from time import perf_counter
 from typing import Any, Callable, Optional
 
-from jsonrpc2pyclient._irpcclient import JSONRPCError
+from jsonrpcobjects.errors import JSONRPCError
 import zmq
 
 from ..core.internal_protocols import CommunicatorProtocol

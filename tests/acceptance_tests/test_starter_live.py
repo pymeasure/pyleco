@@ -89,7 +89,7 @@ def test_tasks_listing(director: StarterDirector):
 
 def test_start_task(director: StarterDirector):
     director.start_tasks("test_task")
-    status = Status(director.status_tasks("test_task").get("test_task"))
+    status = Status(director.status_tasks("test_task")["test_task"])
     assert Status.STARTED in status
     assert Status.RUNNING in status
 
