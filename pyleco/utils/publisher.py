@@ -24,9 +24,28 @@
 
 import logging
 import pickle
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+from warnings import warn
 
 import zmq
+
+
+# import json
+
+# import numpy as np
+
+
+# class NumpyEncoder(json.JSONEncoder):
+#     """ Special json encoder for numpy types """
+
+#     def default(self, obj):
+#         if isinstance(obj, np.integer):
+#             return int(obj)
+#         elif isinstance(obj, np.floating):
+#             return float(obj)
+#         elif isinstance(obj, np.ndarray):
+#             return obj.tolist()
+#         return json.JSONEncoder.default(self, obj)
 
 
 # Classes of the data protocol
@@ -72,7 +91,7 @@ class Publisher:
     def __del__(self) -> None:
         self.socket.close(1)
 
-    def __call__(self, data: Dict[str, Any]) -> None:
+    def __call__(self, data: dict[str, Any]) -> None:
         """Publish the dictionary `data`."""
         self.send(data=data)
 
@@ -91,11 +110,17 @@ class Publisher:
         self._connecting(f"tcp://{self.host}:{port}")
         self._port = port
 
-    def send(self, data: Dict[str, Any]) -> None:
+    def send(self, data: dict[str, Any]) -> None:
         """Send the dictionay `data`."""
         assert isinstance(data, dict), "Data has to be a dictionary."
         for key, value in data.items():
+            if not isinstance(value, (str, float, int, complex)):
+                warn(
+                    f"Data of type {type(value).__name__} might not be serializable in the future.",
+                    FutureWarning)
             self.socket.send_multipart((key.encode(), pickle.dumps(value)))
+            # for json:
+            # dumped = json.dumps(data, cls=NumpyEncoder)
 
     def send_quantities(self, data: dict) -> None:
         """Send the dictionay `data` containing Quantities."""

@@ -24,16 +24,17 @@
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Protocol, Tuple
+from typing import Any, Callable, Optional, Protocol, Union
 
 # from jsonrpc2pyclient._irpcclient import IRPCClient
 from openrpc import RPCServer
 import zmq
 
-from ..core.protocols import ExtendedComponent
+from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message
 from ..errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..core.rpc_generator import RPCGenerator
+from ..core.serialization import generate_conversation_id
 from .zmq_log_handler import ZmqLogHandler
 
 
@@ -60,7 +61,7 @@ class InfiniteEvent(Event):
         self._flag = True
 
 
-class MessageHandler(ExtendedComponent):
+class MessageHandler(ExtendedComponentProtocol):
     """Maintain connection to the Coordinator and listen to incoming messages.
 
     This class is inteded to run in a thread, maintain the connection to the coordinator
@@ -77,17 +78,24 @@ class MessageHandler(ExtendedComponent):
     :param log: Logger instance whose logs should be published. Defaults to `getLogger("__main__")`.
     """
 
-    def __init__(self, name: str, host: str = "localhost", port: int = 12300, protocol: str = "tcp",
+    def __init__(self, name: str,
+                 host: str = "localhost", port: int = 12300, protocol: str = "tcp",
                  log: Optional[logging.Logger] = None,
-                 context=None,
+                 context: Optional[zmq.Context] = None,
                  **kwargs):
         self.name = name
-        self.node: None | str = None
+        self.namespace: None | str = None
         self.full_name = name
         context = context or zmq.Context.instance()
         self.rpc = RPCServer(title=name)
         self.rpc_generator = RPCGenerator()
-        self.publish_rpc_methods()
+        self.register_rpc_methods()
+
+        self._requests: dict[bytes, str] = {}
+        self.response_methods: dict[str, Callable] = {
+            "sign_in": self.handle_sign_in,
+            "sign_out": self.handle_sign_out
+        }
 
         if log is None:
             log = logging.getLogger("__main__")
@@ -110,9 +118,9 @@ class MessageHandler(ExtendedComponent):
 
         super().__init__(**kwargs)  # for cooperation
 
-    def publish_rpc_methods(self) -> None:
+    def register_rpc_methods(self) -> None:
         """Publish methods for RPC."""
-        self.rpc.method(self.shutdown)
+        self.rpc.method(self.shut_down)
         self.rpc.method(self.set_log_level)
         self.rpc.method(self.pong)
 
@@ -128,8 +136,7 @@ class MessageHandler(ExtendedComponent):
 
     # Base communication
     def sign_in(self) -> None:
-        self._send_message(Message(
-            receiver=b"COORDINATOR", data=self.rpc_generator.build_request_str(method="sign_in")))
+        self._ask_rpc_async(b"COORDINATOR", method="sign_in")
 
     def heartbeat(self) -> None:
         """Send a heartbeat to the router."""
@@ -137,14 +144,13 @@ class MessageHandler(ExtendedComponent):
         self._send_message(Message(b"COORDINATOR"))
 
     def sign_out(self) -> None:
-        self._send_message(Message(
-            receiver=b"COORDINATOR", data=self.rpc_generator.build_request_str(method="sign_out")))
+        self._ask_rpc_async(b"COORDINATOR", method="sign_out")
 
     def _send_message(self, message: Message) -> None:
         """Send a message, supplying sender information."""
         if not message.sender:
             message.sender = self.full_name.encode()
-        frames = message.get_frames_list()
+        frames = message.to_frames()
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
 
@@ -159,6 +165,14 @@ class MessageHandler(ExtendedComponent):
             # TODO send an error message?
         else:
             self._send_message(message)
+
+    def _ask_rpc_async(self, receiver: bytes | str, method: str, **kwargs) -> None:
+        """Send a message and store the converation_id."""
+        cid = generate_conversation_id()
+        message = Message(receiver=receiver, conversation_id=cid,
+                          data=self.rpc_generator.build_request_str(method=method, **kwargs))
+        self._requests[cid] = method
+        self._send_message(message)
 
     # User commands, implements Communicator
     def send(self, receiver: bytes | str, data: Optional[Any] = None,
@@ -212,37 +226,61 @@ class MessageHandler(ExtendedComponent):
         self.log.debug(f"Handling {msg}")
         if not msg.payload:
             return
-        if msg.sender_name == b"COORDINATOR" and isinstance(msg.data, dict):
-            if self.node is None and msg.data.get("result", False) is None:
-                # TODO additional check, that this is the answer to sign_in?
-                self.finish_sign_in(msg)
+        try:
+            if (msg.sender_elements.name == b"COORDINATOR"
+                    and (error := msg.data.get("error"))  # type: ignore
+                    and error.get("code") == NOT_SIGNED_IN.code):
+                self.namespace = None
+                self.set_full_name(self.name)
+                self.sign_in()
+                self.log.warning("I was not signed in, signing in.")
                 return
-            elif (error := msg.data.get("error")):
-                if error.get("code") == NOT_SIGNED_IN.code:
-                    self.node = None
-                    self.full_name = self.name
-                    try:
-                        del self.logHandler.fullname
-                    except AttributeError:
-                        pass  # already deleted.
-                    self.sign_in()
-                    self.log.warning("I was not signed in, signing in.")
-                    return
-                elif error.get("code") == DUPLICATE_NAME.code:
-                    self.log.warning("Sign in failed, the name is already used.")
-                    return
-            # TODO what happens with a returned ping request?
-        self.handle_commands(msg)
+            elif (method := self._requests.get(msg.conversation_id)):
+                self.handle_response(msg, method)
+                return
+        except AttributeError as exc:
+            self.log.exception(f"Message data {msg.data} misses an attribute!", exc_info=exc)
+        else:
+            self.handle_commands(msg)
+
+    def handle_response(self, message: Message, method: str):
+        del self._requests[message.conversation_id]
+        self.response_methods[method](message)
+
+    def handle_sign_in(self, message: Message) -> None:
+        if not isinstance(message.data, dict):
+            self.log.error(f"Not json message received: {message}")
+            return
+        if message.data.get("result", False) is None:
+            self.finish_sign_in(message)
+        elif (error := message.data.get("error")):
+            if error.get("code") == DUPLICATE_NAME.code:
+                self.log.warning("Sign in failed, the name is already used.")
+                return
+
+    def handle_sign_out(self, message: Message) -> None:
+        if isinstance(message.data, dict) and message.data.get("result", False) is None:
+            self.finish_sign_out(message)
+        else:
+            self.log.error(f"Signing out failed with {message}.")
 
     def finish_sign_in(self, message: Message) -> None:
-        self.node = message.sender_node.decode()
-        self.full_name = ".".join((self.node, self.name))
-        self.rpc.title = self.full_name
+        self.namespace = message.sender_elements.namespace.decode()
+        self.set_full_name(full_name=".".join((self.namespace, self.name)))
+        self.log.info(f"Signed in to Node '{self.namespace}'.")
+
+    def finish_sign_out(self, message: Message) -> None:
+        self.namespace = None
+        self.set_full_name(full_name=self.name)
+        self.log.info(f"Signed out from Node '{message.sender_elements.namespace.decode()}'.")
+
+    def set_full_name(self, full_name: str) -> None:
+        self.full_name = full_name
+        self.rpc.title = full_name
         try:
             self.logHandler.fullname = self.full_name
         except AttributeError:
             pass
-        self.log.info(f"Signed in to Node '{self.node}'.")
 
     def handle_commands(self, msg: Message) -> None:
         """Handle the list of commands in the message."""
@@ -255,40 +293,38 @@ class MessageHandler(ExtendedComponent):
             else:
                 self.log.error(f"Unknown message from {msg.sender} received: {msg.payload[0]}")
         else:
-            self.log.warning(f"Unknown message from {msg.sender} received: '{msg.data}', {msg.payload}.")
+            self.log.warning(f"Unknown message from {msg.sender} received: '{msg.data}', {msg.payload}.")  # noqa: E501
 
     def set_log_level(self, level: int) -> None:
         """Set the log level."""
         self.root_logger.setLevel(level)
 
-    def shutdown(self) -> None:
+    def shut_down(self) -> None:
         self.stop_event.set()
 
 
 class BaseController(MessageHandler):
     """Control something, allow to get/set properties and call methods."""
 
-    def publish_rpc_methods(self) -> None:
-        super().publish_rpc_methods()
-        self.rpc.method(self.get_properties)
-        self.rpc.method(self.set_properties)
-        self.rpc.method(self.call_method)
+    def register_rpc_methods(self) -> None:
+        super().register_rpc_methods()
+        self.rpc.method(self.get_parameters)
+        self.rpc.method(self.set_parameters)
+        self.rpc.method(self.call_action)
 
-    def get_properties(self, properties: List[str] | Tuple[str, ...]) -> Dict[str, Any]:
-        """Get properties from the list `properties`."""
+    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
         data = {}
-        for key in properties:
+        for key in parameters:
             data[key] = v = getattr(self, key)
             if callable(v):
                 raise TypeError(f"Attribute '{key}' is a callable!")
         return data
 
-    def set_properties(self, properties: Dict[str, Any]) -> None:
-        """Set properties from a dictionary."""
-        for key, value in properties.items():
+    def set_parameters(self, parameters: dict[str, Any]) -> None:
+        for key, value in parameters.items():
             setattr(self, key, value)
 
-    def call(self, method: str, args: list | tuple, kwargs: Dict[str, Any]) -> Any:
+    def call(self, method: str, args: list | tuple, kwargs: dict[str, Any]) -> Any:
         """Call a method with arguments dictionary `kwargs`.
 
         Any method can be called, even if not setup as rpc call.
@@ -297,12 +333,12 @@ class BaseController(MessageHandler):
         # Deprecated
         return getattr(self, method)(*args, **kwargs)
 
-    def call_method(self, method: str, _args: Optional[list | tuple] = None, **kwargs) -> Any:
-        """Call a method with arguments dictionary `kwargs`.
+    def call_action(self, action: str, _args: Optional[Union[list, tuple]] = None, **kwargs) -> Any:
+        """Call an action with arguments dictionary `kwargs`.
 
-        Any method can be called, even if not setup as rpc call.
+        Any action can be called, even if not setup as rpc call.
         It is preferred though, to add methods of your device with a rpc call.
         """
         if _args is None:
             _args = ()
-        return getattr(self, method)(*_args, **kwargs)
+        return getattr(self, action)(*_args, **kwargs)

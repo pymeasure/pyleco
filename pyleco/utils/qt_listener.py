@@ -71,11 +71,10 @@ class QtListener(QtMixin, BaseListener):
     def finish_handle_commands(self, message: Message) -> None:
         """Handle the list of commands: Redirect them to the application."""
         try:
-            method = message.data.get("method")
+            method = message.data.get("method")  # type: ignore
         except AttributeError:
             method = None
         if method in self.local_methods:
             super().finish_handle_commands(message)
         else:
             self.signals.message.emit(message)
-

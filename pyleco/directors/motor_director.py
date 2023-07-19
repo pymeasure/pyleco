@@ -23,10 +23,11 @@
 #
 
 import logging
+from typing import Any, Optional
 
 from pytrinamic.modules import TMCM6110
 
-from .director import Director as Director
+from .director import Director
 
 
 log = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ class MotorDirector(Director):
     :param int motor_count: Number of motor connections.
     """
 
-    def __init__(self, actor, motor_count=6, **kwargs) -> None:
+    def __init__(self, actor: bytes | str, motor_count: int = 6, **kwargs) -> None:
         self.motors = [self.Motor(parent=self, number=i) for i in range(motor_count)]
         super().__init__(actor=actor, **kwargs)
 
@@ -48,15 +49,15 @@ class MotorDirector(Director):
         """Simulating a real motor as a drop in replacement for a motor card."""
 
         def __init__(self, parent, number: int) -> None:
-            self.parent = parent
+            self.parent: MotorDirector = parent
             self.number = number
 
         AP = TMCM6110._MotorTypeA.AP
 
-        def get_axis_parameter(self, ap_type, signed=False):
-            return self.parent.get_axis_parameter(ap_type, self.number, signed)
+        def get_axis_parameter(self, ap_type: int, signed: bool = False) -> Any:
+            return self.parent.get_axis_parameter(ap_type, self.number, signed=signed)
 
-        def set_axis_parameter(self, ap_type, value) -> None:
+        def set_axis_parameter(self, ap_type: int, value) -> None:
             self.parent.set_axis_parameter(ap_type, self.number, value)
 
         @property
@@ -64,23 +65,23 @@ class MotorDirector(Director):
             return self.parent.get_actual_position(self.number)
 
         @actual_position.setter
-        def actual_position(self, steps) -> None:
+        def actual_position(self, steps: int) -> None:
             self.parent.set_actual_position(self.number, steps)
 
         @property
         def actual_velocity(self) -> int:
             return self.parent.get_actual_velocity(self.number)
 
-        def rotate(self, velocity) -> None:
+        def rotate(self, velocity: int) -> None:
             self.parent.rotate(self.number, velocity)
 
         def stop(self) -> None:
             self.parent.stop(self.number)
 
-        def move_by(self, difference: int, velocity=None) -> None:
-            self.parent.move_by(self.number, difference, velocity)
+        def move_by(self, difference: int, velocity: Optional[int] = None) -> None:
+            self.parent.move_by(self.number, difference, velocity=velocity)
 
-        def move_to(self, position: int, velocity=None) -> None:
+        def move_to(self, position: int, velocity: Optional[int] = None) -> None:
             self.parent.move_to(self.number, position, velocity)
 
         def get_position_reached(self) -> bool:
@@ -89,110 +90,112 @@ class MotorDirector(Director):
     # General methods
     def disconnect(self) -> None:
         """Disconnect the card."""
-        self.call_method("disconnect")
+        self.call_action("disconnect")
 
     def configure_motor(self, config: dict):
         """Configure a motor according to the dictionary."""
-        return self.call_method("configure_motor", config)
+        return self.call_action("configure_motor", config)
 
-    def get_configuration(self, motor):
+    def get_configuration(self, motor: int | str):
         """Get the configuration of `motor`."""
-        return self.call_method("get_configuration", motor)
+        return self.call_action("get_configuration", motor)
 
-    def get_global_parameter(self, gp_type, bank, signed=False):
-        return self.call_method("get_global_parameter", gp_type, bank, signed)
+    def get_global_parameter(self, gp_type: int, bank: int, signed: bool = False):
+        return self.call_action("get_global_parameter", gp_type, bank, signed)
 
-    def set_global_parameter(self, gp_type, bank, value):
-        return self.call_method("set_global_parameter", gp_type, bank, value)
+    def set_global_parameter(self, gp_type: int, bank: int, value) -> None:
+        return self.call_action("set_global_parameter", gp_type, bank, value)
 
-    def get_axis_parameter(self, ap_type, axis, signed=False):
-        return self.call_method("get_axis_parameter", ap_type, axis, signed)
+    def get_axis_parameter(self, ap_type: int, axis: int, signed: bool = False):
+        return self.call_action("get_axis_parameter", ap_type, axis, signed)
 
-    def set_axis_parameter(self, ap_type, axis, value):
-        return self.call_method("set_axis_parameter", ap_type, axis, value)
+    def set_axis_parameter(self, ap_type: int, axis: int, value) -> None:
+        return self.call_action("set_axis_parameter", ap_type, axis, value)
 
     # Motor controls
-    def stop(self, motor):
+    def stop(self, motor: int | str) -> None:
         """Stop a motor."""
-        return self.call_method("stop", motor)
+        return self.call_action("stop", motor)
 
-    def get_actual_velocity(self, motor):
+    def get_actual_velocity(self, motor: int | str) -> int:
         """Get the current velocity of the motor."""
-        return self.call_method("get_actual_velocity", motor)
+        return self.call_action("get_actual_velocity", motor)
 
-    def get_actual_position(self, motor):
+    def get_actual_position(self, motor: int | str) -> int:
         """Get the current position of the motor."""
-        return self.call_method("get_actual_position", motor)
+        return self.call_action("get_actual_position", motor)
 
-    def get_actual_units(self, motor):
+    def get_actual_units(self, motor: int | str) -> float:
         """Get the actual position in units."""
-        return self.call_method("get_actual_units", motor)
+        return self.call_action("get_actual_units", motor)
 
-    def set_actual_position(self, motor, steps):
+    def set_actual_position(self, motor: int | str, steps) -> float:
         """Set the current position in steps."""
-        return self.call_method("set_actual_position", motor, steps)
+        return self.call_action("set_actual_position", motor, steps)
 
-    def move_to(self, motor, position, velocity=None):
+    def move_to(self, motor: int | str, position: int, velocity: Optional[int] = None) -> None:
         """Move to a specific position."""
         if velocity is None:
             args = (motor, position)
         else:
             args = (motor, position, velocity)
-        return self.call_method("move_to", *args)
+        return self.call_action("move_to", *args)
 
-    def move_to_units(self, motor, position, velocity=None):
+    def move_to_units(self, motor: int | str, position: int, velocity: Optional[int] = None
+                      ) -> None:
         """Move to a specific position in units."""
         if velocity is None:
             args = (motor, position)
         else:
             args = (motor, position, velocity)
-        return self.call_method("move_to_units", *args)
+        return self.call_action("move_to_units", *args)
 
-    def move_by(self, motor, difference, velocity=None):
+    def move_by(self, motor: int | str, difference: int, velocity: Optional[int] = None) -> None:
         """Move to a specific position."""
         if velocity is None:
             args = (motor, difference)
         else:
             args = (motor, difference, velocity)
-        return self.call_method("move_by", *args)
+        return self.call_action("move_by", *args)
 
-    def move_by_units(self, motor, difference, velocity=None):
+    def move_by_units(self, motor: int | str, difference: float, velocity: Optional[int] = None
+                      ) -> None:
         """Move to a specific position."""
         if velocity is None:
             args = (motor, difference)
         else:
             args = (motor, difference, velocity)
-        return self.call_method("move_by_units", *args)
+        return self.call_action("move_by_units", *args)
 
-    def rotate(self, motor, velocity):
+    def rotate(self, motor: int | str, velocity: int) -> None:
         """Rotate the motor with a specific velocity."""
-        return self.call_method("rotate", motor, velocity)
+        return self.call_action("rotate", motor, velocity)
 
-    def get_position_reached(self, motor):
+    def get_position_reached(self, motor: int | str) -> bool:
         """Get whether the motor reached its position."""
-        return self.call_method("get_position_reached", motor)
+        return self.call_action("get_position_reached", motor)
 
-    def get_motor_dict(self):
+    def get_motor_dict(self) -> dict:
         """Get the motor name dictionary."""
-        return self.call_method("get_motor_dict")
+        return self.call_action("get_motor_dict")
 
-    def set_motor_dict(self, motor_dict):
+    def set_motor_dict(self, motor: int | str, motor_dict: dict) -> None:
         """Set a motor name dictionary (dict type)."""
-        return self.call_method("set_motor_dict", motor_dict)
+        return self.call_action("set_motor_dict", motor_dict)
 
     # In/outs
-    def get_analog_input(self, connection):
+    def get_analog_input(self, connection: int) -> float:
         """Return the analog input value of input `connection`."""
-        return self.call_method("get_analog_input", connection)
+        return self.call_action("get_analog_input", connection)
 
-    def get_digital_input(self, connection):
+    def get_digital_input(self, connection: int) -> bool:
         """Return the digital input value of input `connection`."""
-        return self.call_method("get_digital_input", connection)
+        return self.call_action("get_digital_input", connection)
 
-    def get_digital_output(self, connection):
+    def get_digital_output(self, connection: int) -> bool:
         """Return the state of the digital output with number `connection`."""
-        return self.call_method("get_digital_output", connection)
+        return self.call_action("get_digital_output", connection)
 
-    def set_digital_output(self, connection, enabled):
+    def set_digital_output(self, connection: int, enabled: bool) -> None:
         """Set the digital output at `connection` to bool `enabled`."""
-        return self.call_method("set_digital_output", connection, enabled)
+        return self.call_action("set_digital_output", connection, enabled)

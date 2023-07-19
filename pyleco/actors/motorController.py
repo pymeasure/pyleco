@@ -7,7 +7,7 @@ Created on Tue Nov 29 17:34:36 2022
 @author: moneke
 """
 
-from typing import Dict, Optional
+from typing import Any, Optional
 
 # import PyTrinamic
 from pytrinamic.connections import ConnectionManager
@@ -39,7 +39,7 @@ class MotorController(BaseController):
         self.connectionManager = ConnectionManager(f"--port COM{port}")
         self.card = TMCM6110(self.connectionManager.connect())
         self.configs = {}
-        self.motorDict: Dict[str, int] = {} if motorDict is None else motorDict
+        self.motorDict: dict[str, int] = {} if motorDict is None else motorDict
 
     def _get_motor_number(self, motor: int | str) -> int:
         """Get a motor number from the input, using the dictionary."""
@@ -72,17 +72,17 @@ class MotorController(BaseController):
         motor = self._get_motor_number(motor)
         return self.configs.get(motor, {'motorNumber': motor})
 
-    def get_global_parameter(self, gp_type, bank, signed=False):
-        return self.card.get_global_parameter(gp_type, bank, signed)
+    def get_global_parameter(self, gp_type: int, bank: int, signed: bool = False) -> Any:
+        return self.card.get_global_parameter(gp_type=gp_type, bank=bank, signed=signed)
 
-    def set_global_parameter(self, gp_type, bank, value):
-        return self.card.set_global_parameter(gp_type, bank, value)
+    def set_global_parameter(self, gp_type: int, bank: int, value) -> None:
+        return self.card.set_global_parameter(gp_type=gp_type, bank=bank, value=value)
 
-    def get_axis_parameter(self, ap_type, axis, signed=False):
-        return self.card.get_axis_parameter(ap_type, axis, signed=False)
+    def get_axis_parameter(self, ap_type: int, axis: int, signed: bool = False) -> Any:
+        return self.card.get_axis_parameter(ap_type=ap_type, axis=axis, signed=signed)
 
-    def set_axis_parameter(self, ap_type, axis, value):
-        return self.card.set_axis_parameter(ap_type, axis, value)
+    def set_axis_parameter(self, ap_type: int, axis: int, value) -> None:
+        return self.card.set_axis_parameter(ap_type=ap_type, axis=axis, value=value)
 
     # Motor controls
     def stop(self, motor: int | str) -> None:
@@ -147,10 +147,10 @@ class MotorController(BaseController):
         motor = self._get_motor_number(motor)
         return self.card.motors[motor].get_position_reached()
 
-    def get_motor_dict(self) -> Dict[str, int]:
+    def get_motor_dict(self) -> dict[str, int]:
         return self.motorDict
 
-    def set_motor_dict(self, motorDict: Dict[str, int]) -> None:
+    def set_motor_dict(self, motorDict: dict[str, int]) -> None:
         self.motorDict = motorDict
 
     # In/outs

@@ -25,7 +25,7 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..utils.communicator import Communicator, SimpleCommunicator
+from ..utils.communicator import CommunicatorProtocol, Communicator
 from ..core.serialization import generate_conversation_id
 from ..core.message import Message
 
@@ -50,12 +50,12 @@ class Director:
     """
 
     def __init__(self, actor: Optional[bytes | str] = None,
-                 communicator: Optional[Communicator] = None,
+                 communicator: Optional[CommunicatorProtocol] = None,
                  name: str = "Director",
                  **kwargs) -> None:
         self.actor = actor
         if communicator is None:
-            communicator = SimpleCommunicator(name=name, **kwargs)
+            communicator = Communicator(name=name, **kwargs)
             try:
                 communicator.sign_in()
             except TimeoutError:
@@ -108,31 +108,31 @@ class Director:
             raise ValueError("Some actor has to be specified.")
         return actor
 
-    def get_properties(self, properties: str | List[str] | Tuple[str, ...],
+    def get_parameters(self, parameters: str | List[str] | Tuple[str, ...],
                        actor: Optional[bytes | str] = None) -> Dict[str, Any]:
         """Get the values of these `properties` (list, tuple)."""
-        if isinstance(properties, str):
-            properties = (properties,)
-        response = self.call_method_rpc(method="get_properties", properties=properties, actor=actor)
+        if isinstance(parameters, str):
+            parameters = (parameters,)
+        response = self.call_method_rpc(method="get_parameters", parameters=parameters, actor=actor)
         if not isinstance(response, dict):
             raise ConnectionError("{response} returned, but dict expected.")
         return response
 
-    def set_properties(self, properties: Dict[str, Any],
+    def set_parameters(self, parameters: Dict[str, Any],
                        actor: Optional[bytes | str] = None) -> None:
         """Set the `properties` dictionary."""
-        self.call_method_rpc(method="set_properties", properties=properties, actor=actor)
+        self.call_method_rpc(method="set_parameters", parameters=parameters, actor=actor)
 
-    def call_method(self, method: str, *args, actor: Optional[bytes | str] = None, **kwargs) -> Any:
+    def call_action(self, action: str, *args, actor: Optional[bytes | str] = None, **kwargs) -> Any:
         """Call a method remotely and return its return value.
 
         :param str method: Name of the method to call.
         :param \\**kwargs: Keyword arguments for the method to call.
         """
-        kwargs.setdefault('method', method)
+        kwargs.setdefault('action', action)
         if args:
             kwargs.setdefault("_args", args)
-        string = self.generator.build_request_str(method="call_method", params=kwargs)
+        string = self.generator.build_request_str(method="call_action", **kwargs)
         return self.ask(data=string, actor=actor)
 
     def call_method_rpc(self, method: str, actor: Optional[bytes | str] = None, **kwargs) -> Any:
@@ -142,9 +142,9 @@ class Director:
     def get_rpc_capabilities(self, actor: Optional[bytes | str] = None) -> dict:
         return self.call_method_rpc(method="rpc.discover", actor=actor)
 
-    def shutdown_actor(self, actor: Optional[bytes | str] = None) -> None:
+    def shut_down_actor(self, actor: Optional[bytes | str] = None) -> None:
         """Stop the actor."""
-        self.call_method_rpc(method="shutdown", actor=actor)
+        self.call_method_rpc(method="shut_down", actor=actor)
 
     #   Async methods: Just send, read later.
     def send(self, actor: Optional[bytes | str] = None, data=None) -> bytes:
@@ -154,32 +154,33 @@ class Director:
         self.communicator.send(actor, conversation_id=cid0, data=data)
         return cid0
 
-    def get_properties_async(self, properties: List[str] | Tuple[str, ...] | str,
+    def get_parameters_async(self, parameters: List[str] | Tuple[str, ...] | str,
                              actor: Optional[bytes | str] = None) -> bytes:
         """Request the values of these `properties` (list, tuple) and return the conversation_id."""
-        if isinstance(properties, str):
-            properties = (properties,)
+        if isinstance(parameters, str):
+            parameters = (parameters,)
         # return self.send(data=[[Commands.GET, properties]])
-        return self.call_method_rpc_async(method="get_properties", properties=properties,
+        return self.call_method_rpc_async(method="get_parameters", parameters=parameters,
                                           actor=actor)
 
-    def set_properties_async(self, properties: Dict[str, Any],
+    def set_parameters_async(self, parameters: Dict[str, Any],
                              actor: Optional[bytes | str] = None) -> bytes:
         """Set the `properties` dictionary and return the conversation_id."""
         # return self.send(data=[[Commands.SET, properties]])
-        return self.call_method_rpc_async(method="set_properties", properties=properties, actor=actor)
+        return self.call_method_rpc_async(method="set_parameters", parameters=parameters,
+                                          actor=actor)
 
-    def call_method_async(self, method: str, *args, actor: Optional[bytes | str] = None,
+    def call_action_async(self, action: str, *args, actor: Optional[bytes | str] = None,
                           **kwargs) -> bytes:
         """Call a method remotely and return the conversation_id.
 
         :param str method: Name of the method to call.
         :param \\**kwargs: Keyword arguments for the method to call.
         """
-        kwargs.setdefault('method', method)
+        kwargs.setdefault('action', action)
         if args:
             kwargs.setdefault("_args", args)
-        string = self.generator.build_request_str(method=method, params=kwargs)
+        string = self.generator.build_request_str(method="call_action", **kwargs)
         return self.send(data=string, actor=actor)
 
     def call_method_rpc_async(self, method: str, actor: Optional[bytes | str] = None,

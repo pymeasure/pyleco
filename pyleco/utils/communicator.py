@@ -24,19 +24,18 @@
 
 import logging
 from time import perf_counter
-from typing import Optional, Any
+from typing import Any, Callable, Optional
 
 from jsonrpc2pyclient._irpcclient import JSONRPCError
 import zmq
 
-from ..core.protocols import Communicator
+from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message
-from ..core.serialization import generate_conversation_id, split_message
 from ..core.rpc_generator import RPCGenerator
-from ..errors import NOT_SIGNED_IN
+from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
 
 
-class SimpleCommunicator(Communicator):
+class Communicator(CommunicatorProtocol):
     """A simple Communicator, which sends requests and reads the answer.
 
     This Communicator does not listen for incoming messages. It only handles messages, whenever
@@ -62,12 +61,12 @@ class SimpleCommunicator(Communicator):
     def __init__(
         self,
         name: str,
-        host="localhost",
+        host: str = "localhost",
         port: Optional[int] = 12300,
-        timeout=100,
-        auto_open=True,
-        protocol="tcp",
-        standalone=False,
+        timeout: int = 100,
+        auto_open: bool = True,
+        protocol: str = "tcp",
+        standalone: bool = False,
         **kwargs,
     ) -> None:
         self.log = logging.getLogger(f"{__name__}.Communicator")
@@ -79,9 +78,9 @@ class SimpleCommunicator(Communicator):
         if auto_open:
             self.open()
         self.name = name
-        self.node = None
-        self._last_beat = 0
-        self._reading = None
+        self.namespace = None
+        self._last_beat: float = 0
+        self._reading: Optional[Callable] = None
         self.rpc_generator = RPCGenerator()
         super().__init__(**kwargs)
 
@@ -112,7 +111,7 @@ class SimpleCommunicator(Communicator):
     def __del__(self) -> None:
         self.close()
 
-    def __enter__(self):
+    def __enter__(self):  # -> typing.Self for py>=3.11
         """Called with `with` keyword, returns the Director."""
         if not hasattr(self, "connection"):
             self.open()
@@ -123,11 +122,10 @@ class SimpleCommunicator(Communicator):
         """Called after the with clause has finished, does cleanup."""
         self.close()
 
-    def retry_read(self, timeout=None):
+    def retry_read(self, timeout: Optional[int] = None) -> list | None:
         """Retry reading."""
         if self._reading and self.connection.poll(timeout or self.timeout):
             return self._reading()
-            self._reading = None
 
     def send_message(self, message: Message) -> None:
         now = perf_counter()
@@ -135,11 +133,12 @@ class SimpleCommunicator(Communicator):
             self.sign_in()
         self._last_beat = now
         if not message.sender:
-            message.sender = (".".join((self.node, self.name)) if self.node else self.name).encode()
-        frames = message.get_frames_list()
+            message.sender = (".".join(
+                (self.namespace, self.name)) if self.namespace else self.name).encode()
+        frames = message.to_frames()
         self.connection.send_multipart(frames)
 
-    def read_raw(self, timeout=None) -> list:
+    def read_raw(self, timeout: Optional[int] = None) -> list:
         if self.connection.poll(timeout or self.timeout):
             return self.connection.recv_multipart()
         else:
@@ -162,17 +161,21 @@ class SimpleCommunicator(Communicator):
             if b"jsonrpc" in response.payload[0] and isinstance(response.data, dict):
                 if response.data.get("method") == "pong":
                     continue
-                elif ((error := response.data.get("error"))
-                      and error.get("code") == NOT_SIGNED_IN.code):
-                    self.log.error("I'm not signed in, signing in.")
-                    self.sign_in()
-                    self.send_message(message=message)
-                    continue
+                elif (error := response.data.get("error")):
+                    code = error.get("code")
+                    if code == NOT_SIGNED_IN.code:
+                        self.log.error("I'm not signed in, signing in.")
+                        self.sign_in()
+                        self.send_message(message=message)
+                        continue
+                    elif code == DUPLICATE_NAME.code:
+                        self.log.error(f"Sign in failed: {DUPLICATE_NAME.message}")
+                        raise ConnectionRefusedError(f"Sign in failed: {DUPLICATE_NAME.message}")
             return response
 
     def ask_message(self, message: Message) -> Message:
         response = self.ask_raw(message=message)
-        if response.sender_name == b"COORDINATOR":
+        if response.sender_elements.name == b"COORDINATOR":
             try:
                 error = response.data.get("error")  # type: ignore
             except AttributeError:
@@ -185,7 +188,7 @@ class SimpleCommunicator(Communicator):
 
     def ask_rpc(self, receiver: bytes | str, method: str, **kwargs) -> Any:
         """Send a rpc call and return the result or raise an error."""
-        send_json = self.rpc_generator.build_request_str(method=method, params=kwargs)
+        send_json = self.rpc_generator.build_request_str(method=method, **kwargs)
         response_json = self.ask_json(receiver=receiver, json_string=send_json)
         try:
             result = self.rpc_generator.get_result_from_response(response_json)
@@ -206,11 +209,11 @@ class SimpleCommunicator(Communicator):
     # Messages
     def sign_in(self) -> str:
         """Sign in to the Coordinator and return the node."""
-        self.node = None
-        cid0 = generate_conversation_id()
+        self.namespace = None
         self._last_beat = perf_counter()  # to not sign in again...
-        json_string = self.rpc_generator.build_request_str(method="sign_in", params=None)
-        request = Message(receiver=b"COORDINATOR", conversation_id=cid0, data=json_string)
+        json_string = self.rpc_generator.build_request_str(method="sign_in")
+        request = Message(receiver=b"COORDINATOR", data=json_string)
+        cid0 = request.conversation_id
         response = self.ask_raw(message=request)
         if b"error" in response.payload[0]:
             raise ConnectionError
@@ -218,8 +221,8 @@ class SimpleCommunicator(Communicator):
             response.conversation_id == cid0
         ), (f"Answer to another request (mine {cid0}) received from {response.sender}: "
             f"{response.conversation_id}, {response.data}.")
-        self.node = response.sender_node.decode()
-        return self.node
+        self.namespace = response.sender_elements.namespace.decode()
+        return self.namespace
 
     def sign_out(self) -> None:
         """Tell the Coordinator to drop references."""
@@ -228,7 +231,7 @@ class SimpleCommunicator(Communicator):
         except JSONRPCError:
             self.log.error("JSON decoding at sign out failed.")
 
-    def get_capabalities(self, receiver: bytes | str):
+    def get_capabalities(self, receiver: bytes | str) -> dict:
         return self.ask_rpc(receiver=receiver, method="rpc.discover")
 
     def heartbeat(self) -> None:

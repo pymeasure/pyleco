@@ -64,7 +64,7 @@ class RemoteCall:
             return self
 
         def remote_call(*args, **kwargs):
-            obj.call_method(self._name, *args, **kwargs)
+            obj.call_action(self._name, *args, **kwargs)
 
         remote_call.__doc__ = self._doc
         return remote_call
@@ -84,7 +84,7 @@ class TransparentDirector(Director):
         if name in dir(self):
             return super().__getattribute__(name)
         else:
-            return self.get_properties((name,)).get(name)
+            return self.get_parameters((name,)).get(name)
 
     def __setattr__(self, name, value) -> None:
         if name in dir(self) or name.startswith("_") or name in ("actor", "communicator",
@@ -92,7 +92,7 @@ class TransparentDirector(Director):
                                                                  ):
             super().__setattr__(name, value)
         else:
-            self.set_properties({name: value})
+            self.set_parameters({name: value})
 
     # TODO generate a list of capabilities of the actor and return these capabilites during a call
     # to __dir__. That enables autocompletion etc.

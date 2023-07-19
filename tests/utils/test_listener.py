@@ -27,6 +27,8 @@ import pytest
 from pyleco.core import VERSION_B
 
 from pyleco.core.message import Message
+from pyleco.core.internal_protocols import CommunicatorProtocol
+from pyleco.core.leco_protocols import ExtendedComponentProtocol
 from pyleco.test import FakeContext
 
 from pyleco.utils.listener import BaseListener
@@ -34,23 +36,61 @@ from pyleco.utils.listener import BaseListener
 
 @pytest.fixture
 def listener() -> BaseListener:
-    listener = BaseListener(name="test", context=FakeContext())
-    listener.node = "N1"
+    listener = BaseListener(name="test", context=FakeContext())  # type: ignore
+    listener.namespace = "N1"
     listener.full_name = "N1.test"
     return listener
 
 
-cid = b"7"  # conversation_id
+def static_test_listener_is_communicator():
+    def testing(listener: CommunicatorProtocol):
+        pass
+    testing(BaseListener(name="listener", context=FakeContext()))  # type: ignore
+
+
+class TestListenerIsExtendedComponent:
+    methods = [m for m in dir(ExtendedComponentProtocol) if not m.startswith("_")]
+
+    def static_test_methods_are_present(self):
+        def testing(listener: ExtendedComponentProtocol):
+            pass
+        testing(BaseListener(name="listener", context=FakeContext()))  # type: ignore
+
+    @pytest.fixture
+    def listener_methods(self, listener: BaseListener):
+        response = listener.rpc.process_request(
+            '{"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}')
+        result = listener.rpc_generator.get_result_from_response(response)  # type: ignore
+        return result.get('methods')
+
+    @pytest.mark.parametrize("method", methods)
+    def test_method_is_available(self, listener_methods, method):
+        for m in listener_methods:
+            if m.get('name') == method:
+                return
+        raise AssertionError(f"Method {method} is not available.")
+
+
+def test_close(listener: BaseListener):
+    listener.close()
+    assert listener.socket.closed is True
+    assert listener.pipe.socket.closed is True
+    assert listener.pipeL.closed is True
+    assert listener.context.closed is True
+
+
+cid = b"conversation_id;"  # conversation_id
+header = b"".join((cid, b"mid", b"\x00"))
 # the result
-msg = Message(b"r", b"s", conversation_id=b"7", message_id=b"1")
-msg_list = ("r", "s", b"7", b"", None)
+msg = Message(b"r", b"s", conversation_id=cid, message_id=b"mid")
+msg_list = ("r", "s", cid, b"", None)
 # some different message
-other = Message(b"r", b"s", conversation_id=b"9", message_id=b"1")
+other = Message(b"r", b"s", conversation_id=b"conversation_id9", message_id=b"mid")
 
 
 def test_send(listener: BaseListener):
-    listener._send("N2.CB", conversation_id=b"rec", message_id=b"sen", data=[["TEST"]])
-    assert listener.socket._s == [[VERSION_B, b"N2.CB", b"N1.test", b"rec;sen", b'[["TEST"]]']]
+    listener._send(receiver="N2.CB", conversation_id=cid, message_id=b"mid", data=[["TEST"]])
+    assert listener.socket._s == [[VERSION_B, b"N2.CB", b"N1.test", header, b'[["TEST"]]']]
 
 
 class Test_check_message_in_buffer:
@@ -65,7 +105,7 @@ class Test_check_message_in_buffer:
         assert listener._buffer == [other]
 
     def test_msg_somewhere_in_buffer(self, listener: BaseListener):
-        o2 = Message(b"r", b"s", conversation_id=b"9", message_id=b"7")
+        o2 = Message(b"r", b"s", conversation_id=b"conversation_id9", message_id=b"mi7")
         listener._buffer = [other, msg, o2]
         assert listener._check_message_in_buffer(cid) == msg
         assert listener._buffer == [other, o2]
@@ -91,7 +131,7 @@ def test_read_answer_fail(listener: BaseListener, buffer):
 
 
 class Test_ask:
-    msg_outbound = {'receiver': "outbound", 'conversation_id': b"7"}
+    msg_outbound = {'receiver': "outbound", 'conversation_id': cid}
 
     @pytest.fixture
     def listener_asked(self, listener: BaseListener) -> BaseListener:
@@ -104,8 +144,8 @@ class Test_ask:
         assert listener_asked._event.is_set() is False
 
     def test_cid_added(self, listener_asked: BaseListener):
-        assert listener_asked.cids[-1] == b"7"
+        assert listener_asked.cids[-1] == cid
 
     def test_message_sent(self, listener_asked: BaseListener):
         assert listener_asked.pipe.socket._s == [[b"SND", *Message(
-            sender="N1.test", **self.msg_outbound).get_frames_list()]]
+            sender="N1.test", **self.msg_outbound).to_frames()]]

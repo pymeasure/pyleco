@@ -29,8 +29,11 @@ from pyleco.test import FakeCommunicator
 from pyleco.core.message import Message
 
 
+cid = b"conversation_id;"
+
+
 def fake_generate_conversation_id():
-    return b"cid"
+    return cid
 
 
 @pytest.fixture
@@ -41,39 +44,40 @@ def director(monkeypatch):
 
 
 def test_ask(director: Director):
-    director.communicator._r = [Message("director", "actor", conversation_id=b"cid", data={
+    director.communicator._r = [Message("director", "actor", conversation_id=cid, data={
         "id": 1, "result": 123.456, "jsonrpc": "2.0"
     })]
     response = director.ask(actor=None)
-    assert director.communicator._s == [Message("actor", "director", conversation_id=b"cid")]
+    assert director.communicator._s == [Message("actor", "director", conversation_id=cid)]
     assert response == 123.456
 
 
-def stop_actor(director: Director):
-    director.communicator._r = [Message("director", "actor", conversation_id=b"cid", data={
+def test_shutdown_actor(director: Director):
+    director.communicator._r = [Message("director", "actor", conversation_id=cid, data={
         "id": 1, "result": None, "jsonrpc": "2.0"
     })]
-    director.stop_actor()
-    assert director.communicator._s == [Message("actor", "director", conversation_id=b"cid", data={
-        "id": 1, "method": "shutdown", "jsonrpc": "2.0"
+    director.shut_down_actor()
+    assert director.communicator._s == [Message("actor", "director", conversation_id=cid, data={
+        "id": 1, "method": "shut_down", "jsonrpc": "2.0"
     })]
+
 
 def test_get_properties_async(director: Director):
     properties = ["a", "some"]
-    cid = director.get_properties_async(properties=properties)
+    cid = director.get_parameters_async(parameters=properties)
     assert director.communicator._s == [Message(
         receiver="actor", sender="director", conversation_id=cid,
-        data={"id": 1, "method": "get_properties", "params": {"properties": properties},
+        data={"id": 1, "method": "get_parameters", "params": {"parameters": properties},
               "jsonrpc": "2.0"}
     )]
 
 
 def test_set_properties_async(director: Director):
     properties = {"a": 5, "some": 7.3}
-    cid = director.set_properties_async(properties=properties)
+    cid = director.set_parameters_async(parameters=properties)
     assert director.communicator._s == [Message(
         receiver="actor", sender="director", conversation_id=cid,
-        data={"id": 1, "method": "set_properties", "params": {"properties": properties},
+        data={"id": 1, "method": "set_parameters", "params": {"parameters": properties},
               "jsonrpc": "2.0"}
     )]
 
@@ -81,18 +85,19 @@ def test_set_properties_async(director: Director):
 class Test_get_properties:
     properties = ["a", "some"]
     expected_result = {"a": 5, "some": 7}
+
     @pytest.fixture
     def director_gp(self, director: Director):
-        director.communicator._r = [Message("director", "actor", conversation_id=b"cid", data={
+        director.communicator._r = [Message("director", "actor", conversation_id=cid, data={
             "id": 1, "result": self.expected_result, "jsonrpc": "2.0"
         })]
-        self.result = director.get_properties(properties=self.properties)
+        self.result = director.get_parameters(parameters=self.properties)
         return director
 
     def test_message_sent(self, director_gp):
         assert director_gp.communicator._s == [Message(
-            "actor", "director", conversation_id=b"cid", data={
-                "id": 1, "method": "get_properties", "params": {"properties": self.properties},
+            "actor", "director", conversation_id=cid, data={
+                "id": 1, "method": "get_parameters", "params": {"parameters": self.properties},
                 "jsonrpc": "2.0"})]
 
     def test_result(self, director_gp):

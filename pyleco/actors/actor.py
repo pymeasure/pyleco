@@ -23,7 +23,7 @@
 #
 
 import time
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 import zmq
 
@@ -58,8 +58,9 @@ class Actor(BaseController):
 
     def __init__(self, name: str, cls, periodic_reading: float = -1,
                  auto_connect: Optional[dict] = None,
-                 context=zmq.Context.instance(),
-                 **kwargs) -> None:
+                 context: Optional[zmq.Context] = None,
+                 **kwargs):
+        context = context or zmq.Context.instance()
         super().__init__(name=name, context=context, **kwargs)
         self.cls = cls
 
@@ -78,10 +79,12 @@ class Actor(BaseController):
             self.connect(**auto_connect)
         self.log.info(f"Actor '{name}' initialized.")
 
-    def publish_rpc_methods(self) -> None:
-        super().publish_rpc_methods()
-        self.rpc.method(self.start_timer)
-        self.rpc.method(self.stop_timer)
+    def register_rpc_methods(self) -> None:
+        super().register_rpc_methods()
+        self.rpc.method(self.start_polling)
+        self.rpc.method(self.stop_polling)
+        self.rpc.method(self.get_polling_interval)
+        self.rpc.method(self.set_polling_interval)
         self.rpc.method(self.connect)
         self.rpc.method(self.disconnect)
         # TODO decide how to call the actor and how to call the device?
@@ -154,7 +157,7 @@ class Actor(BaseController):
         """
         self.read_publish(device=self.device, publisher=self.publisher)
 
-    def start_timer(self, interval=None) -> None:
+    def start_timer(self, interval: Optional[float] = None) -> None:
         """Start the readout timer."""
         if interval is not None:
             self.timer.interval = interval
@@ -170,14 +173,26 @@ class Actor(BaseController):
         """Stop the readout timer."""
         self.timer.cancel()
 
+    def start_polling(self, polling_interval: Optional[float] = None) -> None:
+        self.start_timer(interval=polling_interval)
+
+    def stop_polling(self) -> None:
+        self.stop_timer()
+
     @property
-    def timeout(self) -> float:
+    def polling_interval(self) -> float:
         """Timeout interval of the readout timer in s."""
         return self.timer.interval
 
-    @timeout.setter
-    def timeout(self, value: float) -> None:
+    @polling_interval.setter
+    def polling_interval(self, value: float) -> None:
         self.timer.interval = value
+
+    def get_polling_interval(self) -> float:
+        return self.polling_interval
+
+    def set_polling_interval(self, polling_interval: float) -> None:
+        self.polling_interval = polling_interval
 
     def connect(self, *args, **kwargs) -> None:
         """Connect to the device."""
@@ -199,30 +214,30 @@ class Actor(BaseController):
         except AttributeError:
             pass
 
-    def get_properties(self, properties) -> dict:
+    def get_parameters(self, parameters: Union[list[str], tuple[str]]) -> dict[str, Any]:
         """Get properties from the list `properties`."""
         data = {}
-        if properties[0] == "_actor":
-            return super().get_properties(properties[1:])
-        for key in properties:
+        if parameters[0] == "_actor":
+            return super().get_parameters(parameters[1:])
+        for key in parameters:
             data[key] = v = getattr(self.device, key)
             if callable(v):
                 raise TypeError(f"Attribute '{key}' is a callable!")
         return data
 
-    def set_properties(self, properties) -> None:
+    def set_parameters(self, parameters: dict[str, Any]) -> None:
         """Set properties from a dictionary."""
-        for key, value in properties.items():
+        for key, value in parameters.items():
             if key == "_actor":
-                super().set_properties(value)
+                super().set_parameters(value)
             else:
                 setattr(self.device, key, value)
 
-    def call_method(self, method: str, _args: Optional[list | tuple] = None, **kwargs) -> Any:
+    def call_action(self, action: str, _args: Optional[list | tuple] = None, **kwargs) -> Any:
         """Call a method with arguments dictionary `kwargs`."""
         if _args is None:
             _args = ()
-        if method == "_actor":
-            method = kwargs.pop("_actor")
-            return super().call_method(method=method, _args=_args, kwargs=kwargs)
-        return getattr(self.device, method)(*_args, **kwargs)
+        if action == "_actor":
+            action = kwargs.pop("_actor")
+            return super().call_action(action=action, _args=_args, kwargs=kwargs)
+        return getattr(self.device, action)(*_args, **kwargs)

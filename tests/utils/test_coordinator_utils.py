@@ -53,7 +53,7 @@ class TestZmqMultiSocket:
 class TestZmqNode:
     @pytest.fixture
     def node(self):
-        node = ZmqNode(context=FakeContext())
+        node = ZmqNode(context=FakeContext())  # type: ignore
         return node
 
     def test_connection(self, node):
@@ -76,6 +76,18 @@ class TestZmqNode:
         assert node.is_connected() is False
         node.connect("abc")
         assert node.is_connected() is True
+
+
+cid = b"conversation_id;"
+
+
+def fake_generate_cid():
+    return cid
+
+
+@pytest.fixture()
+def fake_cid_generation(monkeypatch):
+    monkeypatch.setattr("pyleco.core.serialization.generate_conversation_id", fake_generate_cid)
 
 
 @pytest.fixture
@@ -141,6 +153,7 @@ class Test_get_component_id:
 
 
 class Test_add_node_sender:
+    """These are the first two parts of the sign in process: connect and send the COSIGNIN."""
     @pytest.mark.parametrize("namespace", (b"N1", b"N2"))
     def test_invalid_namespaces(self, directory: Directory, namespace):
         with pytest.raises(ValueError):
@@ -158,13 +171,14 @@ class Test_add_node_sender:
     def test_node_added(self, fake_counting, directory: Directory):
         length = len(directory._waiting_nodes)
         directory.add_node_sender(FakeNode(), "N3host", b"N3")
-        assert directory._nodes.get(b"N3") is None
+        assert directory._nodes.get(b"N3host") is None
         assert len(directory._waiting_nodes) > length
 
     @pytest.fixture
-    def node(self, directory: Directory) -> Node:
-        directory.add_node_sender(FakeNode(), "N3host:12345", b"N3")
-        return directory._waiting_nodes[list(directory._waiting_nodes.keys())[0]]
+    def node(self, fake_cid_generation, directory: Directory) -> Node:
+        address = "N3host:12345"
+        directory.add_node_sender(node=FakeNode(), address=address, namespace=b"N3")
+        return directory._waiting_nodes[address]
 
     def test_node_address(self, node: Node):
         assert node.address == "N3host:12345"
@@ -176,31 +190,53 @@ class Test_add_node_sender:
         assert node.is_connected()
 
     def test_message_sent(self, node: Node):
-        assert node._messages_sent == [Message(
+        assert node._messages_sent == [Message(  # type: ignore
             b"COORDINATOR", b"N1.COORDINATOR", data=RequestObject(id=1,
-                                                                  method="coordinator_sign_in"))]
+                                                                  method="coordinator_sign_in"),
+            conversation_id=cid)]
 
     def test_node_port_added_to_address(self, directory: Directory):
         directory.add_node_sender(FakeNode(), "N3host", b"N3")
         assert directory._waiting_nodes["N3host:12300"].address == "N3host:12300"
 
 
-class Test_add_node_receiver:
-    pass  # TODO
-
-
-class Test_check_unfinished_node_connections_legacy:
+class Test_add_node_receiver_unknown:
+    """Handles a remote Coordinator, which is signing in."""
     @pytest.fixture
-    def directory_cunc(self, directory: Directory) -> Directory:
-        directory.add_node_sender(FakeNode(), "N3host", b"N3")
-        node = directory._waiting_nodes["N3host:12300"]
-        node._messages_read = [Message(b"N1.COORDINATOR", b"N3.COORDINATOR",
-                                       data=ResultResponseObject(id=1, result=None))]
-        directory.check_unfinished_node_connections()
+    def unknown_node(self, fake_counting, directory: Directory) -> Node:
+        identity = b"receiver_id"
+        directory.add_node_receiver(identity=identity, namespace=b"N3")
+        return directory._node_ids[identity]
+
+    def test_namespace_with_identity(self, unknown_node: Node):
+        assert unknown_node.namespace == b"N3"
+
+    def test_heartbeat(self, unknown_node: Node):
+        assert unknown_node.heartbeat == 0
+
+
+class Test_add_node_receiver_partially_known:
+    identity = b"n3"
+
+    @pytest.fixture
+    def partially_known_node(self, fake_counting, directory: Directory) -> Directory:
+        """Only sending to that node is possible."""
+        node = FakeNode()
+        node.namespace = b"N3"
+        directory._nodes[node.namespace] = node
+        directory.add_node_receiver(identity=self.identity, namespace=b"N3")
         return directory
 
-    def test_new_node(self, directory_cunc: Directory):
-        assert directory_cunc.get_node(b"N3") is not None
+    def test_heartbeat(self, partially_known_node: Directory):
+        assert partially_known_node._node_ids[self.identity].heartbeat == 0
+
+    def test_id_set(self, partially_known_node: Directory):
+        assert self.identity in partially_known_node._node_ids.keys()
+
+
+def test_add_node_receiver_already_known(directory: Directory):
+    with pytest.raises(ValueError):
+        directory.add_node_receiver(b"n5", b"N2")
 
 
 class Test_check_unfinished_node_connections:
@@ -208,7 +244,7 @@ class Test_check_unfinished_node_connections:
     def directory_cunc(self, directory: Directory) -> Directory:
         directory.add_node_sender(FakeNode(), "N3host", b"N3")
         node = directory._waiting_nodes["N3host:12300"]
-        node._messages_read = [Message(b"N1.COORDINATOR", b"N3.COORDINATOR",
+        node._messages_read = [Message(b"N1.COORDINATOR", b"N3.COORDINATOR",  # type: ignore
                                        data=ResultResponseObject(id=1, result=None))]
         directory.check_unfinished_node_connections()
         return directory
@@ -229,25 +265,27 @@ class Test_handle_node_message:
                           "id": None})
     ))
     def test_rejected_sign_in(self, directory: Directory, message):
-        directory._waiting_nodes[b"N5"] = n = FakeNode()
-        directory._handle_node_message(key=b"N5", msg=message)
-        assert b"N5" not in directory._waiting_nodes.keys()
+        directory._waiting_nodes["N5host"] = n = FakeNode()
+        directory._handle_node_message(key="N5host", message=message)
+        assert "N5host" not in directory._waiting_nodes.keys()
         assert n not in directory._nodes.values()
 
     @pytest.mark.parametrize("message", (
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
                     data={"jsonrpc": "2.0", "result": None, "id": 1}),
+            Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
+                    data={"jsonrpc": "2.0", "result": None, "id": 5}),
     ))
     def test_successful_sign_in(self, directory: Directory, message):
-        directory._waiting_nodes[b"N5"] = n = FakeNode()
-        directory._handle_node_message(key=b"N5", msg=message)
+        directory._waiting_nodes["N5host"] = n = FakeNode()
+        directory._handle_node_message(key="N5host", message=message)
         assert directory.get_node(b"N5") == n
-        assert b"N5" not in directory._waiting_nodes.keys()
+        assert "N5host" not in directory._waiting_nodes.keys()
 
 
 class Test_finish_sign_in_to_remote:
     @pytest.fixture
-    def directory_sirn(self, directory: Directory) -> Directory:
+    def directory_sirn(self, fake_cid_generation, directory: Directory) -> Directory:
         directory.add_node_sender(FakeNode(), "N3host", b"N3")
         temp_namespace = list(directory._waiting_nodes.keys())[0]
         node = directory._waiting_nodes[temp_namespace]
@@ -269,16 +307,18 @@ class Test_finish_sign_in_to_remote:
         assert directory_sirn._nodes[b"N3"].namespace == b"N3"
 
     def test_directory_sent(self, directory_sirn: Directory):
-        assert directory_sirn._nodes[b"N3"]._messages_sent == [
+        assert directory_sirn._nodes[b"N3"]._messages_sent == [  # type: ignore
             Message(b'COORDINATOR', b'N1.COORDINATOR',
-                    {"id": 1, "method": "coordinator_sign_in", "jsonrpc": "2.0"}),
+                    {"id": 1, "method": "coordinator_sign_in", "jsonrpc": "2.0"},
+                    conversation_id=cid),
             Message(
                 b'N3.COORDINATOR', b'N1.COORDINATOR',
                 data=[{"id": 2, "method": "set_nodes", "params":
                        {"nodes": {"N1": "N1host:12300", "N2": "N2host", "N3": "N3host:12300"}},
                        "jsonrpc": "2.0"},
                       {"id": 3, "method": "set_remote_components", "params":
-                       {"components": ["send", "rec"]}, "jsonrpc": "2.0"}]
+                       {"components": ["send", "rec"]}, "jsonrpc": "2.0"}],
+                conversation_id=cid
             )]
 
 
@@ -338,14 +378,20 @@ class Test_update_heartbeat:
 
     def test_local_component_signs_in(self, directory: Directory):
         directory.update_heartbeat(b"new_id", Message.from_frames(
-            b"", b"COORDINATOR", b"send", b"",
+            b"", b"COORDINATOR", b"send2", b"",
             b'{"id": 2, "method": "sign_in", "jsonrpc": "2.0"}'))
         # test that no error is raised
 
     def test_local_component_with_wrong_id(self, directory: Directory):
-        with pytest.raises(CommunicationError):
+        with pytest.raises(CommunicationError, match=DUPLICATE_NAME.message):
             directory.update_heartbeat(b"new_id", Message.from_frames(
                 b"", b"COORDINATOR", b"send", b""))
+
+    def test_local_component_with_wrong_id_signs_in(self, directory: Directory):
+        with pytest.raises(CommunicationError, match=DUPLICATE_NAME.message):
+            directory.update_heartbeat(b"new_id", Message(
+                receiver=b"COORDINATOR", sender=b"send",
+                data={"jsonrpc": "2.0", "id": 2, "method": "sign_in"}))
 
     def test_known_node(self, fake_counting, directory: Directory):
         directory.update_heartbeat(b"n2", Message.from_frames(b"", b"COORDINATOR", b"N2.send", b""))
@@ -360,8 +406,8 @@ class Test_update_heartbeat:
             b"COORDINATOR", b"N3.COORDINATOR", data=data))
         # test that no error is raised
 
-    def test_unknown_node(self, directory: Directory):
-        with pytest.raises(CommunicationError):
+    def test_from_unknown_node(self, directory: Directory):
+        with pytest.raises(CommunicationError, match="not signed in"):
             directory.update_heartbeat(b"n3", Message(b"COORDINATOR", b"N3.send"))
 
 
@@ -388,11 +434,12 @@ class Test_find_expired_nodes:
         directory.find_expired_nodes(1)
         assert b"n2" not in directory.get_node_ids()
 
-    def test_warn_node(self, directory: Directory, fake_counting):
+    def test_warn_node(self, directory: Directory, fake_counting, fake_cid_generation):
         directory.get_node_ids()[b"n2"].heartbeat = -1.5
         directory.find_expired_nodes(1)
-        assert directory.get_node_ids()[b"n2"]._messages_sent == [
-            Message(b"N2.COORDINATOR", b"N1.COORDINATOR", RequestObject(id=0, method="pong"))]
+        assert directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
+            Message(b"N2.COORDINATOR", b"N1.COORDINATOR", RequestObject(id=0, method="pong"),
+                    conversation_id=cid)]
 
     def test_active_node(self, directory: Directory, fake_counting):
         directory.get_node_ids()[b"n2"].heartbeat = -0.5
@@ -409,23 +456,24 @@ class Test_find_expired_nodes:
 
 
 def test_get_node_id(directory: Directory):
-    assert directory.get_node_id(b"N2") == b"n2" 
+    assert directory.get_node_id(b"N2") == b"n2"
 
 
 class Test_sign_out_from_node:
     @pytest.fixture
-    def directory_wo_n2(self, directory: Directory) -> Directory:
-        directory._test = directory.get_node(b"N2")
+    def directory_wo_n2(self, fake_cid_generation, directory: Directory) -> Directory:
+        directory._test = directory.get_node(b"N2")  # type: ignore
         directory.sign_out_from_node(b"N2")
         return directory
 
     def test_message_sent(self, directory_wo_n2: Directory):
-        assert directory_wo_n2._test._messages_sent == [
+        assert directory_wo_n2._test._messages_sent == [  # type: ignore
             Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
-                    {"id": 1, "method": "coordinator_sign_out", "jsonrpc": "2.0"})]
+                    {"id": 1, "method": "coordinator_sign_out", "jsonrpc": "2.0"},
+                    conversation_id=cid)]
 
     def test_connection_closed(self, directory_wo_n2: Directory):
-        assert directory_wo_n2._test.is_connected() is False
+        assert directory_wo_n2._test.is_connected() is False  # type: ignore
 
     def test_n2_removed_from_nodes(self, directory_wo_n2: Directory):
         assert b"N2" not in directory_wo_n2.get_nodes()

@@ -4,6 +4,7 @@ import time
 import pytest
 
 from pyleco.actors.actor import Actor
+from pyleco.core.leco_protocols import PollingActorProtocol, ExtendedComponentProtocol, Protocol
 
 
 class FantasyInstrument:
@@ -64,25 +65,52 @@ class FakeActor(Actor):
         super().heartbeat()
 
 
+class ExtendedActorProtocol(ExtendedComponentProtocol, PollingActorProtocol, Protocol):
+    pass
+
+
 @pytest.fixture(scope="module")
-def controller() -> FakeActor:
+def actor() -> FakeActor:
     return FakeActor("test", FantasyInstrument, auto_connect={'adapter': "abc"}, port=1234,
-                          protocol="inproc")
+                     protocol="inproc")
 
 
-def test_get_properties(controller: FakeActor):
-    assert controller.get_properties(['prop']) == {'prop': 5}
+class TestProtocolImplemented:
+    protocol_methods = [m for m in dir(ExtendedActorProtocol) if not m.startswith("_")]
+
+    def static_test_methods_are_present(self):
+        def testing(component: ExtendedActorProtocol):
+            pass
+        testing(FakeActor(name="test", cls=FantasyInstrument))
+
+    @pytest.fixture
+    def component_methods(self, actor: FakeActor):
+        response = actor.rpc.process_request(
+            '{"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}')
+        result = actor.rpc_generator.get_result_from_response(response)  # type: ignore
+        return result.get('methods')
+
+    @pytest.mark.parametrize("method", protocol_methods)
+    def test_method_is_available(self, component_methods, method):
+        for m in component_methods:
+            if m.get('name') == method:
+                return
+        raise AssertionError(f"Method {method} is not available.")
 
 
-def test_set_properties(controller: FakeActor):
-    controller.set_properties({'prop2': 10})
-    assert controller.device.prop2 == 10
+def test_get_properties(actor: FakeActor):
+    assert actor.get_parameters(['prop']) == {'prop': 5}
 
 
-def test_call_silent_method(controller: FakeActor):
-    assert controller.call_method("silent_method", value=7) is None
-    assert controller.device._method_value == 7
+def test_set_properties(actor: FakeActor):
+    actor.set_parameters({'prop2': 10})
+    assert actor.device.prop2 == 10
 
 
-def test_returning_method(controller: FakeActor):
-    assert controller.call_method('returning_method', value=2) == 4
+def test_call_silent_method(actor: FakeActor):
+    assert actor.call_action("silent_method", value=7) is None
+    assert actor.device._method_value == 7
+
+
+def test_returning_method(actor: FakeActor):
+    assert actor.call_action('returning_method', value=2) == 4

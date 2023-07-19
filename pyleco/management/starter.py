@@ -41,14 +41,14 @@ import os
 from os import path
 import sys
 import threading
-from typing import Dict, List, Tuple, Optional
+from typing import Optional, Union
 
 try:
-    from ..utils.message_handler import MessageHandler
+    from ..utils.message_handler import MessageHandler, Event, InfiniteEvent
+    from ..utils.parser import parser
 except ImportError:
-    from pyleco.utils.message_handler import MessageHandler
-
-from devices.gui_utils import parser
+    from pyleco.utils.message_handler import MessageHandler, Event, InfiniteEvent
+    from pyleco.utils.parser import parser
 
 
 log = logging.getLogger("starter")
@@ -58,8 +58,8 @@ StrFormatter = logging.Formatter("%(asctime)s\t%(levelname)s\t%(name)s\t%(messag
 modules = {}  # A dictionary of the task modules
 
 
-def sanitize_tasks(tasks: Optional[List[str] | Tuple[str, ...] | str]
-                   ) -> Tuple[str, ...] | List[str]:
+def sanitize_tasks(tasks: Optional[Union[list[str], tuple[str, ...], str]]
+                   ) -> Union[tuple[str, ...], list[str]]:
     """Ensure that the tasks are a list of tasks."""
     if tasks is None:
         return ()
@@ -91,9 +91,9 @@ class Starter(MessageHandler):
     """
 
     def __init__(self, name: str = "starter", directory: Optional[str] = None,
-                 tasks: Optional[List[str]] = None, **kwargs):
+                 tasks: Optional[list[str]] = None, **kwargs):
         super().__init__(name=name, **kwargs)
-        self.threads: Dict[str, threading.Thread] = {}  # List of threads
+        self.threads: dict[str, threading.Thread] = {}  # List of threads
         self.events = {}  # Events to stop the threads.
         self.started_tasks = {}  # A list of all tasks started
         if directory is not None:
@@ -102,16 +102,17 @@ class Starter(MessageHandler):
             sys.path.append(head)
             self.folder_name = tail
         else:
-            self.directory = "tasks"
-            self.folder_name = "tasks"
+            # TODO remove?
+            self.directory = "test_tasks"
+            self.folder_name = "test_tasks"
 
-        log.info("Starter started.")
+        log.info(f"Starter started with tasks in folder '{self.directory}'.")
         if tasks is not None:
             for task in tasks:
                 self.start_task(task)
 
-    def publish_rpc_methods(self):
-        super().publish_rpc_methods()
+    def register_rpc_methods(self):
+        super().register_rpc_methods()
         self.rpc.method(self.start_tasks)
         self.rpc.method(self.stop_tasks)
         self.rpc.method(self.restart_tasks)
@@ -119,12 +120,12 @@ class Starter(MessageHandler):
         self.rpc.method(self.list_tasks)
         self.rpc.method(self.status_tasks)
 
-    def listen(self, **kwargs):
+    def listen(self, stop_event: Event = InfiniteEvent(), **kwargs):
         """Listen for zmq communication until `stop_event` is set.
 
         :param waiting_time: Time to wait for a readout signal in ms.
         """
-        super().listen(**kwargs)
+        super().listen(stop_event=stop_event, **kwargs)
         keys = list(self.threads.keys())
         for name in keys:
             # set all stop signals
@@ -147,7 +148,7 @@ class Starter(MessageHandler):
         super().heartbeat()
         self.check_installed_tasks()
 
-    def start_tasks(self, names: List[str] | Tuple[str, ...]) -> None:
+    def start_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
         for name in sanitize_tasks(names):
             self.start_task(name)
 
@@ -176,7 +177,7 @@ class Starter(MessageHandler):
                 return
             thread.start()
 
-    def stop_tasks(self, names: List[str] | Tuple[str, ...]) -> None:
+    def stop_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
         for name in sanitize_tasks(names):
             self.stop_task(name)
 
@@ -200,12 +201,12 @@ class Starter(MessageHandler):
         except Exception as exc:
             log.exception(f"Deleting task {name} failed", exc_info=exc)
 
-    def restart_tasks(self, names: List[str] | Tuple[str, ...]) -> None:
+    def restart_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
         for name in sanitize_tasks(names):
             self.stop_task(name)
             self.start_task(name)
 
-    def install_tasks(self, names: List[str] | Tuple[str, ...]) -> None:
+    def install_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
         for name in sanitize_tasks(names):
             self.install_task(name)
 
@@ -213,7 +214,7 @@ class Starter(MessageHandler):
         """Add tasks to the installed list."""
         self.started_tasks[name] = self.started_tasks.get(name, 0) | Status.INSTALLED
 
-    def status_tasks(self, names: Optional[List[str]] = None) -> Dict[str, Status]:
+    def status_tasks(self, names: Optional[list[str]] = None) -> dict[str, Status]:
         """Enumerate the status of the started/running tasks and keep the records clean.
 
         :param list names: List of tasks to look for.
@@ -227,7 +228,7 @@ class Starter(MessageHandler):
                 del self.threads[key]
         return ret_data
 
-    def list_tasks(self) -> List[Dict[str, str]]:
+    def list_tasks(self) -> list[dict[str, str]]:
         """List all tasks (with name and tooltip) available in the folder."""
         try:
             filenames = os.listdir(self.directory)

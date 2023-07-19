@@ -25,7 +25,7 @@
 import logging
 from typing import Dict
 
-from .director import Director as Director
+from .director import Director
 
 
 log = logging.getLogger(__name__)

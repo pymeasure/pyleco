@@ -29,11 +29,18 @@ import threading
 
 import pytest
 
+from pyleco.errors import DUPLICATE_NAME
 from pyleco.core.message import Message
 from pyleco.utils.listener import BaseListener
-from pyleco.utils.communicator import SimpleCommunicator
+from pyleco.utils.communicator import Communicator
 
 from pyleco.coordinators.coordinator import Coordinator
+
+
+# Constants
+PORT = 60001
+PORT2 = PORT + 1
+PORT3 = PORT + 2
 
 
 hostname = gethostname()
@@ -56,15 +63,15 @@ def leco():
     log = logging.getLogger("test")
     threads = []
     threads.append(threading.Thread(target=start_coordinator,
-                                    kwargs=dict(namespace="N1", port=60001)))
+                                    kwargs=dict(namespace="N1", port=PORT)))
     threads.append(threading.Thread(target=start_coordinator,
-                                    kwargs=dict(namespace="N2", port=60002)))
+                                    kwargs=dict(namespace="N2", port=PORT2)))
     threads.append(threading.Thread(target=start_coordinator,
-                                    kwargs=dict(namespace="N3", port=60003)))
+                                    kwargs=dict(namespace="N3", port=PORT3)))
     for thread in threads:
         thread.daemon = True
         thread.start()
-    listener = BaseListener(name="Controller", port=60001)
+    listener = BaseListener(name="Controller", port=PORT)
     listener.start_listen()
     sleep(1)
     yield listener
@@ -78,52 +85,63 @@ def leco():
 def test_startup(leco: BaseListener):
     directory = leco.ask_rpc(b"COORDINATOR", "compose_local_directory")
     assert directory == {"directory": ["Controller"],
-                         "nodes": {"N1": f"{hostname}:60001"}}
+                         "nodes": {"N1": f"{hostname}:{PORT}"}}
 
 
 @pytest.mark.skipif(testlevel < 1, reason="reduce load")
 def test_connect_N1_to_N2(leco: BaseListener):
-    response = leco.ask_rpc("COORDINATOR", method="set_nodes", nodes={"N2": "localhost:60002"})
+    response = leco.ask_rpc("COORDINATOR", method="set_nodes", nodes={"N2": f"localhost:{PORT2}"})
     assert response is None
     sleep(0.5)  # time for coordinators to talk
     nodes = leco.ask_rpc(receiver="COORDINATOR", method="compose_local_directory").get("nodes")
-    assert nodes == {"N1": f"{hostname}:60001", "N2": "localhost:60002"}
+    assert nodes == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}
+    assert leco.ask_rpc(receiver="N2.COORDINATOR", method="pong") is None
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
 def test_Component_to_Component_via_1_Coordinator(leco: BaseListener):
-    c = SimpleCommunicator(name="whatever", port=60001)
-    assert c.ask("N1.Controller", data={"id": 1, "method": "pong", "jsonrpc": "2.0"}) == Message(
-        b'N1.whatever', b'N1.Controller', data={"id": 1, "result": None, "jsonrpc": "2.0"}
-    )
+    with Communicator(name="whatever", port=PORT) as c:
+        assert c.ask_rpc("N1.Controller", method="pong") is None
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
 def test_Component_to_Component_via_2_Coordinators(leco: BaseListener):
-    with SimpleCommunicator(name="whatever", port=60002) as c:
+    with Communicator(name="whatever", port=PORT2) as c:
         response = c.ask("N1.Controller", data={"id": 1, "method": "pong", "jsonrpc": "2.0"})
         assert response == Message(
-            b'N2.whatever', b'N1.Controller', data={"id": 1, "result": None, "jsonrpc": "2.0"})
+            b'N2.whatever', b'N1.Controller', data={"id": 1, "result": None, "jsonrpc": "2.0"},
+            header=response.header)
+
+
+@pytest.mark.skipif(testlevel < 2, reason="reduce load")
+def test_Component_to_second_coordinator(leco: BaseListener):
+    assert leco.ask_rpc("N2.COORDINATOR", method="pong") is None
+
+
+def test_sign_in_rejected_for_duplicate_name(leco: BaseListener):
+    with pytest.raises(ConnectionRefusedError, match=DUPLICATE_NAME.message):
+        with Communicator(name="Controller", port=PORT):
+            pass
 
 
 @pytest.mark.skipif(testlevel < 3, reason="reduce load")
 def test_connect_N3_to_N2(leco: BaseListener):
-    c = SimpleCommunicator(name="whatever", port=60003)
+    c = Communicator(name="whatever", port=PORT3)
     c.sign_in()
-    c.ask_rpc(b"COORDINATOR", "set_nodes", nodes={"N2": "localhost:60002"})
+    c.ask_rpc(b"COORDINATOR", "set_nodes", nodes={"N2": f"localhost:{PORT2}"})
 
     sleep(0.5)  # time for coordinators to talk
     nodes = leco.ask_rpc(receiver="COORDINATOR", method="compose_local_directory").get("nodes")
-    assert nodes == {"N1": f"{hostname}:60001", "N2": "localhost:60002",
-                     "N3": f"{hostname}:60003"}
+    assert nodes == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}",
+                     "N3": f"{hostname}:{PORT3}"}
 
 
 @pytest.mark.skipif(testlevel < 4, reason="reduce load")
 def test_shutdown_N3(leco: BaseListener):
-    c = SimpleCommunicator(name="whatever", port=60003)
+    c = Communicator(name="whatever", port=PORT3)
     c.sign_in()
-    c.ask(receiver="N3.COORDINATOR", data={"id": 3, "method": "shutdown", "jsonrpc": "2.0"})
+    c.ask(receiver="N3.COORDINATOR", data={"id": 3, "method": "shut_down", "jsonrpc": "2.0"})
 
     sleep(0.5)  # time for coordinators to talk
     nodes = leco.ask_rpc(receiver="COORDINATOR", method="compose_local_directory").get("nodes")
-    assert nodes == {"N1": f"{hostname}:60001", "N2": "localhost:60002"}
+    assert nodes == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}

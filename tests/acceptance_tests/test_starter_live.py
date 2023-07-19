@@ -23,15 +23,18 @@
 #
 
 import logging
+import os
 import threading
 from time import sleep
 
 import pytest
 
 from pyleco.coordinators.coordinator import Coordinator
-from pyleco.actors.actor import Actor
-from pyleco.directors.director import Director
+from pyleco.management.starter import Starter, Status
+from pyleco.directors.starter_director import StarterDirector
+from pyleco.directors.coordinator_director import CoordinatorDirector
 
+from pyleco.management.test_tasks import test_task
 
 # Constants
 PORT = 60001
@@ -42,38 +45,10 @@ def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs):
         coordinator.routing(coordinators=coordinators)
 
 
-class FakeInstrument:
-    _prop1 = 5
-
-    def __init__(self):
-        pass
-
-    def connect(self):
-        pass
-
-    @property
-    def constant(self):
-        return 7
-
-    @property
-    def prop1(self):
-        return self._prop1
-
-    @prop1.setter
-    def prop1(self, value):
-        self._prop1 = value
-
-    def triple(self, factor: float = 1) -> float:
-        return factor * 3
-
-
-def start_actor(event: threading.Event):
-    actor = Actor("actor", FakeInstrument, port=PORT)
-    actor.connect()
-    actor.rpc.method(actor.device.triple)
-    actor.register_device_method(actor.device.triple)
-    actor.listen(event)
-    actor.disconnect()
+def start_starter(event: threading.Event):
+    path = os.path.dirname(test_task.__file__)
+    starter = Starter(directory=path, port=PORT)
+    starter.listen(event)
 
 
 @pytest.fixture(scope="module")
@@ -87,11 +62,11 @@ def director():
     threads = []
     threads.append(threading.Thread(target=start_coordinator,
                                     kwargs=dict(namespace="N1", port=PORT)))
-    threads.append(threading.Thread(target=start_actor, kwargs=dict(event=stop_event)))
+    threads.append(threading.Thread(target=start_starter, kwargs=dict(event=stop_event)))
     for thread in threads:
         thread.daemon = True
         thread.start()
-    director = Director(actor="actor", port=PORT)
+    director = StarterDirector(actor="starter", port=PORT)
     sleep(1)
     yield director
     log.info("Tearing down")
@@ -101,23 +76,27 @@ def director():
         thread.join(0.5)
 
 
-def test_get_property(director: Director):
-    assert director.get_parameters("constant") == {"constant": 7}
+def test_sign_in(director: StarterDirector):
+    d2 = CoordinatorDirector(communicator=director.communicator)
+    assert "starter" in d2.get_directory().get("directory")  # type: ignore
 
 
-def test_change_property(director: Director):
-    start = director.get_parameters(["prop1"])["prop1"]
-    director.set_parameters({"prop1": start + 3})
-    assert director.get_parameters(["prop1"])["prop1"] == start + 3
+def test_tasks_listing(director: StarterDirector):
+    assert director.list_tasks() == [{
+        "name": "test_task",
+        "tooltip": "Example scheme for an Actor for pymeasure instruments. 'test_task'\n"}]
 
 
-def test_call_method(director: Director):
-    assert director.call_action(action="triple", factor=5) == 15
+def test_start_task(director: StarterDirector):
+    director.start_tasks("test_task")
+    status = Status(director.status_tasks("test_task").get("test_task"))
+    assert Status.STARTED in status
+    assert Status.RUNNING in status
 
 
-def test_method_via_rpc(director: Director):
-    assert director.call_method_rpc(method="triple", factor=5) == 15
-
-
-def test_device_method_via_rpc(director: Director):
-    assert director.call_method_rpc(method="device.triple", factor=5) == 15
+def test_stop_task(director: StarterDirector):
+    sleep(1)
+    director.stop_tasks("test_task")
+    status = Status(director.status_tasks("test_task").get("test_task", 0))
+    assert Status.STARTED not in status
+    assert Status.RUNNING not in status

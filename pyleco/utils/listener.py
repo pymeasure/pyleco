@@ -25,14 +25,14 @@
 import json
 import pickle
 from threading import Thread, Lock, Event
-from typing import List, Tuple, Optional
+from typing import Optional, Union
 
 import zmq
 
 from .message_handler import MessageHandler
 from .publisher import Publisher
 from ..core.message import Message
-from ..core.serialization import create_header_frame, generate_conversation_id, compose_message
+from ..core.serialization import generate_conversation_id
 from ..core.rpc_generator import RPCGenerator
 from .timers import RepeatingTimer
 
@@ -57,7 +57,7 @@ class BaseListener(MessageHandler):
                  host: str = "localhost",
                  dataPort: int = 11099,
                  heartbeat_interval: float = 10,
-                 context=None,
+                 context: Optional[zmq.Context] = None,
                  **kwargs) -> None:
         self.context = context or zmq.Context.instance()
         super().__init__(name=name, host=host, context=self.context, **kwargs)
@@ -70,25 +70,25 @@ class BaseListener(MessageHandler):
         self.pipeL = self.context.socket(zmq.PAIR)  # for the listening thread
         self.pipeL.connect(f"inproc://listenerPipe:{pipe_port}")
         self.heartbeat_interval = heartbeat_interval
-        self._subscriptions: List[str] = []  # List of all subscriptions
+        self._subscriptions: list[str] = []  # List of all subscriptions
 
         # Storage for returning asked messages
-        self._buffer: List[Message] = []
+        self._buffer: list[Message] = []
         self._buffer_lock = Lock()
         self._event = Event()
-        self.cids: List[bytes] = []  # List of conversation_ids of asked questions.
+        self.cids: list[bytes] = []  # List of conversation_ids of asked questions.
 
         self.rpc_generator = RPCGenerator()
 
     class Pipe:
         """Pipe endpoint with lock."""
 
-        def __init__(self, socket, **kwargs) -> None:
+        def __init__(self, socket, **kwargs):
             super().__init__(**kwargs)
             self.socket = socket
             self.lock = Lock()
 
-        def send_multipart(self, frames: List[bytes] | Tuple[bytes, ...]) -> None:
+        def send_multipart(self, frames: list[bytes] | tuple[bytes, ...]) -> None:
             """Send a multipart message with frames (list type) ensuring lock."""
             self.lock.acquire()
             self.socket.send_multipart(frames)
@@ -97,8 +97,8 @@ class BaseListener(MessageHandler):
         def close(self, linger: float = 0) -> None:
             self.socket.close(linger)
 
-    def publish_rpc_methods(self) -> None:
-        super().publish_rpc_methods()
+    def register_rpc_methods(self) -> None:
+        super().register_rpc_methods()
         self.rpc.method(self.subscribe)
         self.rpc.method(self.unsubscribe)
         self.rpc.method(self.unsubscribe_all)
@@ -107,9 +107,9 @@ class BaseListener(MessageHandler):
         """Close everything."""
         self.stop_listen()
         self.pipe.close(linger=1)
-        self.pipeL.close(1)
-        self.context.destroy(1)
+        self.pipeL.close(linger=1)
         super().close()
+        self.context.destroy(linger=1)
 
     # Methods to control the Listener
     def stop_listen(self) -> None:
@@ -123,17 +123,18 @@ class BaseListener(MessageHandler):
             pass
 
     #   Control protocol
-    def send(self, receiver: str | bytes, conversation_id: bytes = b"", data: object = None,
+    def send(self, receiver: str | bytes, conversation_id: Optional[bytes] = None,
+             data: object = None,
              **kwargs) -> None:
         """Send a message via control protocol."""
-        self.pipe.send_multipart((b"SND", *compose_message(receiver=receiver, sender=self.full_name,
-                                                           conversation_id=conversation_id,
-                                                           data=data, **kwargs)))
+        message = Message(receiver=receiver, sender=self.full_name, conversation_id=conversation_id,
+                          data=data, **kwargs)
+        self.send_message(message)
 
     def send_message(self, message: Message) -> None:
         if not message.sender:
             message.sender = self.full_name.encode()
-        self.pipe.send_multipart((b"SND", *message.get_frames_list()))
+        self.pipe.send_multipart((b"SND", *message.to_frames()))
 
     def reply(self, header: list, content: object) -> None:
         """Send a reply according to the original header frames and a content frame."""
@@ -150,7 +151,7 @@ class BaseListener(MessageHandler):
         return None
 
     def read_answer(self, conversation_id: bytes, tries: int = 10,
-                    timeout: float = 0.1) -> Tuple[str, str, bytes, bytes, object]:
+                    timeout: float = 0.1) -> tuple[str, str, bytes, bytes, object]:
         """Read the answer of the original message with `conversation_id`."""
         # TODO deprecated?
         msg = self.read_answer_as_message(conversation_id=conversation_id, tries=tries,
@@ -158,7 +159,7 @@ class BaseListener(MessageHandler):
         return self._turn_message_to_list(msg=msg)
 
     @staticmethod
-    def _turn_message_to_list(msg: Message) -> Tuple[str, str, bytes, bytes, object]:
+    def _turn_message_to_list(msg: Message) -> tuple[str, str, bytes, bytes, object]:
         """Turn a message into a list of often used parameters.
 
         :return: receiver, sender, conversation_id, message_id, data
@@ -191,11 +192,6 @@ class BaseListener(MessageHandler):
     ask_as_message = ask
 
     def ask_message(self, message: Message) -> Message:
-        if not message.conversation_id:
-            conversation_id = generate_conversation_id()
-            header = create_header_frame(conversation_id=conversation_id,
-                                         message_id=message.message_id)
-            message.header = header
         self._event.clear()
         with self._buffer_lock:
             self.cids.append(message.conversation_id)
@@ -208,7 +204,7 @@ class BaseListener(MessageHandler):
         return self.rpc_generator.get_result_from_response(response.payload[0])
 
     #   Data protocol
-    def subscribe(self, topics: str | list | tuple) -> None:
+    def subscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
         """Subscribe to a topic."""
         if isinstance(topics, (list, tuple)):
             for topic in topics:
@@ -223,7 +219,7 @@ class BaseListener(MessageHandler):
         else:
             self.log.info(f"Already subscribed to {topic}.")
 
-    def unsubscribe(self, topics: str | list | tuple) -> None:
+    def unsubscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
         """Unsubscribe from a topic."""
         if isinstance(topics, (list, tuple)):
             for topic in topics:
@@ -270,7 +266,8 @@ class BaseListener(MessageHandler):
     Methods below are executed in the thread, DO NOT CALL DIRECTLY!
     """
 
-    def _listen(self, context, pipe, host: str, dataPort: int = 11099) -> None:
+    def _listen(self, context: zmq.Context, pipe: zmq.Socket, host: str, dataPort: int = 11099
+                ) -> None:
         """Listen on publisher - in another thread. Do not call directly."""
         self.log.info(f"Start listening, data port {host}:{dataPort}.")
         poller = zmq.Poller()
@@ -348,7 +345,7 @@ class BaseListener(MessageHandler):
         raise NotImplementedError("Implement in subclass.")
 
     # Control protocol
-    def _send_frames(self, frames):
+    def _send_frames(self, frames: list[bytes]):
         """Send frames over the connection."""
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
