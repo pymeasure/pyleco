@@ -133,7 +133,7 @@ def test_handle_message(handler: MessageHandler, i, out):
     for j in range(len(out)):
         if j == 3:
             continue  # reply adds timestamp
-        assert handler.socket._s[0][j] == out[j]
+        assert handler.socket._s[0][j] == out[j]  # type: ignore
 
 
 def test_handle_SIGNIN_message_response(handler: MessageHandler):

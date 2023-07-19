@@ -25,7 +25,7 @@
 import logging
 from typing import Any, Optional
 
-from pytrinamic.modules import TMCM6110
+from pytrinamic.modules import TMCM6110  # type: ignore
 
 from .director import Director
 
@@ -136,36 +136,32 @@ class MotorDirector(Director):
     def move_to(self, motor: int | str, position: int, velocity: Optional[int] = None) -> None:
         """Move to a specific position."""
         if velocity is None:
-            args = (motor, position)
+            return self.call_action("move_to", motor, position)
         else:
-            args = (motor, position, velocity)
-        return self.call_action("move_to", *args)
+            return self.call_action("move_to", motor, position, velocity)
 
-    def move_to_units(self, motor: int | str, position: int, velocity: Optional[int] = None
+    def move_to_units(self, motor: int | str, position: float, velocity: Optional[int] = None
                       ) -> None:
         """Move to a specific position in units."""
         if velocity is None:
-            args = (motor, position)
+            return self.call_action("move_to_units", motor, position)
         else:
-            args = (motor, position, velocity)
-        return self.call_action("move_to_units", *args)
+            return self.call_action("move_to_units", motor, position, velocity)
 
     def move_by(self, motor: int | str, difference: int, velocity: Optional[int] = None) -> None:
         """Move to a specific position."""
         if velocity is None:
-            args = (motor, difference)
+            return self.call_action("move_by", motor, difference)
         else:
-            args = (motor, difference, velocity)
-        return self.call_action("move_by", *args)
+            return self.call_action("move_by", motor, difference, velocity)
 
     def move_by_units(self, motor: int | str, difference: float, velocity: Optional[int] = None
                       ) -> None:
         """Move to a specific position."""
         if velocity is None:
-            args = (motor, difference)
+            return self.call_action("move_by_units", motor, difference)
         else:
-            args = (motor, difference, velocity)
-        return self.call_action("move_by_units", *args)
+            return self.call_action("move_by_units", motor, difference, velocity)
 
     def rotate(self, motor: int | str, velocity: int) -> None:
         """Rotate the motor with a specific velocity."""

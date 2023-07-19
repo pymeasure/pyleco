@@ -44,28 +44,32 @@ def director(monkeypatch):
 
 
 def test_ask(director: Director):
-    director.communicator._r = [Message("director", "actor", conversation_id=cid, data={
-        "id": 1, "result": 123.456, "jsonrpc": "2.0"
-    })]
+    director.communicator._r = [  # type: ignore
+        Message("director", "actor", conversation_id=cid, data={
+            "id": 1, "result": 123.456, "jsonrpc": "2.0"
+            })]
     response = director.ask(actor=None)
-    assert director.communicator._s == [Message("actor", "director", conversation_id=cid)]
+    assert director.communicator._s == [  # type: ignore
+        Message("actor", "director", conversation_id=cid)]
     assert response == 123.456
 
 
 def test_shutdown_actor(director: Director):
-    director.communicator._r = [Message("director", "actor", conversation_id=cid, data={
-        "id": 1, "result": None, "jsonrpc": "2.0"
-    })]
+    director.communicator._r = [  # type: ignore
+        Message("director", "actor", conversation_id=cid, data={
+            "id": 1, "result": None, "jsonrpc": "2.0"
+            })]
     director.shut_down_actor()
-    assert director.communicator._s == [Message("actor", "director", conversation_id=cid, data={
-        "id": 1, "method": "shut_down", "jsonrpc": "2.0"
-    })]
+    assert director.communicator._s == [  # type: ignore
+        Message("actor", "director", conversation_id=cid, data={
+            "id": 1, "method": "shut_down", "jsonrpc": "2.0"
+            })]
 
 
 def test_get_properties_async(director: Director):
     properties = ["a", "some"]
     cid = director.get_parameters_async(parameters=properties)
-    assert director.communicator._s == [Message(
+    assert director.communicator._s == [Message(  # type: ignore
         receiver="actor", sender="director", conversation_id=cid,
         data={"id": 1, "method": "get_parameters", "params": {"parameters": properties},
               "jsonrpc": "2.0"}
@@ -75,7 +79,7 @@ def test_get_properties_async(director: Director):
 def test_set_properties_async(director: Director):
     properties = {"a": 5, "some": 7.3}
     cid = director.set_parameters_async(parameters=properties)
-    assert director.communicator._s == [Message(
+    assert director.communicator._s == [Message(  # type: ignore
         receiver="actor", sender="director", conversation_id=cid,
         data={"id": 1, "method": "set_parameters", "params": {"parameters": properties},
               "jsonrpc": "2.0"}
@@ -88,14 +92,15 @@ class Test_get_properties:
 
     @pytest.fixture
     def director_gp(self, director: Director):
-        director.communicator._r = [Message("director", "actor", conversation_id=cid, data={
-            "id": 1, "result": self.expected_result, "jsonrpc": "2.0"
-        })]
+        director.communicator._r = [  # type: ignore
+            Message("director", "actor", conversation_id=cid, data={
+                "id": 1, "result": self.expected_result, "jsonrpc": "2.0"
+                })]
         self.result = director.get_parameters(parameters=self.properties)
         return director
 
     def test_message_sent(self, director_gp):
-        assert director_gp.communicator._s == [Message(
+        assert director_gp.communicator._s == [Message(  # type: ignore
             "actor", "director", conversation_id=cid, data={
                 "id": 1, "method": "get_parameters", "params": {"parameters": self.properties},
                 "jsonrpc": "2.0"})]

@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from PyQt6 import QtCore
+from PyQt6 import QtCore  # type: ignore
 
 from ..core.message import Message
 from .listener import BaseListener

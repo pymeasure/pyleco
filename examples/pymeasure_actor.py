@@ -10,7 +10,7 @@ import logging
 
 from pyleco.actors.actor import Actor
 from pyleco.utils.publisher import Publisher
-from pymeasure.instruments.ipgphotonics import YAR
+from pymeasure.instruments.ipgphotonics import YAR  # type: ignore
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())

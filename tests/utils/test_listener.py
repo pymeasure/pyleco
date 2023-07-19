@@ -137,7 +137,7 @@ class Test_ask:
     def listener_asked(self, listener: BaseListener) -> BaseListener:
         listener._event.set()
         listener._buffer = [msg]
-        listener.ask(**self.msg_outbound)
+        listener.ask(**self.msg_outbound)  # type: ignore
         return listener
 
     def test_event_cleared(self, listener_asked: BaseListener):

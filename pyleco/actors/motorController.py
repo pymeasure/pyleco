@@ -10,11 +10,11 @@ Created on Tue Nov 29 17:34:36 2022
 from typing import Any, Optional
 
 # import PyTrinamic
-from pytrinamic.connections import ConnectionManager
-from pytrinamic.modules import TMCM6110
+from pytrinamic.connections import ConnectionManager  # type: ignore
+from pytrinamic.modules import TMCM6110  # type: ignore
 
 from ..utils.message_handler import BaseController
-from devices import motors
+from devices import motors  # type: ignore  # TODO implement differently
 
 
 class MotorController(BaseController):

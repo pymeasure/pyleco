@@ -83,12 +83,12 @@ def test_communicator_send(communicator: Communicator, kwargs, message, monkeypa
                            fake_cid_generation):
     monkeypatch.setattr("pyleco.utils.communicator.perf_counter", fake_time)
     communicator.send(**kwargs)
-    assert communicator.connection._s.pop() == message
+    assert communicator.connection._s.pop() == message  # type: ignore
 
 
 @pytest.mark.parametrize("kwargs, message", message_tests)
 def test_communicator_read(communicator: Communicator, kwargs, message):
-    communicator.connection._r.append(message)
+    communicator.connection._r.append(message)  # type: ignore
     response = communicator.read()
     assert response.receiver == kwargs.get('receiver').encode()
     assert response.conversation_id == kwargs.get('conversation_id', cid)
@@ -120,7 +120,7 @@ class Test_ask_raw:
                                       self.response.to_frames()]
         response = communicator.ask_raw(self.request)
         print("result", response)
-        assert communicator.connection._s.pop(0) == self.request.to_frames()
+        assert communicator.connection._s.pop(0) == self.request.to_frames()  # type: ignore
         communicator.sign_in.assert_called()
         assert communicator.connection._s == [self.request.to_frames()]
 
