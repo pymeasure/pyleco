@@ -31,7 +31,7 @@ from pyleco.core.message import Message
 from pyleco.core.leco_protocols import ExtendedComponentProtocol
 from pyleco.test import FakeContext
 
-from pyleco.utils.message_handler import MessageHandler, InfiniteEvent, BaseController
+from pyleco.utils.message_handler import MessageHandler, SimpleEvent, BaseController
 
 
 cid = b"conversation_id;"
@@ -52,7 +52,7 @@ def handler() -> MessageHandler:
     handler = MessageHandler(name="handler", context=FakeContext())  # type: ignore
     handler.namespace = "N1"
     handler.full_name = "N1.handler"
-    handler.stop_event = InfiniteEvent()
+    handler.stop_event = SimpleEvent()
     return handler
 
 
@@ -159,7 +159,7 @@ def test_handle_ACK_does_not_change_Namespace(handler: MessageHandler):
 class Test_listen:
     @pytest.fixture
     def handler_l(self, handler):
-        event = InfiniteEvent()
+        event = SimpleEvent()
         event.set()
         handler.socket._r = [Message(
             "handler", "COORDINATOR",
@@ -183,7 +183,7 @@ def test_set_log_level(handler: MessageHandler):
 
 
 def test_shutdown(handler: MessageHandler):
-    handler.stop_event = InfiniteEvent()
+    handler.stop_event = SimpleEvent()
     handler.shut_down()
     assert handler.stop_event.is_set() is True
 
@@ -202,6 +202,6 @@ class Test_BaseController:
         assert controller.get_parameters(parameters=["whatever"])["whatever"] == 7
 
     def test_call(self, controller: BaseController):
-        controller.stop_event = InfiniteEvent()
+        controller.stop_event = SimpleEvent()
         controller.call_action(action="shut_down")
         assert controller.stop_event.is_set() is True

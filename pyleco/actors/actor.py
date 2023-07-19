@@ -27,7 +27,7 @@ from typing import Any, Callable, Optional, Union
 
 import zmq
 
-from ..utils.message_handler import BaseController, InfiniteEvent, heartbeat_interval, Event
+from ..utils.message_handler import BaseController, SimpleEvent, heartbeat_interval, Event
 from ..utils.publisher import Publisher
 from ..utils.timers import RepeatingTimer
 
@@ -100,7 +100,7 @@ class Actor(BaseController):
         super().__exit__(*args, **kwargs)
         self.disconnect()
 
-    def listen(self, stop_event: Event = InfiniteEvent(), waiting_time: int = 100) -> None:
+    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100) -> None:
         """Listen for zmq communication until `stop_event` is set.
 
         :param waiting_time: Time to wait for a readout signal in ms.

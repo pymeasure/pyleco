@@ -44,12 +44,12 @@ heartbeat_interval = 10  # s
 
 class Event(Protocol):
     """Check compatibility with threading.Event."""
-    def is_set(self) -> bool: ...
+    def is_set(self) -> bool: ...  # pragma: no cover
 
-    def set(self) -> None: ...
+    def set(self) -> None: ...  # pragma: no cover
 
 
-class InfiniteEvent(Event):
+class SimpleEvent(Event):
     """A simple Event if the one from `threading` module is not necessary."""
     def __init__(self):
         self._flag = False
@@ -184,7 +184,7 @@ class MessageHandler(ExtendedComponentProtocol):
         self._send_message(message)
 
     # Continuous listening and message handling
-    def listen(self, stop_event: Event = InfiniteEvent(), waiting_time: int = 100) -> None:
+    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100) -> None:
         """Listen for zmq communication until `stop_event` is set or until KeyboardInterrupt.
 
         :param stop_event: Event to stop the listening loop.

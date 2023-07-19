@@ -44,10 +44,10 @@ import threading
 from typing import Any, Optional, Union
 
 try:
-    from ..utils.message_handler import MessageHandler, Event, InfiniteEvent
+    from ..utils.message_handler import MessageHandler, Event, SimpleEvent
     from ..utils.parser import parser
 except ImportError:
-    from pyleco.utils.message_handler import MessageHandler, Event, InfiniteEvent
+    from pyleco.utils.message_handler import MessageHandler, Event, SimpleEvent
     from pyleco.utils.parser import parser
 
 
@@ -120,7 +120,7 @@ class Starter(MessageHandler):
         self.rpc.method(self.list_tasks)
         self.rpc.method(self.status_tasks)
 
-    def listen(self, stop_event: Event = InfiniteEvent(), waiting_time: int = 100) -> None:
+    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100) -> None:
         """Listen for zmq communication until `stop_event` is set.
 
         :param waiting_time: Time to wait for a readout signal in ms.
