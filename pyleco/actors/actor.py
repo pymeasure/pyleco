@@ -214,7 +214,7 @@ class Actor(BaseController):
         except AttributeError:
             pass
 
-    def get_parameters(self, parameters: Union[list[str], tuple[str]]) -> dict[str, Any]:
+    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
         """Get properties from the list `properties`."""
         data = {}
         if parameters[0] == "_actor":

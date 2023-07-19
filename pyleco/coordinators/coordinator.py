@@ -91,11 +91,11 @@ class Coordinator:
         else:
             raise ValueError("`node` must be str or bytes or None.")
         self.fname = self.namespace + b".COORDINATOR"
-        log.info(f"Start Coordinator of node {self.namespace} at port {port}.")
+        log.info(f"Start Coordinator of node {self.namespace!r} at port '{port}'.")
         self.address = f"{gethostname() if host is None else host}:{port}"
         self.directory = Directory(namespace=self.namespace, full_name=self.fname,
                                    address=self.address)
-        self.global_directory = {}  # All Components
+        self.global_directory: dict[bytes, list[str]] = {}  # All Components
         self.timeout = timeout
         self.cleaner = RepeatingTimer(interval=cleaning_interval, function=self.clean_addresses,
                                       args=(expiration_time,))
@@ -146,7 +146,7 @@ class Coordinator:
             self.sign_out_from_all_coordinators()
             self.sock.close(1)
             self.cleaner.cancel()
-            log.info(f"Coordinator {self.fname} closed.")
+            log.info(f"Coordinator {self.fname!r} closed.")
             self.closed = True
 
     def create_message(self, receiver: bytes, data: Optional[bytes | str | object] = None,
@@ -238,8 +238,9 @@ class Coordinator:
 
         Messages from this Coordinator must have :code:`sender_identity = b""`.
         """
-        log.debug(f"From identity {sender_identity}, from {message.sender}, to {message.receiver},"
-                  f" header {message.header}, cid {message.conversation_id}, {message.payload}")
+        log.debug(
+            f"From identity {sender_identity!r}, from {message.sender!r}, to {message.receiver!r},"
+            f" header {message.header!r}, cid {message.conversation_id!r}, '{message.payload}'.")
         # Update heartbeat
         if sender_identity:
             try:
@@ -297,24 +298,25 @@ class Coordinator:
         self.current_message = message
         self.current_identity = sender_identity
         if b'"jsonrpc"' in message.payload[0]:
-            log.debug(f"Coordinator json commands: {message.payload[0]}")
+            log.debug(f"Coordinator json commands: {message.payload[0]!r}")
             if b'"method":' in message.payload[0]:
                 self.handle_rpc_call(sender_identity=sender_identity, message=message)
             elif b'"error"' in message.payload[0]:
-                log.error(f"Error from {message.sender} received: {message.payload[0]}.")
+                log.error(f"Error from {message.sender!r} received: {message.payload[0]!r}.")
             elif b'"result": null' in message.payload[0]:
                 pass  # acknowledgement == heartbeat
             else:
-                log.error(f"Unknown message from {message.sender} received: {message.payload[0]}")
+                log.error(
+                    f"Unknown message from {message.sender!r} received: {message.payload[0]!r}")
             return
         else:
             # TODO raise an error?
-            log.error(f"Unknown message from {message.sender} received: {message.payload[0]}")
+            log.error(f"Unknown message from {message.sender!r} received: {message.payload[0]!r}")
 
     def handle_rpc_call(self, sender_identity: bytes, message: Message) -> None:
         reply = self.rpc.process_request(message.payload[0])
         sender_namespace = message.sender_elements.namespace
-        log.debug(f"Reply {repr(reply)} to {message.sender} at node {sender_namespace}.")
+        log.debug(f"Reply '{reply!r}' to {message.sender!r} at node {sender_namespace!r}.")
         if sender_namespace == self.namespace or sender_namespace == b"":
             self.send_main_sock_reply(
                 sender_identity=sender_identity,
@@ -333,7 +335,7 @@ class Coordinator:
         sender_identity = self.current_identity
         sender_name = message.sender_elements.name
         self.directory.add_component(name=sender_name, identity=sender_identity)
-        log.info(f"New Component {sender_name} at {sender_identity}.")
+        log.info(f"New Component {sender_name!r} at {sender_identity!r}.")
         self.publish_directory_update()
 
     def sign_out(self) -> None:
@@ -341,7 +343,7 @@ class Coordinator:
         sender_identity = self.current_identity
         sender_name = message.sender_elements.name
         self.directory.remove_component(name=sender_name, identity=sender_identity)
-        log.info(f"Component {sender_name} signed out.")
+        log.info(f"Component {sender_name!r} signed out.")
         self.publish_directory_update()
 
     def coordinator_sign_in(self) -> None:

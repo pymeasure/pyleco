@@ -38,7 +38,7 @@ class MotorController(BaseController):
             port = motors.getPort(port)
         self.connectionManager = ConnectionManager(f"--port COM{port}")
         self.card = TMCM6110(self.connectionManager.connect())
-        self.configs = {}
+        self.configs: dict[str | int, dict] = {}
         self.motorDict: dict[str, int] = {} if motorDict is None else motorDict
 
     def _get_motor_number(self, motor: int | str) -> int:

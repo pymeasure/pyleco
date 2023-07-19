@@ -41,7 +41,7 @@ import os
 from os import path
 import sys
 import threading
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 try:
     from ..utils.message_handler import MessageHandler, Event, InfiniteEvent
@@ -55,7 +55,7 @@ log = logging.getLogger("starter")
 StrFormatter = logging.Formatter("%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s")
 
 
-modules = {}  # A dictionary of the task modules
+modules: dict[str, Any] = {}  # A dictionary of the task modules
 
 
 def sanitize_tasks(tasks: Optional[Union[list[str], tuple[str, ...], str]]
@@ -91,11 +91,11 @@ class Starter(MessageHandler):
     """
 
     def __init__(self, name: str = "starter", directory: Optional[str] = None,
-                 tasks: Optional[list[str]] = None, **kwargs):
+                 tasks: Optional[list[str]] = None, **kwargs) -> None:
         super().__init__(name=name, **kwargs)
         self.threads: dict[str, threading.Thread] = {}  # List of threads
-        self.events = {}  # Events to stop the threads.
-        self.started_tasks = {}  # A list of all tasks started
+        self.events: dict[str, threading.Event] = {}  # Events to stop the threads.
+        self.started_tasks: dict[str, int | Status] = {}  # A list of all tasks started
         if directory is not None:
             self.directory = path.normpath(directory)
             head, tail = path.split(self.directory)
@@ -111,7 +111,7 @@ class Starter(MessageHandler):
             for task in tasks:
                 self.start_task(task)
 
-    def register_rpc_methods(self):
+    def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
         self.rpc.method(self.start_tasks)
         self.rpc.method(self.stop_tasks)
@@ -120,12 +120,12 @@ class Starter(MessageHandler):
         self.rpc.method(self.list_tasks)
         self.rpc.method(self.status_tasks)
 
-    def listen(self, stop_event: Event = InfiniteEvent(), **kwargs):
+    def listen(self, stop_event: Event = InfiniteEvent(), waiting_time: int = 100) -> None:
         """Listen for zmq communication until `stop_event` is set.
 
         :param waiting_time: Time to wait for a readout signal in ms.
         """
-        super().listen(stop_event=stop_event, **kwargs)
+        super().listen(stop_event=stop_event, waiting_time=waiting_time, **kwargs)
         keys = list(self.threads.keys())
         for name in keys:
             # set all stop signals
@@ -220,7 +220,7 @@ class Starter(MessageHandler):
         :param list names: List of tasks to look for.
         """
         ret_data = {} if names is None else {key: Status.STOPPED for key in names}
-        ret_data.update(self.started_tasks)
+        ret_data.update(self.started_tasks)  # type: ignore
         for key in list(self.threads.keys()):
             if self.threads[key].is_alive():
                 ret_data[key] |= Status.RUNNING

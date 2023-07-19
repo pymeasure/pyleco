@@ -114,7 +114,7 @@ def test_heartbeat(handler: MessageHandler, fake_cid_generation):
 
 
 def test_handle_message_ignores_heartbeats(handler: MessageHandler):
-    handler.handle_commands = MagicMock()
+    handler.handle_commands = MagicMock()  # type: ignore
     # empty message of heartbeat
     handler.socket._r = [[VERSION_B, b"N1.handler", b"whatever", b";"]]
     handler.handle_message()

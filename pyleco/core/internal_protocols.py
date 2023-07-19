@@ -48,12 +48,12 @@ class CommunicatorProtocol(ComponentProtocol, Protocol):
     namespace: Optional[str] = None
     rpc_generator: RPCGenerator
 
-    def sign_in(self) -> None: ...
+    def sign_in(self) -> None: ...  # pragma: no cover
 
-    def sign_out(self) -> None: ...
+    def sign_out(self) -> None: ...  # pragma: no cover
 
     def send(self,
-             receiver: str | bytes,
+             receiver: bytes | str,
              conversation_id: Optional[bytes] = None,
              data: Optional[Any] = None,
              **kwargs) -> None:
@@ -62,7 +62,7 @@ class CommunicatorProtocol(ComponentProtocol, Protocol):
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
         ))
 
-    def send_message(self, message: Message) -> None: ...
+    def send_message(self, message: Message) -> None: ...  # pragma: no cover
 
     def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
             data: Optional[Any] = None,
@@ -71,6 +71,6 @@ class CommunicatorProtocol(ComponentProtocol, Protocol):
         return self.ask_message(message=Message(
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs))
 
-    def ask_message(self, message: Message) -> Message: ...
+    def ask_message(self, message: Message) -> Message: ...  # pragma: no cover
 
-    def close(self) -> None: ...
+    def close(self) -> None: ...  # pragma: no cover

@@ -87,14 +87,14 @@ class Director:
                     data: Optional[Any] = None) -> Message:
         cid0 = generate_conversation_id()
         actor = self._actor_check(actor)
-        log.debug(f"Asking {actor} with message {data}")
+        log.debug(f"Asking {actor!r} with message '{data}'.")
         response = self.communicator.ask(actor, conversation_id=cid0,
                                          data=data)
-        log.debug(f"Data {response.data} received.")
+        log.debug(f"Data '{response.data}' received.")
         if response.conversation_id == cid0:
             return response
         else:
-            raise ValueError(f"Response {response} does not match message_id {cid0}.")
+            raise ValueError(f"Response {response} does not match message_id {cid0!r}.")
 
     def ask(self, actor: Optional[bytes | str] = None, data: Optional[Any] = None) -> Any:
         """Send a request to the actor and return the content of the response."""

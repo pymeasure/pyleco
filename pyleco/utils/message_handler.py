@@ -155,7 +155,7 @@ class MessageHandler(ExtendedComponentProtocol):
         self.socket.send_multipart(frames)
 
     def _send(self, receiver: bytes | str, sender: bytes | str = b"", data: Optional[Any] = None,
-              conversation_id: bytes = b"", **kwargs) -> None:
+              conversation_id: Optional[bytes] = None, **kwargs) -> None:
         """Compose and send a message to a `receiver` with serializable `data`."""
         try:
             message = Message(receiver=receiver, sender=sender, data=data,
@@ -176,7 +176,7 @@ class MessageHandler(ExtendedComponentProtocol):
 
     # User commands, implements Communicator
     def send(self, receiver: bytes | str, data: Optional[Any] = None,
-             conversation_id: bytes = b"", **kwargs) -> None:
+             conversation_id: Optional[bytes] = None, **kwargs) -> None:
         """Send a message to a receiver with serializable `data`."""
         self._send(receiver=receiver, data=data, conversation_id=conversation_id, **kwargs)
 
@@ -291,9 +291,9 @@ class MessageHandler(ExtendedComponentProtocol):
                 response = Message(msg.sender, conversation_id=msg.conversation_id, data=reply)
                 self.send_message(response)
             else:
-                self.log.error(f"Unknown message from {msg.sender} received: {msg.payload[0]}")
+                self.log.error(f"Unknown message from {msg.sender!r} received: {msg.payload[0]!r}")
         else:
-            self.log.warning(f"Unknown message from {msg.sender} received: '{msg.data}', {msg.payload}.")  # noqa: E501
+            self.log.warning(f"Unknown message from {msg.sender!r} received: '{msg.data}', {msg.payload!r}.")  # noqa: E501
 
     def set_log_level(self, level: int) -> None:
         """Set the log level."""

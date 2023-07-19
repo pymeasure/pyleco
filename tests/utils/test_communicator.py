@@ -110,7 +110,7 @@ class Test_ask_raw:
         assert communicator.connection._s == [self.request.to_frames()]
 
     def test_sign_in(self, communicator: Communicator):
-        communicator.sign_in = MagicMock()
+        communicator.sign_in = MagicMock()  # type: ignore
         not_signed_in = Message(receiver="N1.Test", sender="N1.COORDINATOR",
                                 data={"id": None,
                                       "error": NOT_SIGNED_IN.dict(),

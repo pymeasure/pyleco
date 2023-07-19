@@ -80,7 +80,7 @@ class Communicator(CommunicatorProtocol):
         self.name = name
         self.namespace = None
         self._last_beat: float = 0
-        self._reading: Optional[Callable] = None
+        self._reading: Optional[Callable[[], list[bytes]]] = None
         self.rpc_generator = RPCGenerator()
         super().__init__(**kwargs)
 
@@ -122,10 +122,12 @@ class Communicator(CommunicatorProtocol):
         """Called after the with clause has finished, does cleanup."""
         self.close()
 
-    def retry_read(self, timeout: Optional[int] = None) -> list | None:
+    def retry_read(self, timeout: Optional[int] = None) -> list[bytes] | None:
         """Retry reading."""
         if self._reading and self.connection.poll(timeout or self.timeout):
             return self._reading()
+        else:
+            return None
 
     def send_message(self, message: Message) -> None:
         now = perf_counter()
@@ -138,14 +140,14 @@ class Communicator(CommunicatorProtocol):
         frames = message.to_frames()
         self.connection.send_multipart(frames)
 
-    def read_raw(self, timeout: Optional[int] = None) -> list:
+    def read_raw(self, timeout: Optional[int] = None) -> list[bytes]:
         if self.connection.poll(timeout or self.timeout):
             return self.connection.recv_multipart()
         else:
             self._reading = self.connection.recv_multipart
             raise TimeoutError("Reading timed out.")
 
-    def poll(self) -> bool:
+    def poll(self) -> int:
         """Check how many messages arrived."""
         return self.connection.poll()
 
@@ -194,10 +196,10 @@ class Communicator(CommunicatorProtocol):
             result = self.rpc_generator.get_result_from_response(response_json)
         except JSONRPCError as exc:
             if exc.rpc_error.code == -32000:
-                self.log.exception(f"Decoding failed for {response_json}.", exc_info=exc)
+                self.log.exception(f"Decoding failed for {response_json!r}.", exc_info=exc)
                 return
             else:
-                self.log.exception(f"Some error happened {response_json}.", exc_info=exc)
+                self.log.exception(f"Some error happened {response_json!r}.", exc_info=exc)
                 raise
         return result
 
@@ -207,7 +209,7 @@ class Communicator(CommunicatorProtocol):
         return response.payload[0]
 
     # Messages
-    def sign_in(self) -> str:
+    def sign_in(self) -> None:
         """Sign in to the Coordinator and return the node."""
         self.namespace = None
         self._last_beat = perf_counter()  # to not sign in again...
@@ -219,10 +221,10 @@ class Communicator(CommunicatorProtocol):
             raise ConnectionError
         assert (
             response.conversation_id == cid0
-        ), (f"Answer to another request (mine {cid0}) received from {response.sender}: "
-            f"{response.conversation_id}, {response.data}.")
+        ), (f"Answer to another request (mine {cid0!r}) received from {response.sender!r}: "
+            f"{response.conversation_id!r}, '{response.data}'.")
         self.namespace = response.sender_elements.namespace.decode()
-        return self.namespace
+        self.log.info(f"Signed in to '{self.namespace}'.")
 
     def sign_out(self) -> None:
         """Tell the Coordinator to drop references."""

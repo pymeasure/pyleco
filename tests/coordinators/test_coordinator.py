@@ -56,8 +56,7 @@ def coordinator():
     n2 = coordinator.directory.get_node(b"N2")
     n2._messages_sent = []  # type: ignore # reset dealer sock._socket.
     n2.heartbeat = -1
-    # reset router sock._socket:
-    coordinator.sock._messages_sent = []  # type: ignore
+    coordinator.sock._messages_sent = []  # type: ignore  # reset router sock._socket:
     return coordinator
 
 
@@ -116,7 +115,7 @@ class Test_clean_addresses:
         assert b"send" not in coordinator.directory.get_component_names()
 
     def test_expired_component_updates_directory(self, coordinator: Coordinator, fake_counting):
-        coordinator.publish_directory_update = MagicMock()
+        coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.directory.get_components()[b"send"].heartbeat = -3.5
         coordinator.clean_addresses(1)
         coordinator.publish_directory_update.assert_called()
@@ -141,7 +140,7 @@ class Test_clean_addresses:
         # further removal tests in :class:`Test_remove_coordinator`
 
     def test_warn_Coordinator(self, coordinator: Coordinator, fake_counting):
-        coordinator.publish_directory_update = MagicMock()
+        coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -1.5
         coordinator.clean_addresses(1)
         assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
@@ -285,7 +284,7 @@ class Test_sign_in:
                             data={"id": 7, "result": None, "jsonrpc": "2.0"}))]
 
     def test_signin_sends_directory_update(self, coordinator: Coordinator):
-        coordinator.publish_directory_update = MagicMock()
+        coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.sock._messages_read = [  # type: ignore
             [b'cb', Message(b"COORDINATOR", b"CB", conversation_id=cid,
                             data={"jsonrpc": "2.0", "method": "sign_in", "id": 7},
@@ -348,7 +347,7 @@ class Test_sign_out:
                              data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
 
     def test_signout_sends_directory_update(self, coordinator: Coordinator):
-        coordinator.publish_directory_update = MagicMock()
+        coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
             b"N1.COORDINATOR", b"rec",
             data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]

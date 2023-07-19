@@ -25,7 +25,7 @@
 import json
 import pickle
 from threading import Thread, Lock, Event
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import zmq
 
@@ -123,8 +123,8 @@ class BaseListener(MessageHandler):
             pass
 
     #   Control protocol
-    def send(self, receiver: str | bytes, conversation_id: Optional[bytes] = None,
-             data: object = None,
+    def send(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
+             data: Optional[Any] = None,
              **kwargs) -> None:
         """Send a message via control protocol."""
         message = Message(receiver=receiver, sender=self.full_name, conversation_id=conversation_id,
@@ -294,10 +294,10 @@ class BaseListener(MessageHandler):
                         self.log.debug("Stopping listening.")
                         break
                     case [b"SUB", topic]:  # noqa: 211
-                        self.log.debug(f"Subscribing to {topic}.")
+                        self.log.debug(f"Subscribing to {topic!r}.")
                         subscriber.subscribe(topic)
                     case [b"UNSUB", topic]:  # noqa: 211
-                        self.log.debug(f"Unsubscribing from {topic}.")
+                        self.log.debug(f"Unsubscribing from {topic!r}.")
                         subscriber.unsubscribe(topic)
                     case [b"SND", *message]:  # noqa: 211
                         self._send_frames(frames=message)
@@ -308,7 +308,7 @@ class BaseListener(MessageHandler):
                         self.name = new_name.decode()
                         self.sign_in()
                     case msg:
-                        self.log.debug(f"Received unknown {msg}.")
+                        self.log.debug(f"Received unknown '{msg}'.")
 
             if subscriber in socks:  # Receiving regular data.
                 try:
@@ -411,8 +411,9 @@ class Republisher(BaseListener):
         self.publisher = Publisher()
         self.handlings = {} if handlings is None else handlings
 
-    def start_listen(self, port: Optional[int] = None, **kwargs) -> None:
-        super().start_listen(dataPort=port, **kwargs)
+    def start_listen(self, host: Optional[str] = None, dataPort: Optional[int] = None,
+                     **kwargs) -> None:
+        super().start_listen(host, dataPort=dataPort, **kwargs)
         for key in self.handlings.keys():
             self.subscribe(key)
 

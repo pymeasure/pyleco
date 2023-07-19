@@ -84,7 +84,7 @@ class Publisher:
             self._connecting = self.socket.connect
             self._disconnecting = self.socket.disconnect
             self.host = host
-        self._port = False
+        self._port = 0
         self.port = port
         super().__init__(**kwargs)
 
