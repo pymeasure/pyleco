@@ -123,8 +123,8 @@ class BaseListener(MessageHandler):
             pass
 
     #   Control protocol
-    def send(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
-             data: Optional[Any] = None,
+    def send(self, receiver: bytes | str, data: Optional[Any] = None,
+             conversation_id: Optional[bytes] = None,
              **kwargs) -> None:
         """Send a message via control protocol."""
         message = Message(receiver=receiver, sender=self.full_name, conversation_id=conversation_id,
