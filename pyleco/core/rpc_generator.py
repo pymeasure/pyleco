@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Any, Optional
+from typing import Any
 
 from jsonrpc2pyclient._irpcclient import IRPCClient
 
@@ -32,22 +32,16 @@ class RPCGenerator(IRPCClient):
 
     # TODO it stores an always growing list of "id"s, if you do not call "get_result".
 
-    def build_request_str(self, method: str, params: Optional[list | dict] = None, **kwargs) -> str:
-        if kwargs and isinstance(params, list):
+    def build_request_str(self, method: str, *args, **kwargs) -> str:
+        if args and kwargs:
             raise ValueError(
-                "You may not specify positional arguments and keyword arguments at the same time.")
-        if isinstance(params, dict):
-            params.update(kwargs)
-        if params:
-            return self._build_request(method=method, params=params).json()
-        elif kwargs:
-            return self._build_request(method=method, params=kwargs).json()
-        else:
-            return self._build_request(method=method, params=None).json()
+                "You may not specify list of positional arguments "
+                "and give additional keyword arguments at the same time.")
+        return self._build_request(method=method, params=kwargs or list(args) or None).json()
 
     def get_result_from_response(self, data: bytes | str) -> Any:
         """Get the result of that object or raise an error."""
-        return super()._get_result_from_response(data=data)
+        return self._get_result_from_response(data=data)
 
     def clear_id_list(self) -> None:
         """Reset the list of created ids."""

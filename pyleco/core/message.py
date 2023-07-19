@@ -23,12 +23,12 @@
 #
 
 from json import JSONDecodeError
-from typing import Any, List, Optional
+from typing import Any, Optional, Self
 
 
 from . import VERSION_B
 from .serialization import (create_header_frame, serialize_data, interpret_header, split_name,
-                            deserialize_data,
+                            deserialize_data, FullName, Header
                             )
 
 
@@ -44,39 +44,44 @@ class Message:
         - 0 or more `payload` frames
 
     If you do not specify a sender, the sending program shall add it itself.
-    The :attr:`data` attribute is the content of the first :attr:`payload` frame.
+    The :attr:`data` attribute is the content of the first :attr:`payload` frame. It can be set with
+    the corresponding argument.
     All attributes, except the official frames, are for convenience.
     """
 
     version: bytes = VERSION_B
+    receiver: bytes
+    sender: bytes
+    header: bytes
+    payload: list[bytes]
 
     def __init__(self, receiver: bytes | str, sender: bytes | str = b"",
                  data: Optional[bytes | str | Any] = None,
                  header: Optional[bytes] = None,
-                 conversation_id: bytes = b"",
-                 **kwargs) -> None:
-        self.setup_caches()
+                 conversation_id: Optional[bytes] = None,
+                 message_id: Optional[bytes] = None,
+                 message_type: Optional[bytes] = None,
+                 ) -> None:
         self.receiver = receiver if isinstance(receiver, bytes) else receiver.encode()
         self.sender = sender if isinstance(sender, bytes) else sender.encode()
-        self.header = (create_header_frame(conversation_id=conversation_id, **kwargs)
+        if header and (conversation_id or message_id or message_type):
+            raise ValueError(
+                "You may not specify the header and some header element at the same time!")
+        self.header = (create_header_frame(conversation_id=conversation_id, message_id=message_id,
+                                           message_type=message_type)
                        if header is None else header)
-        if isinstance(data, (bytes)):
+        if isinstance(data, bytes):
             self.payload = [data]
-        if isinstance(data, str):
+        elif isinstance(data, str):
             self.payload = [data.encode()]
+        elif data is None:
+            self.payload = []
         else:
-            self._data = data
-
-    def setup_caches(self) -> None:
-        self._payload: List[bytes] = []
-        self._header_elements = None
-        self._sender_elements = None
-        self._receiver_elements = None
-        self._data = None
+            self.payload = [serialize_data(data)]
 
     @classmethod
     def from_frames(cls, version: bytes, receiver: bytes, sender: bytes, header: bytes,
-                    *payload: bytes):
+                    *payload: bytes) -> Self:
         """Create a message from a frames list, for example after reading from a socket.
 
         .. code::
@@ -89,94 +94,35 @@ class Message:
         inst.payload = list(payload)
         return inst
 
-    def get_frames_list(self) -> List[bytes]:
+    def to_frames(self) -> list[bytes]:
         """Get a list representation of the message, ready for sending it."""
         if not self.sender:
             raise ValueError("Empty sender frame not allowed to send.")
-        return self._get_frames_without_check()
+        return self._to_frames_without_sender_check()
 
-    def _get_frames_without_check(self) -> List[bytes]:
+    def _to_frames_without_sender_check(self) -> list[bytes]:
         return [self.version, self.receiver, self.sender, self.header] + self.payload
 
+    # Convenience methods to access elements
     @property
-    def receiver(self) -> bytes:
-        return self._receiver
-
-    @receiver.setter
-    def receiver(self, value: bytes):
-        self._receiver = value
-        self._receiver_elements = None  # reset cache
+    def receiver_elements(self) -> FullName:
+        return split_name(self.receiver)
 
     @property
-    def sender(self) -> bytes:
-        return self._sender
-
-    @sender.setter
-    def sender(self, value: bytes):
-        self._sender = value
-        self._sender_elements = None  # reset cache
+    def sender_elements(self) -> FullName:
+        return split_name(self.sender)
 
     @property
-    def header(self) -> bytes:
-        return self._header
-
-    @header.setter
-    def header(self, value: bytes):
-        self._header = value
-        self._header_elements = None  # reset cache
-
-    @property
-    def payload(self) -> List[bytes]:
-        if self._payload == [] and self._data is not None:
-            self._payload = [serialize_data(self._data)]
-        return self._payload
-
-    @payload.setter
-    def payload(self, value: List[bytes]) -> None:
-        self._payload = value
-        self._data = None  # reset data
+    def header_elements(self) -> Header:
+        return interpret_header(self.header)
 
     @property
     def conversation_id(self) -> bytes:
-        if self._header_elements is None:
-            self._header_elements = interpret_header(self.header)
-        return self._header_elements[0]
-
-    @property
-    def message_id(self) -> bytes:
-        if self._header_elements is None:
-            self._header_elements = interpret_header(self.header)
-        return self._header_elements[1]
-
-    @property
-    def receiver_node(self) -> bytes:
-        if self._receiver_elements is None:
-            self._receiver_elements = split_name(self.receiver)
-        return self._receiver_elements[0]
-
-    @property
-    def receiver_name(self) -> bytes:
-        if self._receiver_elements is None:
-            self._receiver_elements = split_name(self.receiver)
-        return self._receiver_elements[1]
-
-    @property
-    def sender_node(self) -> bytes:
-        if self._sender_elements is None:
-            self._sender_elements = split_name(self.sender)
-        return self._sender_elements[0]
-
-    @property
-    def sender_name(self) -> bytes:
-        if self._sender_elements is None:
-            self._sender_elements = split_name(self.sender)
-        return self._sender_elements[1]
+        return self.header_elements.conversation_id
 
     @property
     def data(self) -> object:
-        if self._data is None and self.payload:
-            self._data = deserialize_data(self.payload[0])
-        return self._data
+        return deserialize_data(self.payload[0]) if self.payload else None
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Message):
@@ -188,46 +134,15 @@ class Message:
             and self.header == other.header
         )
         try:
+            # Try to compare the data (python objects) instead of their bytes representation.
             my_data = self.data
             other_data = other.data
         except JSONDecodeError:
+            # Maybe the payload is binary, compare the raw payload
             return partial_comparison and self.payload == other.payload
         else:
             return (partial_comparison and my_data == other_data
                     and self.payload[1:] == other.payload[1:])
 
     def __repr__(self) -> str:
-        return f"Message.from_frames({self._get_frames_without_check()})"
-
-    # String access properties
-    @property
-    def receiver_str(self) -> str:
-        return self.receiver.decode()
-
-    @receiver_str.setter
-    def receiver_str(self, value: str):
-        self.receiver = value.encode()
-
-    @property
-    def sender_str(self) -> str:
-        return self.sender.decode()
-
-    @sender_str.setter
-    def sender_str(self, value: str):
-        self.sender = value.encode()
-
-    @property
-    def receiver_node_str(self) -> str:
-        return self.receiver_node.decode()
-
-    @property
-    def receiver_name_str(self) -> str:
-        return self.receiver_name.decode()
-
-    @property
-    def sender_node_str(self) -> str:
-        return self.sender_node.decode()
-
-    @property
-    def sender_name_str(self) -> str:
-        return self.sender_name.decode()
+        return f"Message.from_frames({self._to_frames_without_sender_check()})"

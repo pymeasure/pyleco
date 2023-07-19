@@ -19,6 +19,7 @@ dependencies = [
   "pyzmq",
   "openrpc",
   "jsonrpc2-pyclient",
+  "uuid7",
 ]
 
 [project.optional-dependencies]

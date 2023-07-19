@@ -23,78 +23,89 @@
 #
 
 import json
-import random
-from time import time
-import struct
-from typing import List, Tuple, Optional
-from warnings import warn
+from typing import Optional, NamedTuple
 
-from pydantic import BaseModel
+from uuid_extensions import uuid7  # as long as uuid does not yet support UUIDv7
+from jsonrpcobjects.objects import (RequestObject, RequestObjectParams,
+                                    ResultResponseObject,
+                                    ErrorResponseObject,
+                                    NotificationObject, NotificationObjectParams,
+                                    )
 
-from . import VERSION, VERSION_B
+
+json_objects = (
+    RequestObject,
+    RequestObjectParams,
+    ResultResponseObject,
+    ErrorResponseObject,
+    NotificationObject,
+    NotificationObjectParams,
+)
 
 
-def create_header_frame(conversation_id: bytes = b"", message_id: bytes = b"") -> bytes:
+class FullName(NamedTuple):
+    namespace: bytes
+    name: bytes
+
+
+class FullNameStr(NamedTuple):
+    namespace: str
+    name: str
+
+
+class Header(NamedTuple):
+    conversation_id: bytes
+    message_id: bytes
+    message_type: bytes
+
+
+def create_header_frame(conversation_id: Optional[bytes] = None,
+                        message_id: Optional[bytes] = None,
+                        message_type: Optional[bytes] = None) -> bytes:
     """Create the header frame.
 
     :param bytes conversation_id: ID of the conversation.
-    :param bytes message_id: Message ID of this message, must not contain ";".
+    :param bytes message_id: Message ID of this message.
     :return: header frame.
     """
-    return b";".join((conversation_id, message_id))
+    if conversation_id is None:
+        conversation_id = generate_conversation_id()
+    elif (length := len(conversation_id)) != 16:
+        raise ValueError(f"Length of 'conversation_id' is {length}, not 16 bytes.")
+    if message_id is None:
+        message_id = b"\x00" * 3
+    elif len(message_id) != 3:
+        raise ValueError("Length of 'message_id' is not 3 bytes.")
+    if message_type is None:
+        message_type = b"\x00"
+    elif len(message_type) != 1:
+        raise ValueError("Length of 'message_type' is not 1 bytes.")
+    return b"".join((conversation_id, message_id, message_type))
 
 
-def create_message(receiver: bytes, sender: bytes = b"",
-                   payload: Optional[bytes | List[bytes]] = None,
-                   **kwargs: bytes) -> List[bytes]:
-    """Create a message.
-
-    :param bytes receiver: To whom the message is going to be sent.
-    :param bytes sender: Name of the sender of the message.
-    :param list of bytes payload: Payload frames.
-    :param \\**kwargs: Keyword arguments for the header creation.
-    :return: list of byte messages, ready to send as frames.
-    """
-    warn("Deprecated, use `Message` instead.", FutureWarning)
-    if payload:
-        if isinstance(payload, bytes):
-            payload = [payload]
-        return [VERSION_B, receiver, sender, create_header_frame(**kwargs)] + payload
-    else:
-        return [VERSION_B, receiver, sender, create_header_frame(**kwargs)]
-
-
-def divide_message(msg_frames: List[bytes]) -> tuple[bytes, bytes, bytes, bytes, List[bytes]]:
-    """Return version, receiver, sender, header frame, and payload frames of a message."""
-    warn("Deprecated, use `Message` instead.", FutureWarning)
-    return msg_frames[0], msg_frames[1], msg_frames[2], msg_frames[3], msg_frames[4:]
-
-
-def split_name(name: bytes, node: bytes = b"") -> Tuple[bytes, bytes]:
-    """Split a sender/receiver name with given default node."""
+def split_name(name: bytes, namespace: bytes = b"") -> FullName:
+    """Split a sender/receiver name with given default namespace."""
     s = name.split(b".")
     n = s.pop(-1)
-    return (s.pop() if s else node), n
+    return FullName((s.pop() if s else namespace), n)
 
 
-def split_name_str(name: str, node: str = "") -> Tuple[str, str]:
-    """Split a sender/receiver name with given default node."""
+def split_name_str(name: str, namespace: str = "") -> FullNameStr:
+    """Split a sender/receiver name with given default namespace."""
     s = name.split(".")
     n = s.pop(-1)
-    return (s.pop() if s else node), n
+    return FullNameStr((s.pop() if s else namespace), n)
 
 
-def interpret_header(header: bytes) -> Tuple[bytes, bytes]:
+def interpret_header(header: bytes) -> Header:
     """Interpret the header frame.
 
-    :return: conversation_id, message_id
+    :return: conversation_id, message_id, message_type
     """
-    try:
-        conversation_id, message_id = header.rsplit(b";", maxsplit=1)
-    except (IndexError, ValueError):
-        conversation_id = b""
-        message_id = b""
-    return conversation_id, message_id
+    conversation_id = header[:16]
+    message_id = header[16:19]
+    message_type = header[19:20]
+    return Header(conversation_id, message_id, message_type)
 
 
 def serialize_data(data: object) -> bytes:
@@ -102,8 +113,8 @@ def serialize_data(data: object) -> bytes:
 
     Due to json serialization, data must not contain a bytes object!
     """
-    if isinstance(data, BaseModel):
-        return data.json().encode()
+    if isinstance(data, json_objects):
+        return data.json().encode()  # type: ignore
     else:
         return json.dumps(data).encode()
 
@@ -115,55 +126,4 @@ def deserialize_data(content: bytes) -> object:
 
 def generate_conversation_id() -> bytes:
     """Generate a conversation_id."""
-    # struct.pack uses 8 bytes and takes 0.1 seconds for 1 Million repetitions.
-    # str().encode() uses 14 bytes and takes 0.5 seconds for 1 Million repetitions.
-    # !d is a double (8 bytes) in network byte order (big-endian)
-    return struct.pack("!d", time()) + random.randbytes(2)
-
-
-# Convenience methods
-def compose_message(receiver: bytes | str, sender: bytes | str = "",
-                    conversation_id: bytes | str = b"", message_id: bytes | str = b"",
-                    data: object = None) -> List[bytes]:
-    """Compose a message.
-
-    :param str/bytes receiver: To whom the message is going to be sent.
-    :param str/bytes sender: Name of the sender of the message.
-    :param str/bytes conversation_id: Conversation ID of the receiver,
-        for example the ID of its request.
-    :param str/bytes message_id: Message ID of this message.
-    :param data: Python object to send or bytes object.
-    :return: list of byte messages, sent as frames.
-    """
-    warn("Deprecated, use `Message` instead.", FutureWarning)
-    if isinstance(receiver, str):
-        receiver = receiver.encode()
-    if isinstance(sender, str):
-        sender = sender.encode()
-    if isinstance(conversation_id, str):
-        conversation_id = conversation_id.encode()
-    if isinstance(message_id, str):
-        message_id = message_id.encode()
-
-    if isinstance(data, str):
-        data = data.encode()
-    if data is not None and not isinstance(data, bytes):
-        data = serialize_data(data)
-    return create_message(receiver=receiver, sender=sender, payload=data,
-                          conversation_id=conversation_id,
-                          message_id=message_id)
-
-
-def split_message(msg_frames: List[bytes]) -> Tuple[str, str, bytes, bytes, object]:
-    """Split the recieved message and return strings and the data object.
-
-    :return: receiver, sender, conversation_id, message_id, data
-    """
-    # Store necessary data like address and maybe conversation ID
-    warn("Deprecated, use `Message` instead.", FutureWarning)
-    version, receiver, sender, header, payload = divide_message(msg_frames=msg_frames)
-    assert (v := int.from_bytes(version, byteorder="big")) <= VERSION, (
-        f"Version {v} is above current version {VERSION}.")
-    conversation_id, message_id = interpret_header(header)
-    data = deserialize_data(content=payload[0]) if payload else None
-    return receiver.decode(), sender.decode(), conversation_id, message_id, data
+    return uuid7(as_type="bytes")  # type: ignore

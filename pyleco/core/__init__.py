@@ -22,6 +22,10 @@
 # THE SOFTWARE.
 #
 
+"""
+Core - Essential modules for pyleco.
+"""
+
 # Current protocol version
 VERSION: int = 0
 VERSION_B: bytes = VERSION.to_bytes(1, "big")
