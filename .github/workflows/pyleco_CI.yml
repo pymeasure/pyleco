@@ -121,7 +121,6 @@ jobs:
       - name: Install pyleco requirements
         uses: mamba-org/setup-micromamba@v1
         with:
-          python-version: ${{ matrix.python-version }}
           environment-file: environment.yml
           create-args: python=${{ matrix.python-version }}
           cache-environment-key: py${{ matrix.python-version }}-${{ matrix.os }}-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
