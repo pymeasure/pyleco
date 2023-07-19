@@ -504,7 +504,7 @@ class Directory:
             Message(
                 receiver=b".".join((namespace, b"COORDINATOR")),
                 sender=self.full_name,
-                data=self.rpc_generator.build_request_str("coordinator_sign_out"),
+                data=self.rpc_generator.build_request_str(method="coordinator_sign_out"),
             )
         )
         node.disconnect()

@@ -352,11 +352,6 @@ class BaseListener(MessageHandler):
 
     def handle_commands(self, message: Message) -> None:
         """Handle commands: collect a requested response or give to :meth:`finish_handle_message`.
-
-        :param str old_receiver: receiver frame.
-        :param str old_sender: sender frame.
-        :param str conversation_id: conversation_id.
-        :param object data: deserialized data.
         """
         try:
             json = b"id" in message.payload[0] and (b"result" in message.payload[0]

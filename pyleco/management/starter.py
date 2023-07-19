@@ -120,7 +120,7 @@ class Starter(MessageHandler):
         self.rpc.method(self.list_tasks)
         self.rpc.method(self.status_tasks)
 
-    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100) -> None:
+    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
         """Listen for zmq communication until `stop_event` is set.
 
         :param waiting_time: Time to wait for a readout signal in ms.
