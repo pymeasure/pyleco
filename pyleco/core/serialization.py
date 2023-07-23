@@ -25,7 +25,7 @@
 import json
 from typing import Optional, NamedTuple
 
-from uuid_extensions import uuid7  # as long as uuid does not yet support UUIDv7
+from uuid_extensions import uuid7  # type: ignore  #  as long as uuid does not yet support UUIDv7
 from jsonrpcobjects.objects import (RequestObject, RequestObjectParams,
                                     ResultResponseObject,
                                     ErrorResponseObject,

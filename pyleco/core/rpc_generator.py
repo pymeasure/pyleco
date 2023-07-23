@@ -24,7 +24,7 @@
 
 from typing import Any
 
-from jsonrpc2pyclient._irpcclient import IRPCClient
+from jsonrpc2pyclient._irpcclient import IRPCClient  # type: ignore
 
 
 class RPCGenerator(IRPCClient):
@@ -45,4 +45,4 @@ class RPCGenerator(IRPCClient):
 
     def clear_id_list(self) -> None:
         """Reset the list of created ids."""
-        self._ids = {}
+        self._ids: dict[int, int] = {}
