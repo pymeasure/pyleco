@@ -58,7 +58,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'PyLeco'
-copyright = '2013-2023, PyMeasure Developers'
+copyright = '2023, pyLECO Developers'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -238,7 +238,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'pyleco', 'PyLeco Documentation',
-     ['PyMeasure Developers'], 1)
+     ['PyLECO Developers'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -252,7 +252,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     ('index', 'PyLeco', 'PyLeco Documentation',
-     'PyMeasure Developers', 'PyLeco', 'One line description of project.',
+     'PyLECO Developers', 'PyLeco', 'Python implementation of the Laboratory Experiment COntrol (LECO) protocol.',
      'Miscellaneous'),
 ]
 
