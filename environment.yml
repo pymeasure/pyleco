@@ -5,8 +5,8 @@ dependencies:
   - pyzmq=25.1.0
   - pip  # don't pin, to gain newest conda compatibility fixes
   - pip:
-    - jsonrpc2-pyclient==2.2.12
-    - openrpc==6.3.17
+    - jsonrpc2-pyclient==4.3.0
+    - openrpc==8.1.0
     - uuid7==0.1.0
 # Development dependencies below
   - pytest=7.2.0
