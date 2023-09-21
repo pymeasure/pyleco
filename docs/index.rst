@@ -1,3 +1,3 @@
 ######
-PyLeco
+PyLECO
 ######
