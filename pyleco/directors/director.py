@@ -23,7 +23,7 @@
 #
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from ..utils.communicator import CommunicatorProtocol, Communicator
 from ..core.serialization import generate_conversation_id
@@ -82,7 +82,7 @@ class Director:
     def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
         self.close()
 
-    # Remote control
+    # Message handling
     def ask_message(self, actor: Optional[bytes | str] = None,
                     data: Optional[Any] = None) -> Message:
         cid0 = generate_conversation_id()
@@ -108,8 +108,20 @@ class Director:
             raise ValueError("Some actor has to be specified.")
         return actor
 
-    def get_parameters(self, parameters: str | List[str] | Tuple[str, ...],
-                       actor: Optional[bytes | str] = None) -> Dict[str, Any]:
+    # Helper methods
+    def _prepare_call_action_params(self, args: tuple[Any, ...],
+                                    kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Generate a params dictionary for the call action method."""
+        params = {}
+        if args:
+            params["args"] = args
+        if kwargs:
+            params["kwargs"] = kwargs
+        return params
+
+    # Remote control
+    def get_parameters(self, parameters: str | list[str] | tuple[str, ...],
+                       actor: Optional[bytes | str] = None) -> dict[str, Any]:
         """Get the values of these `properties` (list, tuple)."""
         if isinstance(parameters, str):
             parameters = (parameters,)
@@ -118,22 +130,22 @@ class Director:
             raise ConnectionError("{response} returned, but dict expected.")
         return response
 
-    def set_parameters(self, parameters: Dict[str, Any],
+    def set_parameters(self, parameters: dict[str, Any],
                        actor: Optional[bytes | str] = None) -> None:
         """Set the `properties` dictionary."""
         self.call_method_rpc(method="set_parameters", parameters=parameters, actor=actor)
 
     def call_action(self, action: str, *args, actor: Optional[bytes | str] = None, **kwargs) -> Any:
-        """Call a method remotely and return its return value.
+        """Call an action remotely and return its return value.
 
-        :param str method: Name of the method to call.
-        :param \\**kwargs: Keyword arguments for the method to call.
+        :param str action: Name of the action to call.
+        :param \\*args: Arguments for the action to call.
+        :param str actor: Name of the actor to execute the action.
+            Defaults to the stored actor name.
+        :param \\**kwargs: Keyword arguments for the action to call.
         """
-        kwargs.setdefault('action', action)
-        if args:
-            kwargs.setdefault("_args", args)
-        string = self.generator.build_request_str(method="call_action", **kwargs)
-        return self.ask(data=string, actor=actor)
+        params = self._prepare_call_action_params(args, kwargs)
+        return self.call_method_rpc("call_action", action=action, actor=actor, **params)
 
     def call_method_rpc(self, method: str, actor: Optional[bytes | str] = None, **kwargs) -> Any:
         string = self.generator.build_request_str(method=method, **kwargs)
@@ -154,7 +166,7 @@ class Director:
         self.communicator.send(actor, conversation_id=cid0, data=data)
         return cid0
 
-    def get_parameters_async(self, parameters: List[str] | Tuple[str, ...] | str,
+    def get_parameters_async(self, parameters: list[str] | tuple[str, ...] | str,
                              actor: Optional[bytes | str] = None) -> bytes:
         """Request the values of these `properties` (list, tuple) and return the conversation_id."""
         if isinstance(parameters, str):
@@ -163,7 +175,7 @@ class Director:
         return self.call_method_rpc_async(method="get_parameters", parameters=parameters,
                                           actor=actor)
 
-    def set_parameters_async(self, parameters: Dict[str, Any],
+    def set_parameters_async(self, parameters: dict[str, Any],
                              actor: Optional[bytes | str] = None) -> bytes:
         """Set the `properties` dictionary and return the conversation_id."""
         # return self.send(data=[[Commands.SET, properties]])
@@ -174,17 +186,18 @@ class Director:
                           **kwargs) -> bytes:
         """Call a method remotely and return the conversation_id.
 
-        :param str method: Name of the method to call.
-        :param \\**kwargs: Keyword arguments for the method to call.
+        :param str action: Name of the action to call.
+        :param \\*args: Arguments for the action to call.
+        :param str actor: Name of the actor to execute the action.
+            Defaults to the stored actor name.
+        :param \\**kwargs: Keyword arguments for the action to call.
         """
-        kwargs.setdefault('action', action)
-        if args:
-            kwargs.setdefault("_args", args)
-        string = self.generator.build_request_str(method="call_action", **kwargs)
-        return self.send(data=string, actor=actor)
+        params = self._prepare_call_action_params(args, kwargs)
+        return self.call_method_rpc_async(method="call_action", action=action, actor=actor,
+                                          **params)
 
     def call_method_rpc_async(self, method: str, actor: Optional[bytes | str] = None,
-                              args: Optional[list] = None, **kwargs) -> bytes:
+                              **kwargs) -> bytes:
         # TODO what to do with the args?
         string = self.generator.build_request_str(method=method, **kwargs)
         return self.send(actor=actor, data=string)

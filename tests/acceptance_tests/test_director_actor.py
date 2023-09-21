@@ -34,7 +34,7 @@ from pyleco.directors.director import Director
 
 
 # Constants
-PORT = 60001
+PORT = 60004
 
 
 def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs):
@@ -63,14 +63,14 @@ class FakeInstrument:
     def prop1(self, value):
         self._prop1 = value
 
-    def triple(self, factor: float = 1) -> float:
-        return factor * 3
+    def triple(self, factor: float = 1, factor2: float = 1) -> float:
+        return factor * factor2 * 3
 
 
 def start_actor(event: threading.Event):
     actor = Actor("actor", FakeInstrument, port=PORT)
     actor.connect()
-    actor.rpc.method(actor.device.triple)
+    actor.rpc.method()(actor.device.triple)
     actor.register_device_method(actor.device.triple)
     actor.listen(event)
     actor.disconnect()
@@ -111,12 +111,24 @@ def test_change_property(director: Director):
     assert director.get_parameters(["prop1"])["prop1"] == start + 3
 
 
-def test_call_method(director: Director):
+def test_call_action_arg(director: Director):
+    assert director.call_action("triple", 5) == 15
+
+
+def test_call_action_kwarg(director: Director):
     assert director.call_action(action="triple", factor=5) == 15
+
+
+def test_call_action_arg_and_kwarg(director: Director):
+    assert director.call_action("triple", 2, factor2=5) == 30
 
 
 def test_method_via_rpc(director: Director):
     assert director.call_method_rpc(method="triple", factor=5) == 15
+
+
+def test_method_via_rpc2(director: Director):
+    assert director.call_method_rpc(method="triple", factor=2, factor2=5) == 30
 
 
 def test_device_method_via_rpc(director: Director):

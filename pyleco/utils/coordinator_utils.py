@@ -28,9 +28,10 @@ import logging
 from time import perf_counter
 from typing import Protocol, Optional
 
-from jsonrpcobjects.objects import ErrorResponseObject, RequestObject
+from jsonrpcobjects.objects import ErrorResponse, Request
 import zmq
 
+from ..core import COORDINATOR_PORT
 from ..errors import CommunicationError, NOT_SIGNED_IN, DUPLICATE_NAME
 from ..core.message import Message
 from ..core.serialization import deserialize_data
@@ -51,7 +52,7 @@ class MultiSocket(Protocol):
     def unbind(self) -> None: ...  # pragma: no cover
 
     @abstractmethod
-    def close(self, timeout: float) -> None: ...  # pragma: no cover
+    def close(self, timeout: int) -> None: ...  # pragma: no cover
 
     @abstractmethod
     def send_message(self, identity: bytes, message: Message) -> None: ...  # pragma: no cover
@@ -68,16 +69,17 @@ class ZmqMultiSocket(MultiSocket):
 
     def __init__(self, context: Optional[zmq.Context] = None, *args, **kwargs) -> None:
         context = zmq.Context.instance() if context is None else context
-        self._sock = context.socket(zmq.ROUTER)
+        self._sock: zmq.Socket = context.socket(zmq.ROUTER)
         super().__init__(*args, **kwargs)
 
-    def bind(self, host: str = "*", port: str | int = 12300) -> None:
+    def bind(self, host: str = "*", port: str | int = COORDINATOR_PORT) -> None:
         self._sock.bind(f"tcp://{host}:{port}")
 
     def unbind(self) -> None:
-        self._sock.unbind()
+        # TODO add the right address
+        self._sock.unbind("")
 
-    def close(self, timeout: float = 0) -> None:
+    def close(self, timeout: int = 0) -> None:
         self._sock.close(linger=timeout)
 
     def send_message(self, identity: bytes, message: Message) -> None:
@@ -92,8 +94,6 @@ class ZmqMultiSocket(MultiSocket):
 
 
 class FakeMultiSocket(MultiSocket):
-    """With a fake socket."""
-
     def __init__(self, *args, **kwargs) -> None:
         self._messages_read: list[tuple[bytes, Message]] = []
         self._messages_sent: list[tuple[bytes, Message]] = []
@@ -103,16 +103,16 @@ class FakeMultiSocket(MultiSocket):
         pass
 
     def unbind(self) -> None:
-        pass
+        pass  # pragma: no cover
 
-    def close(self, timeout: float) -> None:
-        pass
+    def close(self, timeout: int) -> None:
+        pass  # pragma: no cover
 
     def send_message(self, identity: bytes, message: Message) -> None:
         self._messages_sent.append((identity, message))
 
     def message_received(self, timeout: float = 0) -> bool:
-        return len(self._messages_read) > 0
+        return len(self._messages_read) > 0  # pragma: no cover
 
     def read_message(self) -> tuple[bytes, Message]:
         return self._messages_read.pop(0)
@@ -139,19 +139,19 @@ class Node:
         self.address = address
 
     def disconnect(self, closing_time=None) -> None:
-        raise NotImplementedError("Implement in subclass")
+        raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
     def is_connected(self) -> bool:
         return False
 
     def send_message(self, message: Message) -> None:
-        raise NotImplementedError("Implement in subclass")
+        raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
     def message_received(self, timeout: float = 0) -> bool:
-        raise NotImplementedError("Implement in subclass")
+        raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
     def read_message(self, timeout: int = 0) -> Message:
-        raise NotImplementedError("Implement in subclass")
+        raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
 
 class ZmqNode(Node):
@@ -232,9 +232,12 @@ class Directory:
         self.rpc_generator = RPCGenerator()
 
     def add_component(self, name: bytes, identity: bytes) -> None:
-        if name in self._components:
-            log.error(f"Cannot add component {name!r} as the name is already taken.")
-            raise ValueError(DUPLICATE_NAME.message)
+        if (component := self._components.get(name)):
+            if component.identity == identity:
+                component.heartbeat = perf_counter()
+            else:
+                log.error(f"Cannot add component {name!r} as the name is already taken.")
+                raise ValueError(DUPLICATE_NAME.message)
         self._components[name] = Component(identity=identity, heartbeat=perf_counter())
 
     def remove_component(self, name: bytes, identity: Optional[bytes]) -> None:
@@ -248,7 +251,7 @@ class Directory:
     def add_node_sender(self, node: Node, address: str, namespace: bytes) -> None:
         """Add an sending connection to that node, unless already connected to that namespace."""
         if ":" not in address:
-            address = address + ":12300"
+            address = f"{address}:{COORDINATOR_PORT}"
         if namespace == self.namespace or address == self._address:
             raise ValueError("Cannot connect to myself.")
         if namespace in self._nodes.keys():
@@ -320,11 +323,11 @@ class Directory:
                 data=(
                     "["
                     + self.rpc_generator.build_request_str(
-                        method="set_nodes", nodes=self.get_nodes_str_dict()
+                        method="add_nodes", nodes=self.get_nodes_str_dict()
                     )
                     + ", "
                     + self.rpc_generator.build_request_str(
-                        method="set_remote_components", components=self.get_component_names()
+                        method="record_components", components=self.get_component_names()
                     )
                     + "]"
                 ),
@@ -377,13 +380,13 @@ class Directory:
             and message.payload
             and b"coordinator_sign_" in message.payload[0]  # "method": "
         ):
-            pass  # Signing in/out, no heartbeat yet
+            pass  # Coordinator signing in/out, no heartbeat yet
         else:
             # Either a Component communicates with the wrong namespace setting or
             # the other Coordinator is not known yet (reconnection)
             raise CommunicationError(
                 f"Message payload '{message.payload}' from not signed in Component {message.sender!r} or node.",  # noqa: E501
-                error_payload=ErrorResponseObject(id=None, error=NOT_SIGNED_IN))
+                error_payload=ErrorResponse(id=None, error=NOT_SIGNED_IN))
 
     def _update_local_sender_heartbeat(self, sender_identity: bytes, message: Message) -> None:
         component = self._components.get(message.sender_elements.name)
@@ -393,14 +396,15 @@ class Directory:
             else:
                 raise CommunicationError(
                     DUPLICATE_NAME.message,
-                    error_payload=ErrorResponseObject(id=None, error=DUPLICATE_NAME)
+                    error_payload=ErrorResponse(id=None, error=DUPLICATE_NAME)
                 )
-        elif message.payload and b'"sign_in"' in message.payload[0]:
+        elif message.payload and (b'"sign_in"' in message.payload[0]
+                                  or b'"sign_out"' in message.payload[0]):
             pass  # Signing in, no heartbeat yet
         else:
             raise CommunicationError(
                 f"Message payload '{message.payload}' from not signed in Component {message.sender!r}.",  # noqa: E501
-                error_payload=ErrorResponseObject(id=None, error=NOT_SIGNED_IN))
+                error_payload=ErrorResponse(id=None, error=NOT_SIGNED_IN))
 
     def find_expired_components(self, expiration_time: float) -> list[tuple[bytes, bytes]]:
         """Find expired components, return those to admonish, and remove those too old."""
@@ -447,7 +451,7 @@ class Directory:
                     Message(
                         receiver=node.namespace + b".COORDINATOR",
                         sender=self.full_name,
-                        data=RequestObject(id=0, method="pong"),
+                        data=Request(id=0, method="pong"),
                     )
                 )
 

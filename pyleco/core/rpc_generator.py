@@ -25,6 +25,11 @@
 from typing import Any
 
 from jsonrpc2pyclient._irpcclient import IRPCClient  # type: ignore
+from jsonrpcobjects.objects import Error
+
+
+# according to error raised by IRPCClient if decoding fails.
+INVALID_SERVER_RESPONSE = Error(code=-32000, message="Invalid response from server.")
 
 
 class RPCGenerator(IRPCClient):
@@ -37,7 +42,8 @@ class RPCGenerator(IRPCClient):
             raise ValueError(
                 "You may not specify list of positional arguments "
                 "and give additional keyword arguments at the same time.")
-        return self._build_request(method=method, params=kwargs or list(args) or None).json()
+        return self._build_request(method=method, params=kwargs or list(args) or None
+                                   ).model_dump_json()
 
     def get_result_from_response(self, data: bytes | str) -> Any:
         """Get the result of that object or raise an error."""

@@ -2,6 +2,7 @@
 Example scheme for an Actor for pymeasure instruments. 'test_task'
 """
 
+from threading import Event
 from time import sleep
 
 from pyleco.actors.actor import Actor
@@ -32,7 +33,7 @@ class FakeInstrument:
         return factor * 3
 
 
-def task(stop_event) -> None:
+def task(stop_event: Event) -> None:
     """The task which is run by the starter."""
     # Initialize
     while stop_event.wait(.5):

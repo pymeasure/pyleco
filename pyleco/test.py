@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #
 
+from typing import Optional, Sequence
+
 from .core.message import Message
 from .core.internal_protocols import CommunicatorProtocol
 from .core.rpc_generator import RPCGenerator
@@ -47,44 +49,54 @@ class FakeSocket:
     :attr list _r: List of messages which can be read.
     """
 
-    def __init__(self, socket_type, *args):
-        self.socket_type = socket_type
-        self.addr = None
-        self._s = []
-        self._r = []
-        self.closed = False
+    def __init__(self, socket_type: int, *args) -> None:
+        self.closed: bool = False
 
-    def bind(self, addr):
+        # Added for testing purposes
+        self.addr: None | str = None
+        self.socket_type: int = socket_type
+        # they contain a list of messages sent/received
+        self._s: list[list[bytes]] = []
+        self._r: list[list[bytes]] = []
+
+    def bind(self, addr: str) -> None:
         self.addr = addr
 
-    def bind_to_random_port(self, addr, *args, **kwargs):
+    def bind_to_random_port(self, addr: str, *args, **kwargs) -> int:
         self.addr = addr
         return 5
 
-    def unbind(self, addr=None):
+    def unbind(self, addr: Optional[str] = None) -> None:
         self.addr = None
 
-    def connect(self, addr):
+    def connect(self, addr: str):
         self.addr = addr
 
-    def disconnect(self, addr=None):
+    def disconnect(self, addr: Optional[str] = None) -> None:
         self.addr = None
 
-    def poll(self, timeout=0, flags="PollEvent.POLLIN"):
+    def poll(self, timeout: Optional[int] = None,
+             flags: int = "PollEvent.POLLIN") -> int:  # type: ignore
+        """Poll the socket for events.
+
+        :returns: poll event mask (POLLIN, POLLOUT), 0 if the timeout was reached without an event.
+        """
         return 1 if len(self._r) else 0
 
-    def recv_multipart(self):
+    def recv_multipart(self, flags: int = 0, *, copy: bool = True, track: bool = False
+                       ) -> list[bytes]:
         return self._r.pop(0)
 
-    def send_multipart(self, parts):
+    def send_multipart(self, msg_parts: Sequence, flags: int = 0, copy: bool = True,
+                       track: bool = False, **kwargs) -> None:
         # print(parts)
-        for i, part in enumerate(parts):
+        for i, part in enumerate(msg_parts):
             if not isinstance(part, bytes):
                 # Similar to real error message.
                 raise TypeError(f"Frame {i} ({part}) does not support the buffer interface.")
-        self._s.append(list(parts))
+        self._s.append(list(msg_parts))
 
-    def close(self, linger=None):
+    def close(self, linger: Optional[int] = None) -> None:
         self.addr = None
         self.closed = True
 
@@ -98,13 +110,13 @@ class FakeCommunicator(CommunicatorProtocol):
         self._s: list[Message] = []
 
     def sign_in(self) -> None:
-        return super().sign_in()
+        self._signed_in = True
 
     def sign_out(self) -> None:
-        return super().sign_out()
+        self._signed_in = False
 
     def close(self) -> None:
-        return super().close()
+        self._closed = True
 
     def send_message(self, message: Message) -> None:
         if not message.sender:

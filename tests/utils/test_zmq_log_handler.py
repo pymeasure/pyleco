@@ -22,33 +22,25 @@
 # THE SOFTWARE.
 #
 
-import logging
+import pytest
 
-from .director import Director
-
-
-log = logging.getLogger(__name__)
-log.addHandler(logging.NullHandler())
+from pyleco.test import FakeContext
+from pyleco.utils.zmq_log_handler import ZmqLogHandler
 
 
-class CoordinatorDirector(Director):
-    """Direct a Coordinator."""
+@pytest.fixture
+def handler() -> ZmqLogHandler:
+    return ZmqLogHandler(context=FakeContext(), fullname="fullname", port=12345)  # type: ignore
 
-    def __init__(self, actor="COORDINATOR", **kwargs) -> None:
-        super().__init__(actor=actor, **kwargs)
 
-    def get_local_components(self) -> list[str]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_local_components")
+def test_init_(handler: ZmqLogHandler):
+    assert handler.fullname == "fullname"
 
-    def get_global_components(self) -> dict[str, list[str]]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_global_components")
 
-    def get_nodes(self) -> dict[str, str]:
-        """Get all known nodes."""
-        return self.call_method_rpc(method="send_nodes")
+def test_init_address(handler: ZmqLogHandler):
+    assert handler.queue.addr == "tcp://localhost:12345"  # type: ignore
 
-    def set_directory(self, coordinators: dict[str, str]) -> None:
-        """Tell the Coordinator about other coordinators (dict)."""
-        return self.call_method_rpc(method="set_nodes", nodes=coordinators)
+
+def test_enqueue(handler: ZmqLogHandler):
+    handler.enqueue("whatever")
+    assert handler.queue._s == [[b"fullname", b'"whatever"']]  # type: ignore

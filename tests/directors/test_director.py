@@ -43,6 +43,37 @@ def director(monkeypatch):
     return Director(actor="actor", communicator=FakeCommunicator(name="director"))
 
 
+def test_sign_out(director: Director):
+    director.sign_out()
+    assert director.communicator._signed_in is False  # type: ignore
+
+
+def test_close(director: Director):
+    director._own_communicator = True
+    director.close()
+    assert director.communicator._closed is True  # type: ignore
+
+
+def test_context_manager():
+    with Director(communicator=FakeCommunicator(name="director")) as director:
+        communicator = director.communicator
+        director._own_communicator = True
+        communicator._closed = False  # type: ignore
+    assert communicator._closed is True  # type: ignore
+
+
+class ActorCheck:
+    def test_invalid_actor(self, director: Director):
+        with pytest.raises(ValueError):
+            director._actor_check(actor=None)
+
+    def test_given_actor(self, director: Director):
+        assert director._actor_check("another_actor") == "another_actor"
+
+    def test_default_actor(self, director: Director):
+        assert director._actor_check("") == "actor"
+
+
 def test_ask(director: Director):
     director.communicator._r = [  # type: ignore
         Message("director", "actor", conversation_id=cid, data={
@@ -76,6 +107,16 @@ def test_get_properties_async(director: Director):
     )]
 
 
+def test_get_properties_async_string(director: Director):
+    properties = ["some"]
+    cid = director.get_parameters_async(parameters=properties[0])
+    assert director.communicator._s == [Message(  # type: ignore
+        receiver="actor", sender="director", conversation_id=cid,
+        data={"id": 1, "method": "get_parameters", "params": {"parameters": properties},
+              "jsonrpc": "2.0"}
+    )]
+
+
 def test_set_properties_async(director: Director):
     properties = {"a": 5, "some": 7.3}
     cid = director.set_parameters_async(parameters=properties)
@@ -84,6 +125,36 @@ def test_set_properties_async(director: Director):
         data={"id": 1, "method": "set_parameters", "params": {"parameters": properties},
               "jsonrpc": "2.0"}
     )]
+
+
+def test_call_action_async_with_args_and_kwargs(director: Director):
+    cid = director.call_action_async("action_name", "arg1", key1=1)
+    assert director.communicator._s == [Message(  # type: ignore
+        receiver="actor", sender="director", conversation_id=cid,
+        data={"id": 1, "method": "call_action", "params": {"action": "action_name",
+                                                           "args": ["arg1"], "kwargs": {"key1": 1}},
+              "jsonrpc": "2.0"}
+        )]
+
+
+def test_call_action_async_with_args_only(director: Director):
+    cid = director.call_action_async("action_name", "arg1", 5)
+    assert director.communicator._s == [Message(  # type: ignore
+        receiver="actor", sender="director", conversation_id=cid,
+        data={"id": 1, "method": "call_action", "params": {"action": "action_name",
+                                                           "args": ["arg1", 5]},
+              "jsonrpc": "2.0"}
+        )]
+
+
+def test_call_action_async_with_kwargs_only(director: Director):
+    cid = director.call_action_async("action_name", arg1=1, arg2="abc")
+    assert director.communicator._s == [Message(  # type: ignore
+        receiver="actor", sender="director", conversation_id=cid,
+        data={"id": 1, "method": "call_action", "params": {"action": "action_name",
+                                                           "kwargs": {"arg1": 1, "arg2": "abc"}},
+              "jsonrpc": "2.0"}
+        )]
 
 
 class Test_get_properties:

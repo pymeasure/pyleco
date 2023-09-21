@@ -24,41 +24,23 @@
 
 import logging
 import time
-from typing import Any, Callable, Optional, Protocol, Union
+from typing import Any, Callable, Optional, Union
 
-# from jsonrpc2pyclient._irpcclient import IRPCClient
 from openrpc import RPCServer
 import zmq
 
+from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message
 from ..errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..core.rpc_generator import RPCGenerator
 from ..core.serialization import generate_conversation_id
 from .zmq_log_handler import ZmqLogHandler
+from .events import Event, SimpleEvent
 
 
 # Parameters
 heartbeat_interval = 10  # s
-
-
-class Event(Protocol):
-    """Check compatibility with threading.Event."""
-    def is_set(self) -> bool: ...  # pragma: no cover
-
-    def set(self) -> None: ...  # pragma: no cover
-
-
-class SimpleEvent(Event):
-    """A simple Event if the one from `threading` module is not necessary."""
-    def __init__(self):
-        self._flag = False
-
-    def is_set(self):
-        return self._flag
-
-    def set(self):
-        self._flag = True
 
 
 class MessageHandler(ExtendedComponentProtocol):
@@ -79,7 +61,7 @@ class MessageHandler(ExtendedComponentProtocol):
     """
 
     def __init__(self, name: str,
-                 host: str = "localhost", port: int = 12300, protocol: str = "tcp",
+                 host: str = "localhost", port: int = COORDINATOR_PORT, protocol: str = "tcp",
                  log: Optional[logging.Logger] = None,
                  context: Optional[zmq.Context] = None,
                  **kwargs):
@@ -104,6 +86,7 @@ class MessageHandler(ExtendedComponentProtocol):
         for h in log.handlers:
             if isinstance(h, ZmqLogHandler):
                 first_pub_handler = False
+                self.logHandler = h
                 break
         if first_pub_handler:
             self.logHandler = ZmqLogHandler()
@@ -112,7 +95,7 @@ class MessageHandler(ExtendedComponentProtocol):
         self.log = self.root_logger.getChild("MessageHandler")
 
         # ZMQ setup
-        self.socket = context.socket(zmq.DEALER)
+        self.socket: zmq.Socket = context.socket(zmq.DEALER)
         self.log.info(f"MessageHandler connecting to {host}:{port}")
         self.socket.connect(f"{protocol}://{host}:{port}")
 
@@ -120,9 +103,9 @@ class MessageHandler(ExtendedComponentProtocol):
 
     def register_rpc_methods(self) -> None:
         """Publish methods for RPC."""
-        self.rpc.method(self.shut_down)
-        self.rpc.method(self.set_log_level)
-        self.rpc.method(self.pong)
+        self.rpc.method()(self.shut_down)
+        self.rpc.method()(self.set_log_level)
+        self.rpc.method()(self.pong)
 
     def __enter__(self):
         return self
@@ -184,35 +167,57 @@ class MessageHandler(ExtendedComponentProtocol):
         self._send_message(message)
 
     # Continuous listening and message handling
-    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100) -> None:
+    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
         """Listen for zmq communication until `stop_event` is set or until KeyboardInterrupt.
 
         :param stop_event: Event to stop the listening loop.
         :param waiting_time: Time to wait for a readout signal in ms.
         """
-        self.log.info(f"Start to listen as '{self.name}'.")
         self.stop_event = stop_event
+        poller = self._listen_setup(**kwargs)
+        # Loop
+        try:
+            while not stop_event.is_set():
+                self._listen_loop_element(poller=poller, waiting_time=waiting_time)
+        except KeyboardInterrupt:
+            pass  # User stops the loop
+        except Exception:
+            raise
+        # Close
+        self._listen_close()
+
+    def _listen_setup(self) -> zmq.Poller:
+        """Setup for listening.
+
+        If you add your own sockets, remember to poll only for incoming messages.
+        """
+        self.log.info(f"Start to listen as '{self.name}'.")
         # Prepare
         poller = zmq.Poller()
         poller.register(self.socket, zmq.POLLIN)
 
         # open communication
         self.sign_in()
-        next_beat = time.perf_counter() + heartbeat_interval
-        # Loop
-        try:
-            while not stop_event.is_set():
-                socks = dict(poller.poll(waiting_time))
-                if self.socket in socks:
-                    self.handle_message()
-                elif (now := time.perf_counter()) > next_beat:
-                    self.heartbeat()
-                    next_beat = now + heartbeat_interval
-        except KeyboardInterrupt:
-            pass  # User stops the loop
-        except Exception:
-            raise
-        # Close
+        self.next_beat = time.perf_counter() + heartbeat_interval
+        return poller
+
+    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: int | None
+                             ) -> dict[zmq.Socket, int]:
+        """Check the socks for incoming messages and handle them.
+
+        :param waiting_time: Timeout of the poller in ms.
+        """
+        socks = dict(poller.poll(waiting_time))
+        if self.socket in socks:
+            self.handle_message()
+            del socks[self.socket]
+        elif (now := time.perf_counter()) > self.next_beat:
+            self.heartbeat()
+            self.next_beat = now + heartbeat_interval
+        return socks
+
+    def _listen_close(self) -> None:
+        """Close the listening loop."""
         self.log.info(f"Stop listen as '{self.name}'.")
         self.sign_out()
         self.handle_message()
@@ -223,7 +228,7 @@ class MessageHandler(ExtendedComponentProtocol):
         COORDINATOR messages are handled and then :meth:`handle_commands` does the rest.
         """
         msg = Message.from_frames(*self.socket.recv_multipart())
-        self.log.debug(f"Handling {msg}")
+        self.log.debug(f"Handling message {msg}")
         if not msg.payload:
             return
         try:
@@ -277,16 +282,13 @@ class MessageHandler(ExtendedComponentProtocol):
     def set_full_name(self, full_name: str) -> None:
         self.full_name = full_name
         self.rpc.title = full_name
-        try:
-            self.logHandler.fullname = self.full_name
-        except AttributeError:
-            pass
+        self.logHandler.fullname = self.full_name
 
     def handle_commands(self, msg: Message) -> None:
         """Handle the list of commands in the message."""
         if msg.payload and b'"jsonrpc":' in msg.payload[0]:
-            if b'"method": ' in msg.payload[0]:
-                self.log.info(f"Handling {msg}.")
+            if b'"method":' in msg.payload[0]:
+                self.log.info(f"Handling commands of  {msg}.")
                 reply = self.rpc.process_request(msg.payload[0])
                 response = Message(msg.sender, conversation_id=msg.conversation_id, data=reply)
                 self.send_message(response)
@@ -308,9 +310,9 @@ class BaseController(MessageHandler):
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
-        self.rpc.method(self.get_parameters)
-        self.rpc.method(self.set_parameters)
-        self.rpc.method(self.call_action)
+        self.rpc.method()(self.get_parameters)
+        self.rpc.method()(self.set_parameters)
+        self.rpc.method()(self.call_action)
 
     def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
         data = {}
@@ -324,21 +326,15 @@ class BaseController(MessageHandler):
         for key, value in parameters.items():
             setattr(self, key, value)
 
-    def call(self, method: str, args: list | tuple, kwargs: dict[str, Any]) -> Any:
-        """Call a method with arguments dictionary `kwargs`.
-
-        Any method can be called, even if not setup as rpc call.
-        It is preferred though, to add methods of your device with a rpc call.
-        """
-        # Deprecated
-        return getattr(self, method)(*args, **kwargs)
-
-    def call_action(self, action: str, _args: Optional[Union[list, tuple]] = None, **kwargs) -> Any:
-        """Call an action with arguments dictionary `kwargs`.
+    def call_action(self, action: str, args: Optional[Union[list, tuple]] = None,
+                    kwargs: Optional[dict[str, Any]] = None) -> Any:
+        """Call an action with positional arguments ``args`` and keyword arguments ``kwargs``.
 
         Any action can be called, even if not setup as rpc call.
         It is preferred though, to add methods of your device with a rpc call.
         """
-        if _args is None:
-            _args = ()
-        return getattr(self, action)(*_args, **kwargs)
+        if args is None:
+            args = ()
+        if kwargs is None:
+            kwargs = {}
+        return getattr(self, action)(*args, **kwargs)

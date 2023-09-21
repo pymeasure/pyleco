@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+import json
 import logging
 import pickle
 from typing import Any, Optional
@@ -29,26 +30,9 @@ from warnings import warn
 
 import zmq
 
-
-# import json
-
-# import numpy as np
+from ..core import PROXY_RECEIVING_PORT
 
 
-# class NumpyEncoder(json.JSONEncoder):
-#     """ Special json encoder for numpy types """
-
-#     def default(self, obj):
-#         if isinstance(obj, np.integer):
-#             return int(obj)
-#         elif isinstance(obj, np.floating):
-#             return float(obj)
-#         elif isinstance(obj, np.ndarray):
-#             return obj.tolist()
-#         return json.JSONEncoder.default(self, obj)
-
-
-# Classes of the data protocol
 class Publisher:
     """
     Publishing key-value data via zmq.
@@ -65,17 +49,21 @@ class Publisher:
     Quantities may be expressed as a (magnitude number, units str) tuple.
     """
 
-    def __init__(self, host: str = "localhost", port: int = 11100,
+    fullname: str
+
+    def __init__(self, host: str = "localhost", port: int = PROXY_RECEIVING_PORT,
                  log: Optional[logging.Logger] = None,
                  standalone: bool = False,
-                 context=zmq.Context.instance(),
+                 context: Optional[zmq.Context] = None,
+                 fullname: str = "",
                  **kwargs) -> None:
         if log is None:
             self.log = logging.getLogger(f"{__name__}.Publisher")
         else:
             self.log = log.getChild("Publisher")
         self.log.info(f"Publisher started at {host}:{port}.")
-        self.socket = context.socket(zmq.PUB)
+        context = context or zmq.Context.instance()
+        self.socket: zmq.Socket = context.socket(zmq.PUB)
         if standalone:
             self._connecting = self.socket.bind
             self._disconnecting = self.socket.unbind
@@ -86,6 +74,7 @@ class Publisher:
             self.host = host
         self._port = 0
         self.port = port
+        self.fullname = fullname
         super().__init__(**kwargs)
 
     def __del__(self) -> None:
@@ -112,6 +101,7 @@ class Publisher:
 
     def send(self, data: dict[str, Any]) -> None:
         """Send the dictionay `data`."""
+        # TODO change to send the whole dictionary at once, in the future.
         assert isinstance(data, dict), "Data has to be a dictionary."
         for key, value in data.items():
             if not isinstance(value, (str, float, int, complex)):
@@ -120,12 +110,30 @@ class Publisher:
                     FutureWarning)
             self.socket.send_multipart((key.encode(), pickle.dumps(value)))
             # for json:
-            # dumped = json.dumps(data, cls=NumpyEncoder)
+            # dumped = json.dumps(data)
 
-    def send_quantities(self, data: dict) -> None:
+    def send_json(self, data: dict[str, Any]) -> None:
+        """Send the dictionay `data`."""
+        # TODO change to send the whole dictionary at once, in the future.
+        assert isinstance(data, dict), "Data has to be a dictionary."
+        for key, value in data.items():
+            if not isinstance(value, (str, float, int, complex)):
+                warn(
+                    f"Data of type {type(value).__name__} might not be serializable in the future.",
+                    FutureWarning)
+            self.socket.send_multipart((key.encode(), json.dumps(value).encode()))
+
+    def send_quantities(self, data: dict[str, Any]) -> None:
         """Send the dictionay `data` containing Quantities."""
         assert isinstance(data, dict), "Data has to be a dictionary."
         for key, value in data.items():
             self.socket.send_multipart((
                 key.encode(),
                 pickle.dumps((value.magnitude, f"{value.units:~}"))))
+
+    def send_total(self, data: dict[str, Any]) -> None:
+        """Send the whole data dictionary in one message, using the fullname."""
+        if self.fullname == "":
+            raise ValueError("You have to specify the sender name, before sending!")
+        else:
+            self.socket.send_multipart((self.fullname.encode(), json.dumps(data)))

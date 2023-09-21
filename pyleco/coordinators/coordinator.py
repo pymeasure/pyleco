@@ -26,24 +26,28 @@ import logging
 from socket import gethostname
 from typing import Optional
 
-from jsonrpcobjects.objects import ErrorResponseObject, RequestObject, RequestObjectParams
+from jsonrpcobjects.objects import ErrorResponse, Request, ParamsRequest
 from openrpc import RPCServer
 import zmq
 
 try:
+    from ..core import COORDINATOR_PORT
     from ..utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
     from ..core.message import Message
     from ..errors import CommunicationError
     from ..errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
     from ..utils.timers import RepeatingTimer
     from ..utils.zmq_log_handler import ZmqLogHandler
-except ImportError:
+    from ..utils.events import Event, SimpleEvent
+except ImportError:  # pragma: no cover
+    from pyleco.core import COORDINATOR_PORT
     from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
     from pyleco.core.message import Message
     from pyleco.errors import CommunicationError
     from pyleco.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
     from pyleco.utils.timers import RepeatingTimer
     from pyleco.utils.zmq_log_handler import ZmqLogHandler
+    from pyleco.utils.events import Event, SimpleEvent
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -74,7 +78,7 @@ class Coordinator:
         self,
         namespace: Optional[str | bytes] = None,
         host: Optional[str] = None,
-        port: int = 12300,
+        port: int = COORDINATOR_PORT,
         timeout: int = 50,
         cleaning_interval: float = 5,
         expiration_time: float = 15,
@@ -89,15 +93,16 @@ class Coordinator:
         elif isinstance(namespace, bytes):
             self.namespace = namespace
         else:
-            raise ValueError("`node` must be str or bytes or None.")
+            raise ValueError("`namespace` must be str or bytes or None.")
         self.fname = self.namespace + b".COORDINATOR"
         log.info(f"Start Coordinator of node {self.namespace!r} at port '{port}'.")
-        self.address = f"{gethostname() if host is None else host}:{port}"
+        self.address = f"{host or gethostname()}:{port}"
         self.directory = Directory(namespace=self.namespace, full_name=self.fname,
                                    address=self.address)
         self.global_directory: dict[bytes, list[str]] = {}  # All Components
         self.timeout = timeout
-        self.cleaner = RepeatingTimer(interval=cleaning_interval, function=self.clean_addresses,
+        self.cleaner = RepeatingTimer(interval=cleaning_interval,
+                                      function=self.remove_expired_adresses,
                                       args=(expiration_time,))
 
         self.cleaner.start()
@@ -113,25 +118,30 @@ class Coordinator:
 
     def register_methods(self):
         """Add methods to the OpenRPC register and change the name."""
-        rpc = RPCServer(title="COORDINATOR", debug=True)
+        self.rpc = rpc = RPCServer(title="COORDINATOR", debug=True)
         rpc.title = self.fname.decode()
-        rpc.method(self.sign_in)
-        rpc.method(self.sign_out)
-        rpc.method(self.coordinator_sign_in)
-        rpc.method(self.coordinator_sign_out)
-        rpc.method(self.set_nodes)
-        rpc.method(self.set_remote_components)
-        rpc.method(self.set_log_level)
-        rpc.method(self.compose_global_directory)
-        rpc.method(self.compose_local_directory, description=self.compose_local_directory.__doc__)
-        rpc.method(self.directory.get_component_names)
-        rpc.method(self.clean_addresses, description=self.clean_addresses.__doc__)
-        rpc.method(self.shut_down)
-        rpc.method(self.pong)
-        self.rpc = rpc
+        # Component
+        rpc.method()(self.pong)
+        # Extended Component
+        rpc.method()(self.set_log_level)
+        rpc.method()(self.shut_down)
+        # Coordinator proper
+        rpc.method()(self.sign_in)
+        rpc.method()(self.sign_out)
+        rpc.method()(self.coordinator_sign_in)
+        rpc.method()(self.coordinator_sign_out)
+        rpc.method()(self.add_nodes)
+        rpc.method()(self.send_nodes)
+        rpc.method()(self.record_components)
+        rpc.method()(self.send_local_components)
+        rpc.method()(self.send_global_components)
+        rpc.method(description=self.remove_expired_adresses.__doc__)(self.remove_expired_adresses)
 
     def __del__(self) -> None:
-        self.close()
+        try:
+            self.close()
+        except AttributeError:
+            pass  # if creation failed, closing may fail during deletion.
 
     def __enter__(self):
         return self
@@ -143,8 +153,8 @@ class Coordinator:
         """Sign out and close the sockets."""
         log.debug("Closing Coordinator.")
         if not self.closed:
-            self.sign_out_from_all_coordinators()
-            self.sock.close(1)
+            self.shut_down()
+            self.sock.close(timeout=1)
             self.cleaner.cancel()
             log.info(f"Coordinator {self.fname!r} closed.")
             self.closed = True
@@ -182,8 +192,8 @@ class Coordinator:
         )
         self.sock.send_message(sender_identity, response)
 
-    def clean_addresses(self, expiration_time: float) -> None:
-        """Clean all expired addresses from the directory.
+    def remove_expired_adresses(self, expiration_time: float) -> None:
+        """Remove all expired addresses from the directory.
 
         :param float expiration_time: Expiration limit in s.
         """
@@ -196,12 +206,13 @@ class Coordinator:
         for identity, name in to_admonish:
             message = self.create_message(
                 receiver=b".".join((self.namespace, name)),
-                data=RequestObject(id=0, method="pong"),
+                data=Request(id=0, method="pong"),
             )
             self.sock.send_message(identity, message)
         self.publish_directory_update()
 
-    def routing(self, coordinators: Optional[list[str]] = None) -> None:
+    def routing(self, coordinators: Optional[list[str]] = None, stop_event: Optional[Event] = None
+                ) -> None:
         """Route all messages.
 
         Connect to Coordinators at the beginning.
@@ -214,8 +225,8 @@ class Coordinator:
                 self.directory.add_node_sender(node=ZmqNode(context=self.context),
                                                address=coordinator, namespace=b"")
         # Route messages until told to stop.
-        self.running = True
-        while self.running:
+        self.stop_event = stop_event or SimpleEvent()
+        while not self.stop_event.is_set():
             if self.sock.message_received(self.timeout):
                 self.read_and_route()
             self.directory.check_unfinished_node_connections()
@@ -271,7 +282,7 @@ class Coordinator:
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,
-                data=ErrorResponseObject(id=None, error=error),
+                data=ErrorResponse(id=None, error=error),
             )
         else:
             self.sock.send_message(receiver_identity, message)
@@ -284,7 +295,7 @@ class Coordinator:
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,
-                data=ErrorResponseObject(id=None, error=error),
+                data=ErrorResponse(id=None, error=error),
             )
 
     def handle_commands(self, sender_identity: bytes, message: Message) -> None:
@@ -301,9 +312,9 @@ class Coordinator:
             log.debug(f"Coordinator json commands: {message.payload[0]!r}")
             if b'"method":' in message.payload[0]:
                 self.handle_rpc_call(sender_identity=sender_identity, message=message)
-            elif b'"error"' in message.payload[0]:
+            elif b'"error":' in message.payload[0]:
                 log.error(f"Error from {message.sender!r} received: {message.payload[0]!r}.")
-            elif b'"result": null' in message.payload[0]:
+            elif b'"result":null' in message.payload[0]:
                 pass  # acknowledgement == heartbeat
             else:
                 log.error(
@@ -330,6 +341,23 @@ class Coordinator:
                 data=reply,
             )
 
+    # Component procedures
+    def pong(self) -> None:
+        """Respond in order to test the connection"""
+        pass
+
+    @staticmethod
+    def set_log_level(level: int) -> None:
+        log.setLevel(level)
+
+    def shut_down(self) -> None:
+        self.sign_out_from_all_coordinators()
+        try:
+            self.stop_event.set()
+        except AttributeError:  # pragma: no cover
+            pass
+
+    # Coordinator procedures
     def sign_in(self) -> None:
         message = self.current_message
         sender_identity = self.current_identity
@@ -365,11 +393,11 @@ class Coordinator:
                 receiver=sender_namespace + b".COORDINATOR",
                 sender=self.fname,
                 conversation_id=message.conversation_id,
-                data=RequestObject(id=100, method="coordinator_sign_out"),
+                data=Request(id=100, method="coordinator_sign_out"),
             )
         )
 
-    def set_nodes(self, nodes: dict) -> None:  # : Dict[str, str]
+    def add_nodes(self, nodes: dict) -> None:  # : Dict[str, str]
         for node, address in nodes.items():
             node = node.encode()
             try:
@@ -378,60 +406,48 @@ class Coordinator:
             except ValueError:
                 pass  # already connected
 
-    def set_remote_components(self, components: list[str]) -> None:
+    def record_components(self, components: list[str]) -> None:
+        """Record Components of another Coordinator."""
         message = self.current_message
         self.global_directory[message.sender_elements.namespace] = components
 
-    @staticmethod
-    def set_log_level(level: int) -> None:
-        log.setLevel(level)
+    def send_nodes(self) -> dict[str, str]:
+        return self.directory.get_nodes_str_dict()
 
+    def send_local_components(self) -> list[str]:
+        """Send the names of locally connected Components."""
+        return self.directory.get_component_names()
+
+    def send_global_components(self) -> dict[str, list[str]]:
+        """Send the names of all Components in this LECO network."""
+        data = {ns.decode(): components for ns, components in self.global_directory.items()}
+        data[self.namespace.decode()] = self.send_local_components()
+        return data
+
+    # Additional procedures
     def sign_out_from_all_coordinators(self) -> None:
         """Sign out from other Coordinators."""
         self.directory.sign_out_from_all_nodes()
 
-    def compose_local_directory(self) -> dict:
-        """Compose a dictionary with the local directory."""
-        return {
-            "directory": self.directory.get_component_names(),
-            "nodes": self.directory.get_nodes_str_dict(),
-        }
-
-    def compose_global_directory(self) -> dict:
-        """Compose a dictionary with the global directory."""
-        data = {ns.decode(): components for ns, components in self.global_directory.items()}
-        local = self.compose_local_directory()
-        # TODO TBD how to encapsulate nodes information
-        data['nodes'] = local['nodes']
-        data[self.namespace.decode()] = local['directory']
-        return data
-
     def publish_directory_update(self) -> None:
         """Send a directory update to the other coordinators."""
         # TODO TBD whether to send the whole directory or only a diff.
-        directory = self.compose_local_directory()
+        nodes = self.directory.get_nodes_str_dict()
+        components = self.directory.get_component_names()
         for node in self.directory.get_nodes().keys():
             self.send_message(
                 receiver=b".".join((node, b"COORDINATOR")),
                 data=[
-                    RequestObjectParams(
-                        id=5, method="set_nodes",
-                        params={"nodes": directory.get("nodes", {})}).dict(),
-                    RequestObjectParams(
-                        id=6, method="set_remote_components",
-                        params={"components": directory.get("directory", [])}).dict(),
+                    ParamsRequest(
+                        id=5, method="add_nodes",
+                        params={"nodes": nodes}).model_dump(),
+                    ParamsRequest(
+                        id=6, method="record_components",
+                        params={"components": components}).model_dump(),
                 ])
 
-    def shut_down(self) -> None:
-        self.running = False
-        self.sign_out_from_all_coordinators()
 
-    def pong(self) -> None:
-        """Respond in order to test the connection"""
-        pass
-
-
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Absolute imports if the file is executed.
     from pyleco.utils.parser import parser, parse_command_line_parameters  # noqa: F811
 
@@ -449,9 +465,8 @@ if __name__ == "__main__":
     cos = kwargs.pop('coordinators', "")
     coordinators = cos.replace(" ", "").split(",")
 
-    # Run the coordinator
+    # Run the Coordinator
     with Coordinator(**kwargs) as c:
-        handler = ZmqLogHandler()
-        handler.fullname = c.fname.decode()
+        handler = ZmqLogHandler(fullname=c.fname.decode())
         gLog.addHandler(handler)
         c.routing(coordinators=coordinators)

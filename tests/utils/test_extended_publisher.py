@@ -22,33 +22,38 @@
 # THE SOFTWARE.
 #
 
-import logging
+import pytest
 
-from .director import Director
+from pyleco.test import FakeContext
+
+try:
+    import numpy as np
+    import pint
+except ModuleNotFoundError:
+    pytest.skip("Numpy or pint is not installed", allow_module_level=True)
+else:
+    from pyleco.utils.extended_publisher import ExtendedPublisher, PowerEncoder
 
 
-log = logging.getLogger(__name__)
-log.addHandler(logging.NullHandler())
+ureg = pint.UnitRegistry()
 
 
-class CoordinatorDirector(Director):
-    """Direct a Coordinator."""
+@pytest.fixture
+def publisher() -> ExtendedPublisher:
+    return ExtendedPublisher(host="localhost", context=FakeContext())  # type: ignore
 
-    def __init__(self, actor="COORDINATOR", **kwargs) -> None:
-        super().__init__(actor=actor, **kwargs)
 
-    def get_local_components(self) -> list[str]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_local_components")
+class Test_PowerEncoder:
+    @pytest.fixture
+    def encoder(self) -> PowerEncoder:
+        return PowerEncoder()
 
-    def get_global_components(self) -> dict[str, list[str]]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_global_components")
+    def test_numpy_number(self, encoder):
+        assert encoder.encode(np.array((5, 7.5), dtype=np.float16)) == "[5.0, 7.5]"
 
-    def get_nodes(self) -> dict[str, str]:
-        """Get all known nodes."""
-        return self.call_method_rpc(method="send_nodes")
+    def test_pint(self, encoder):
+        assert encoder.encode(5 * ureg.cm) == '"5 cm"'
 
-    def set_directory(self, coordinators: dict[str, str]) -> None:
-        """Tell the Coordinator about other coordinators (dict)."""
-        return self.call_method_rpc(method="set_nodes", nodes=coordinators)
+    def test_combination(self, encoder):
+        assert encoder.encode([np.array((5, 7.5), dtype=np.float16), 7.25 * ureg.km,
+                               9]) == '[[5.0, 7.5], "7.25 km", 9]'

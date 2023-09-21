@@ -44,10 +44,12 @@ import threading
 from typing import Any, Optional, Union
 
 try:
-    from ..utils.message_handler import MessageHandler, Event, SimpleEvent
+    from ..utils.message_handler import MessageHandler
+    from ..utils.events import Event, SimpleEvent
     from ..utils.parser import parser
 except ImportError:
-    from pyleco.utils.message_handler import MessageHandler, Event, SimpleEvent
+    from pyleco.utils.message_handler import MessageHandler
+    from pyleco.utils.events import Event, SimpleEvent
     from pyleco.utils.parser import parser
 
 
@@ -75,12 +77,29 @@ def sanitize_tasks(tasks: Optional[Union[list[str], tuple[str, ...], str]]
 class Status(IntFlag):
     STOPPED = 0
     RUNNING = 1  # currently running
-    STARTED = 2  # if not set
-    INSTALLED = 4  # check regularly, whether it is running
+    STARTED = 2  # has been started and should be running
+    INSTALLED = 4  # check regularly, whether it is running, restart if not running anymore
 
 
 class Starter(MessageHandler):
     """Listen to communication and start tasks as required.
+
+    The Starter can start functions called `task` with the following signature
+    ``task(stop_event: threading.Event) -> None: ...``.
+    Whenever a task should be started, the Starter looks in :attr:`directory` for a module with that
+    name and loads it.
+    If the module has been loaded already, it is reloaded to get the newest version.
+    Attention: dependencies are not reloaded!
+    Then it starts the method `task` of that module in a separate thread.
+
+    When the Starter stops a task, it sets the corresponding `threading.Event`.
+
+    The first str line of a module is the modules description, available from :meth:`list_tasks`.
+
+    If you write your own task modules, make sure, that you react in a reasonable time to a stop
+    event.
+    You can use `while stop_event.wait(timeout)` to execute something regularly.
+    Pyleco Actors should be able to consume a `threading.Event` in order to be compatible.
 
     .. code::
         starter = Starter("starter")
@@ -113,12 +132,13 @@ class Starter(MessageHandler):
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
-        self.rpc.method(self.start_tasks)
-        self.rpc.method(self.stop_tasks)
-        self.rpc.method(self.restart_tasks)
-        self.rpc.method(self.install_tasks)
-        self.rpc.method(self.list_tasks)
-        self.rpc.method(self.status_tasks)
+        self.rpc.method()(self.start_tasks)
+        self.rpc.method()(self.stop_tasks)
+        self.rpc.method()(self.restart_tasks)
+        self.rpc.method()(self.install_tasks)
+        self.rpc.method()(self.list_tasks)
+        self.rpc.method()(self.status_tasks)
+        self.rpc.method()(self.uninstall_tasks)
 
     def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
         """Listen for zmq communication until `stop_event` is set.
@@ -156,6 +176,7 @@ class Starter(MessageHandler):
         """Start the `Task` object in a script with `name` in a separate thread."""
         if name in self.threads.keys() and self.threads[name].is_alive():
             log.error(f"Task '{name}' is already running.")
+            self.started_tasks[name] |= Status.RUNNING
         else:
             log.info(f"Starting task '{name}'.")
             self.started_tasks[name] = self.started_tasks.get(name, 0) | Status.STARTED
@@ -182,7 +203,7 @@ class Starter(MessageHandler):
             self.stop_task(name)
 
     def stop_task(self, name: str) -> None:
-        """Stop a task."""
+        """Stop a task and don't restart it, if it was installed."""
         try:
             del self.started_tasks[name]
         except KeyError:
@@ -199,7 +220,7 @@ class Starter(MessageHandler):
         try:
             del self.threads[name]
         except Exception as exc:
-            log.exception(f"Deleting task {name} failed", exc_info=exc)
+            log.exception(f"Deleting task '{name}' failed", exc_info=exc)
 
     def restart_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
         for name in sanitize_tasks(names):
@@ -212,7 +233,16 @@ class Starter(MessageHandler):
 
     def install_task(self, name: str) -> None:
         """Add tasks to the installed list."""
+        log.info(f"Install task '{name}'.")
         self.started_tasks[name] = self.started_tasks.get(name, 0) | Status.INSTALLED
+
+    def uninstall_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
+        for name in sanitize_tasks(names):
+            self.uninstall_task(name)
+
+    def uninstall_task(self, name: str) -> None:
+        """Uninstalls a task without stopping it, if it is already running."""
+        self.started_tasks[name] = self.started.tasks.get(name, 0) & ~Status.INSTALLED
 
     def status_tasks(self, names: Optional[list[str]] = None) -> dict[str, Status]:
         """Enumerate the status of the started/running tasks and keep the records clean.
@@ -220,12 +250,12 @@ class Starter(MessageHandler):
         :param list names: List of tasks to look for.
         """
         ret_data = {} if names is None else {key: Status.STOPPED for key in names}
-        ret_data.update(self.started_tasks)  # type: ignore
         for key in list(self.threads.keys()):
             if self.threads[key].is_alive():
-                ret_data[key] |= Status.RUNNING
+                self.started_tasks[key] |= Status.RUNNING
             else:
                 del self.threads[key]
+        ret_data.update(self.started_tasks)  # type: ignore
         return ret_data
 
     def list_tasks(self) -> list[dict[str, str]]:
@@ -233,7 +263,7 @@ class Starter(MessageHandler):
         try:
             filenames = os.listdir(self.directory)
         except FileNotFoundError:
-            log.error("Task folder not found.")
+            log.error(f"Task folder '{self.directory}' not found.")
             return []
         tasks = []
         for name in filenames:
@@ -253,6 +283,7 @@ class Starter(MessageHandler):
         self.status_tasks()
         for task, s in self.started_tasks.items():
             if s & Status.INSTALLED and not s & Status.RUNNING:
+                log.info(f"Starting installed task '{task}' with status {s}.")
                 self.start_task(task)
 
 

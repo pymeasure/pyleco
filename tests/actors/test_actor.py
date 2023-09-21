@@ -108,9 +108,9 @@ def test_set_properties(actor: FakeActor):
 
 
 def test_call_silent_method(actor: FakeActor):
-    assert actor.call_action("silent_method", value=7) is None
+    assert actor.call_action("silent_method", kwargs=dict(value=7)) is None
     assert actor.device._method_value == 7
 
 
 def test_returning_method(actor: FakeActor):
-    assert actor.call_action('returning_method', value=2) == 4
+    assert actor.call_action('returning_method', kwargs=dict(value=2)) == 4

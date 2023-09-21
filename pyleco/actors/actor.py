@@ -27,7 +27,8 @@ from typing import Any, Callable, Optional, Union
 
 import zmq
 
-from ..utils.message_handler import BaseController, SimpleEvent, heartbeat_interval, Event
+from ..utils.message_handler import BaseController, heartbeat_interval
+from ..utils.events import Event, SimpleEvent
 from ..utils.publisher import Publisher
 from ..utils.timers import RepeatingTimer
 
@@ -81,17 +82,17 @@ class Actor(BaseController):
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
-        self.rpc.method(self.start_polling)
-        self.rpc.method(self.stop_polling)
-        self.rpc.method(self.get_polling_interval)
-        self.rpc.method(self.set_polling_interval)
-        self.rpc.method(self.connect)
-        self.rpc.method(self.disconnect)
+        self.rpc.method()(self.start_polling)
+        self.rpc.method()(self.stop_polling)
+        self.rpc.method()(self.get_polling_interval)
+        self.rpc.method()(self.set_polling_interval)
+        self.rpc.method()(self.connect)
+        self.rpc.method()(self.disconnect)
         # TODO decide how to call the actor and how to call the device?
 
     def register_device_method(self, method: Callable):
         name = method.__name__
-        self.rpc.method(method, name="device." + name)
+        self.rpc.method(name="device." + name)(method)
 
     def __del__(self) -> None:
         self.disconnect()
@@ -158,7 +159,10 @@ class Actor(BaseController):
         self.read_publish(device=self.device, publisher=self.publisher)
 
     def start_timer(self, interval: Optional[float] = None) -> None:
-        """Start the readout timer."""
+        """Start the readout timer.
+
+        :param interval: Readout interval in s. If None, use the last value.
+        """
         if interval is not None:
             self.timer.interval = interval
         if self.timer.interval < 0:
@@ -233,11 +237,14 @@ class Actor(BaseController):
             else:
                 setattr(self.device, key, value)
 
-    def call_action(self, action: str, _args: Optional[list | tuple] = None, **kwargs) -> Any:
-        """Call a method with arguments dictionary `kwargs`."""
-        if _args is None:
-            _args = ()
+    def call_action(self, action: str, args: Optional[list | tuple] = None,
+                    kwargs: Optional[dict[str, Any]] = None) -> Any:
+        """Call an action with positional arguments ``args`` and keyword arguments ``kwargs``."""
+        if args is None:
+            args = ()
+        if kwargs is None:
+            kwargs = {}
         if action == "_actor":
             action = kwargs.pop("_actor")
-            return super().call_action(action=action, _args=_args, kwargs=kwargs)
-        return getattr(self.device, action)(*_args, **kwargs)
+            return super().call_action(action=action, args=args, kwargs=kwargs)
+        return getattr(self.device, action)(*args, **kwargs)

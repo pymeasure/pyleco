@@ -22,12 +22,15 @@
 # THE SOFTWARE.
 #
 
+import json
 import logging
 from logging.handlers import QueueHandler
-import pickle
 import time
+from typing import Any, Optional
 
 import zmq
+
+from ..core import LOG_RECEIVING_PORT
 
 
 class ZmqLogHandler(QueueHandler):
@@ -38,15 +41,18 @@ class ZmqLogHandler(QueueHandler):
     :attr fullname: Full name of the Component.
     """
 
-    def __init__(self, context=None, host="localhost", port=11098):
-        context = context or zmq.Context.instance()
-        socket = context.socket(zmq.PUB)
-        socket.connect(f"tcp://{host}:{port}")
-        super().__init__(socket)
-        self.fullname = ""
+    fullname: str
 
-    def prepare(self, record):
-        """Prepare a list from the record."""
+    def __init__(self, context: Optional[zmq.Context] = None, host: str = "localhost",
+                 port: int = LOG_RECEIVING_PORT, fullname: str = "") -> None:
+        context = context or zmq.Context.instance()
+        socket: zmq.Socket = context.socket(zmq.PUB)
+        socket.connect(f"tcp://{host}:{port}")
+        super().__init__(socket)  # type: ignore
+        self.fullname = fullname
+
+    def prepare(self, record: logging.LogRecord) -> list[str]:
+        """Prepare a json serializable message from the record in order to send it."""
         record.message = record.getMessage()
         record.asctime = time.strftime('%Y-%m-%d %H:%M:%S')
         tmp = [record.asctime, str(record.levelname), str(record.name)]
@@ -67,13 +73,13 @@ class ZmqLogHandler(QueueHandler):
         tmp.append(s)
         return tmp
 
-    def enqueue(self, record):
-        """Enqueue a message, if the fullname is given."""
+    def enqueue(self, record: Any) -> None:
+        """Enqueue a message prepared by :meth:`prepare`, if the fullname is given."""
+        # TODO adjust serialization according to protocol definition
         try:
-            # TODO adjust serialization according to protocol definition
-            self.queue.send_multipart((self.fullname.encode(), pickle.dumps(record)))  # type: ignore  # noqa: E501
+            self.queue.send_multipart((self.fullname.encode(), json.dumps(record).encode()))  # type: ignore  # noqa: E501
         except AttributeError:
             pass
 
-    def close(self):
+    def close(self) -> None:
         self.queue.close(1)  # type: ignore

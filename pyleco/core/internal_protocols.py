@@ -33,12 +33,11 @@ For example a Director might use these tools to direct an Actor.
 
 from typing import Any, Optional, Protocol
 
-from .leco_protocols import ComponentProtocol
 from .message import Message
 from .rpc_generator import RPCGenerator
 
 
-class CommunicatorProtocol(ComponentProtocol, Protocol):
+class CommunicatorProtocol(Protocol):
     """A helper class for a Component, to communicate via the LECO protocol.
 
     For example a Director might use such a class to send/read messages to/from an Actor.

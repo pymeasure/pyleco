@@ -25,29 +25,10 @@
 from PyQt6 import QtCore  # type: ignore
 
 from ..core.message import Message
-from .listener import BaseListener
+from .listener import Listener
 
 
-class QtMixin:
-    """
-    Mixin for the Listener to publish Qt signals.
-    """
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.signals = self.ListenerSignals()
-
-    class ListenerSignals(QtCore.QObject):
-        """Signals for the Listener."""
-        dataReady = QtCore.pyqtSignal(dict)
-        message = QtCore.pyqtSignal(Message)
-
-    def handle_subscription_data(self, data: dict) -> None:
-        """Handle incoming subscription data."""
-        self.signals.dataReady.emit(data)
-
-
-class QtListener(QtMixin, BaseListener):
+class QtListener(Listener):
     """
     Listening on published data and opening a configuration port. PyQt version.
 
@@ -63,10 +44,28 @@ class QtListener(QtMixin, BaseListener):
         with the response address.
 
     :param int port: Configure the port to be used for configuration.
-    :param log: Logger instance whose logs should be published. Defaults to "__main__".
+    :param logger: Logger instance whose logs should be published. Defaults to "__main__".
     """
 
+    def __init__(self, name: str, **kwargs) -> None:
+        super().__init__(name=name, **kwargs)
+        self.signals = self.ListenerSignals()
+
     local_methods = ["pong", "set_log_level"]
+
+    class ListenerSignals(QtCore.QObject):
+        """Signals for the Listener."""
+        dataReady = QtCore.pyqtSignal(dict)
+        message = QtCore.pyqtSignal(Message)
+
+    def handle_subscription_data(self, data: dict) -> None:
+        """Handle incoming subscription data."""
+        self.signals.dataReady.emit(data)
+
+    def start_listen(self, host: str | None = None, dataPort: int | None = None) -> None:
+        super().start_listen(host, dataPort)
+        self.message_handler.handle_subscription_data = self.handle_subscription_data
+        self.message_handler.finish_handle_commands = self.finish_handle_commands
 
     def finish_handle_commands(self, message: Message) -> None:
         """Handle the list of commands: Redirect them to the application."""
@@ -75,6 +74,6 @@ class QtListener(QtMixin, BaseListener):
         except AttributeError:
             method = None
         if method in self.local_methods:
-            super().finish_handle_commands(message)
+            self.message_handler.finish_handle_commands(message)
         else:
             self.signals.message.emit(message)

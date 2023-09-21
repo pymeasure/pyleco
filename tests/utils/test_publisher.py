@@ -25,6 +25,7 @@
 import pytest
 
 from pyleco.test import FakeContext
+from pyleco.core import PROXY_RECEIVING_PORT
 
 from pyleco.utils.publisher import Publisher
 
@@ -39,7 +40,7 @@ class Test_init:
         assert publisher.host == "localhost"
 
     def test_socket_address(self, publisher: Publisher):
-        assert publisher.socket.addr == "tcp://localhost:11100"
+        assert publisher.socket.addr == f"tcp://localhost:{PROXY_RECEIVING_PORT}"
 
     def test_socket_type(self, publisher: Publisher):
         assert publisher.socket.socket_type == 1

@@ -29,9 +29,10 @@ from typing import Any, Callable, Optional
 from jsonrpcobjects.errors import JSONRPCError
 import zmq
 
+from ..core import COORDINATOR_PORT
 from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message
-from ..core.rpc_generator import RPCGenerator
+from ..core.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
 from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
 
 
@@ -62,7 +63,7 @@ class Communicator(CommunicatorProtocol):
         self,
         name: str,
         host: str = "localhost",
-        port: Optional[int] = 12300,
+        port: Optional[int] = COORDINATOR_PORT,
         timeout: int = 100,
         auto_open: bool = True,
         protocol: str = "tcp",
@@ -157,6 +158,7 @@ class Communicator(CommunicatorProtocol):
     def ask_raw(self, message: Message) -> Message:
         """Send and read the answer, signing in if necessary."""
         self.send_message(message=message)
+        cid = message.conversation_id
         while True:
             response = self.read()
             # skip pings as we either are still signed in or going to sign in again.
@@ -173,9 +175,13 @@ class Communicator(CommunicatorProtocol):
                     elif code == DUPLICATE_NAME.code:
                         self.log.error(f"Sign in failed: {DUPLICATE_NAME.message}")
                         raise ConnectionRefusedError(f"Sign in failed: {DUPLICATE_NAME.message}")
-            return response
+            if cid == response.conversation_id:
+                return response
+            else:
+                self.log.warning(f"Message with different conversation id received: {response}.")
 
     def ask_message(self, message: Message) -> Message:
+        """Send a message and retrieve the response."""
         response = self.ask_raw(message=message)
         if response.sender_elements.name == b"COORDINATOR":
             try:
@@ -195,7 +201,7 @@ class Communicator(CommunicatorProtocol):
         try:
             result = self.rpc_generator.get_result_from_response(response_json)
         except JSONRPCError as exc:
-            if exc.rpc_error.code == -32000:
+            if exc.rpc_error.code == INVALID_SERVER_RESPONSE.code:
                 self.log.exception(f"Decoding failed for {response_json!r}.", exc_info=exc)
                 return
             else:

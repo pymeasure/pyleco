@@ -22,33 +22,21 @@
 # THE SOFTWARE.
 #
 
-import logging
+import pytest
 
-from .director import Director
-
-
-log = logging.getLogger(__name__)
-log.addHandler(logging.NullHandler())
+from pyleco.management.data_logger import DataLogger
 
 
-class CoordinatorDirector(Director):
-    """Direct a Coordinator."""
+@pytest.fixture
+def data_logger() -> DataLogger:
+    dl = DataLogger()
+    dl.reset_data_storage()
+    dl.tmp["test"] = []
+    dl.lists["test"] = []
+    return dl
 
-    def __init__(self, actor="COORDINATOR", **kwargs) -> None:
-        super().__init__(actor=actor, **kwargs)
 
-    def get_local_components(self) -> list[str]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_local_components")
-
-    def get_global_components(self) -> dict[str, list[str]]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_global_components")
-
-    def get_nodes(self) -> dict[str, str]:
-        """Get all known nodes."""
-        return self.call_method_rpc(method="send_nodes")
-
-    def set_directory(self, coordinators: dict[str, str]) -> None:
-        """Tell the Coordinator about other coordinators (dict)."""
-        return self.call_method_rpc(method="set_nodes", nodes=coordinators)
+def test_handle_subscription_data(data_logger: DataLogger):
+    data_logger.handle_subscription_data({"test": 5})
+    data_logger.handle_subscription_data({"test": 7})
+    assert data_logger.tmp["test"] == [5, 7]

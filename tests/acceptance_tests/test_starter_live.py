@@ -37,7 +37,7 @@ from pyleco.directors.coordinator_director import CoordinatorDirector
 from pyleco.management.test_tasks import test_task
 
 # Constants
-PORT = 60001
+PORT = 60005
 
 
 def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs):
@@ -78,7 +78,7 @@ def director():
 
 def test_sign_in(director: StarterDirector):
     d2 = CoordinatorDirector(communicator=director.communicator)
-    assert "starter" in d2.get_directory().get("directory")  # type: ignore
+    assert "starter" in d2.get_local_components()  # type: ignore
 
 
 def test_tasks_listing(director: StarterDirector):

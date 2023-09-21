@@ -22,33 +22,23 @@
 # THE SOFTWARE.
 #
 
-import logging
-
-from .director import Director
+from typing import Protocol
 
 
-log = logging.getLogger(__name__)
-log.addHandler(logging.NullHandler())
+class Event(Protocol):
+    """Check compatibility with threading.Event."""
+    def is_set(self) -> bool: ...  # pragma: no cover
+
+    def set(self) -> None: ...  # pragma: no cover
 
 
-class CoordinatorDirector(Director):
-    """Direct a Coordinator."""
+class SimpleEvent(Event):
+    """A simple Event if the one from `threading` module is not necessary."""
+    def __init__(self) -> None:
+        self._flag = False
 
-    def __init__(self, actor="COORDINATOR", **kwargs) -> None:
-        super().__init__(actor=actor, **kwargs)
+    def is_set(self) -> bool:
+        return self._flag
 
-    def get_local_components(self) -> list[str]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_local_components")
-
-    def get_global_components(self) -> dict[str, list[str]]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_global_components")
-
-    def get_nodes(self) -> dict[str, str]:
-        """Get all known nodes."""
-        return self.call_method_rpc(method="send_nodes")
-
-    def set_directory(self, coordinators: dict[str, str]) -> None:
-        """Tell the Coordinator about other coordinators (dict)."""
-        return self.call_method_rpc(method="set_nodes", nodes=coordinators)
+    def set(self) -> None:
+        self._flag = True

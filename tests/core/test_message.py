@@ -25,6 +25,7 @@
 import pytest
 
 from pyleco.core import VERSION_B
+from pyleco.core.serialization import serialize_data
 
 from pyleco.core.message import Message
 
@@ -46,7 +47,7 @@ def message() -> Message:
 
 class Test_Message_create_message:
     def test_payload(self, message: Message):
-        assert message.payload == [b'[["GET", [1, 2]], ["GET", 3]]']
+        assert message.payload == [serialize_data([["GET", [1, 2]], ["GET", 3]])]
 
     def test_version(self, message: Message):
         assert message.version == VERSION_B
@@ -66,7 +67,7 @@ class Test_Message_create_message:
             b"N1.receiver",
             b"N2.sender",
             b"conversation_id;midT",
-            b'[["GET", [1, 2]], ["GET", 3]]',
+            serialize_data([["GET", [1, 2]], ["GET", 3]]),
         ]
 
     def test_message_without_data_does_not_have_payload_frame(self):
@@ -82,6 +83,11 @@ class Test_Message_create_message:
     def test_message_data_str_to_binary_data(self):
         message = Message(b"rec", data="some string")
         assert message.payload[0] == b"some string"
+
+    @pytest.mark.parametrize("key", ("conversation_id", "message_id", "message_type"))
+    def test_header_param_incompatible_with_header_element_params(self, key):
+        with pytest.raises(ValueError, match="header"):
+            Message(receiver=b"", header=b"whatever", **{key: b"content"})
 
 
 class Test_Message_from_frames:
@@ -152,7 +158,7 @@ class Test_Message_with_string_parameters:
 class Test_Message_data_payload_conversion:
     def test_data_to_payload(self):
         message = Message(b"r", b"s", data=([{5: "1asfd"}], 8))
-        assert message.payload == [b'[[{"5": "1asfd"}], 8]']
+        assert message.payload == [serialize_data([[{"5": "1asfd"}], 8])]
         assert message.data == [[{'5': "1asfd"}], 8]  # converted to and from json, so modified!
 
     def test_payload_to_data(self):
@@ -191,3 +197,7 @@ class TestComparison:
         m2 = Message("r", conversation_id=b"conversation_id;")
         assert m2.payload == []  # verify that it does not have a payload
         assert m1 != m2
+
+    @pytest.mark.parametrize("other", (5, 3.4, [64, 3], (5, "string"), "string"))
+    def test_comparison_with_something_else_fails(self, message, other):
+        assert message != other

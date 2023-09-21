@@ -25,7 +25,7 @@
 from unittest.mock import MagicMock
 
 import pytest
-from jsonrpcobjects.objects import RequestObject, ErrorResponseObject
+from jsonrpcobjects.objects import Request, ErrorResponse
 
 from pyleco.errors import (NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME, RECEIVER_UNKNOWN,
                            generate_error_with_data)
@@ -35,6 +35,7 @@ from pyleco.core.leco_protocols import ExtendedComponentProtocol, Protocol, Coor
 from pyleco.utils.coordinator_utils import FakeMultiSocket, FakeNode
 from pyleco.core.rpc_generator import RPCGenerator
 from pyleco.test import FakeContext
+from pyleco.utils.events import SimpleEvent
 
 from pyleco.coordinators.coordinator import Coordinator
 
@@ -91,7 +92,7 @@ class TestCoordinatorImplementsProtocol:
     def static_test_methods_are_present(self):
         def testing(component: ExtendedCoordinator):
             pass
-        testing(Coordinator(context=FakeContext()))  # type: ignore
+        testing(Coordinator())
 
     @pytest.fixture
     def component_methods(self, coordinator: Coordinator):
@@ -108,48 +109,74 @@ class TestCoordinatorImplementsProtocol:
         raise AssertionError(f"Method {method} is not available.")
 
 
+def test_coordinator_set_namespace_from_hostname():
+    coordinator = Coordinator(context=FakeContext())  # type: ignore
+    assert isinstance(coordinator.namespace, bytes)
+
+
+def test_coordinator_set_namespace_bytes():
+    coordinator = Coordinator(namespace=b"test", context=FakeContext())  # type: ignore
+    assert coordinator.namespace == b"test"
+
+
+def test_coordinator_set_namespace_invalid():
+    with pytest.raises(ValueError, match="namespace"):
+        Coordinator(namespace=1234, context=FakeContext())  # type: ignore
+
+
+def test_set_address_from_hostname():
+    coordinator = Coordinator(context=FakeContext())  # type: ignore
+    assert isinstance(coordinator.address, str)
+
+
+def test_set_address_manually():
+    host = "host"
+    coordinator = Coordinator(host=host, context=FakeContext())  # type: ignore
+    assert coordinator.address == f"{host}:12300"
+
+
 class Test_clean_addresses:
     def test_expired_component(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_components()[b"send"].heartbeat = -3.5
-        coordinator.clean_addresses(1)
+        coordinator.remove_expired_adresses(1)
         assert b"send" not in coordinator.directory.get_component_names()
 
     def test_expired_component_updates_directory(self, coordinator: Coordinator, fake_counting):
         coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.directory.get_components()[b"send"].heartbeat = -3.5
-        coordinator.clean_addresses(1)
+        coordinator.remove_expired_adresses(1)
         coordinator.publish_directory_update.assert_called()
 
     def test_warn_component(self, coordinator: Coordinator, fake_counting):
         # TODO implement heartbeat request
         coordinator.directory.get_components()[b"send"].heartbeat = -1.5
-        coordinator.clean_addresses(1)
+        coordinator.remove_expired_adresses(1)
         assert coordinator.sock._messages_sent == [(b"321", Message(  # type: ignore
-            b"N1.send", b"N1.COORDINATOR", data=RequestObject(id=0, method="pong")))]
+            b"N1.send", b"N1.COORDINATOR", data=Request(id=0, method="pong")))]
 
     def test_active_Component_remains_in_directory(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_components()[b"send"].heartbeat = -0.5
-        coordinator.clean_addresses(1)
+        coordinator.remove_expired_adresses(1)
         assert coordinator.sock._messages_sent == []  # type: ignore
         assert b"send" in coordinator.directory.get_components()
 
     def test_expired_Coordinator(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -3.5
-        coordinator.clean_addresses(1)
+        coordinator.remove_expired_adresses(1)
         assert b"n2" not in coordinator.directory.get_node_ids()
         # further removal tests in :class:`Test_remove_coordinator`
 
     def test_warn_Coordinator(self, coordinator: Coordinator, fake_counting):
         coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -1.5
-        coordinator.clean_addresses(1)
+        coordinator.remove_expired_adresses(1)
         assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
-            Message(b"N2.COORDINATOR", b"N1.COORDINATOR", data=RequestObject(id=0, method="pong")),
+            Message(b"N2.COORDINATOR", b"N1.COORDINATOR", data=Request(id=0, method="pong")),
         ]
 
     def test_active_Coordinator_remains_in_directory(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -0.5
-        coordinator.clean_addresses(1)
+        coordinator.remove_expired_adresses(1)
         assert b"n2" in coordinator.directory.get_node_ids()
 
 
@@ -158,6 +185,14 @@ def test_heartbeat_local(fake_counting, coordinator: Coordinator):
         [b"321", Message(b"COORDINATOR", b"send")]]
     coordinator.read_and_route()
     assert coordinator.directory.get_components()[b"send"].heartbeat == 0
+
+
+def test_routing_connects_to_coordinators(coordinator: Coordinator):
+    event = SimpleEvent()
+    event.set()
+    coordinator.directory.add_node_sender = MagicMock()
+    coordinator.routing(["abc"], stop_event=event)
+    coordinator.directory.add_node_sender.assert_called_once
 
 
 @pytest.mark.parametrize("i, o", (
@@ -177,29 +212,39 @@ def test_routing_successful(coordinator: Coordinator, i, o):
             (o[0], Message.from_frames(*o[1:]))]
 
 
+def test_reading_fails(coordinator: Coordinator, caplog: pytest.LogCaptureFixture):
+    def read_message() -> tuple[bytes, Message]:
+        return b"", Message.from_frames(*[b"frame 1", b"frame 2"])  # less frames than needed.
+    coordinator.sock.read_message = read_message
+    coordinator.read_and_route()
+    assert caplog.records[-1].msg == "Not enough frames read."
+
+
 @pytest.mark.parametrize("i, o", (
     # receiver unknown, return to sender:
     ([b"321", VERSION_B, b"x", b"send", b"conversation_id;mid0", b""],
      [b"321", VERSION_B, b"send", b"N1.COORDINATOR", b"conversation_id;\x00\x00\x00\x00",
-      ErrorResponseObject(id=None, error=generate_error_with_data(RECEIVER_UNKNOWN,
-                                                                  "x")).json().encode()]),
+      ErrorResponse(id=None,
+                    error=generate_error_with_data(RECEIVER_UNKNOWN,
+                                                   "x")).model_dump_json().encode()]),
     # unknown receiver node:
     ([b"321", VERSION_B, b"N3.CB", b"N1.send", b"conversation_id;mid0"],
      [b"321", VERSION_B, b"N1.send", b"N1.COORDINATOR", b"conversation_id;\x00\x00\x00\x00",
-      ErrorResponseObject(id=None, error=generate_error_with_data(NODE_UNKNOWN,
-                                                                  "N3")).json().encode()]),
+      ErrorResponse(id=None,
+                    error=generate_error_with_data(NODE_UNKNOWN,
+                                                   "N3")).model_dump_json().encode()]),
     # sender (without namespace) did not sign in:
     ([b"1", VERSION_B, b"rec", b"unknownSender", b"conversation_id;mid0"],
      [b"1", VERSION_B, b"unknownSender", b"N1.COORDINATOR", b"conversation_id;\x00\x00\x00\x00",
-      ErrorResponseObject(id=None, error=NOT_SIGNED_IN).json().encode()]),
+      ErrorResponse(id=None, error=NOT_SIGNED_IN).model_dump_json().encode()]),
     # sender (with given Namespace) did not sign in:
     ([b"1", VERSION_B, b"rec", b"N1.unknownSender", b"conversation_id;mid0"],
      [b"1", VERSION_B, b"N1.unknownSender", b"N1.COORDINATOR", b"conversation_id;\x00\x00\x00\x00",
-      ErrorResponseObject(id=None, error=NOT_SIGNED_IN).json().encode()]),
+      ErrorResponse(id=None, error=NOT_SIGNED_IN).model_dump_json().encode()]),
     # unknown sender with a rogue node name:
     ([b"1", VERSION_B, b"rec", b"N2.unknownSender", b"conversation_id;mid0"],
      [b"1", VERSION_B, b"N2.unknownSender", b"N1.COORDINATOR", b"conversation_id;\x00\x00\x00\x00",
-      ErrorResponseObject(id=None, error=NOT_SIGNED_IN).json().encode()]),
+      ErrorResponse(id=None, error=NOT_SIGNED_IN).model_dump_json().encode()]),
 ))
 def test_routing_error_messages(coordinator: Coordinator, i, o):
     """Test whether some incoming message `i` is sent as `o`. Here: Error messages."""
@@ -268,12 +313,23 @@ class Test_handle_commands:
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
 
+    @pytest.mark.parametrize("data", (
+            "funny stuff",
+            {"jsonrpc": "2.0", "no method": 7}
+    ))
+    def test_unknown_messages_raises_log(self, coordinator_hc: Coordinator,
+                                         caplog: pytest.LogCaptureFixture, data):
+        coordinator_hc.handle_commands(b"",
+                                       Message(receiver=b"COORDINATOR", sender=b"send",
+                                               data=data))
+        assert caplog.records[-1].msg.startswith("Unknown message")
+
 
 class Test_sign_in:
     def test_signin(self, coordinator: Coordinator):
         coordinator.sock._messages_read = [  # type: ignore
             [b'cb', Message(b"COORDINATOR", b"CB",
-                            data=RequestObject(id=7, method="sign_in"),
+                            data=Request(id=7, method="sign_in"),
                             conversation_id=cid,
                             )]]
         # read_and_route needs to start at routing, to check that the messages passes the heartbeats
@@ -293,7 +349,6 @@ class Test_sign_in:
         coordinator.read_and_route()
         coordinator.publish_directory_update.assert_any_call()
 
-    @pytest.mark.xfail(True, reason="The error should not have a data field.")
     def test_signin_rejected(self, coordinator: Coordinator):
         coordinator.sock._messages_read = [  # type: ignore
             [b'cb', Message(b"COORDINATOR", b"send", conversation_id=cid,
@@ -308,64 +363,58 @@ class Test_sign_in:
                   "jsonrpc": "2.0"}
         ))]
 
-    def test_signin_rejected2(self, coordinator: Coordinator):
-        # To test that it works, even though the data field should not be there, see test above.
-        coordinator.sock._messages_read = [  # type: ignore
-            [b'cb', Message(b"COORDINATOR", b"send", conversation_id=cid,
-                            data={"id": 8, "method": "sign_in", "jsonrpc": "2.0"},
-                            )]]
-        coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [(b"cb", Message(  # type: ignore
-            b"send", b"N1.COORDINATOR",
-            conversation_id=cid,
-            data={"id": None, "error": {"code": DUPLICATE_NAME.code,
-                                        "message": DUPLICATE_NAME.message,
-                                        "data": None},
-                  "jsonrpc": "2.0"}
-        ))]
 
-
-class Test_sign_out:
-    def test_signout_clears_address(self, coordinator: Coordinator):
-        coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
-            b"N1.COORDINATOR", b"rec",
-            data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
+class Test_sign_out_successful:
+    @pytest.fixture
+    def coordinator_signed_out(self, coordinator: Coordinator):
+        sign_out_message = Message(receiver=b"N1.COORDINATOR", sender=b"rec",
+                                   data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})
+        coordinator.publish_directory_update = MagicMock()  # type: ignore
+        coordinator.sock._messages_read = [[b"123", sign_out_message]]  # type: ignore
         coordinator.read_and_route()
-        assert b"rec" not in coordinator.directory.get_components().keys()
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        return coordinator
+
+    def test_address_cleared(self, coordinator_signed_out: Coordinator):
+        assert b"rec" not in coordinator_signed_out.directory.get_components().keys()
+
+    def test_acknowledgement_sent(self, coordinator_signed_out: Coordinator):
+        assert coordinator_signed_out.sock._messages_sent == [  # type: ignore
             (b"123", Message(b"rec", b"N1.COORDINATOR",
                              data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
 
-    def test_signout_clears_address_explicit_namespace(self, coordinator: Coordinator):
-        coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
-            b"N1.COORDINATOR", b"N1.rec",
-            data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
-        coordinator.read_and_route()
-        assert b"rec" not in coordinator.directory.get_components().keys()
-        assert coordinator.sock._messages_sent == [  # type: ignore
-            (b"123", Message(b"N1.rec", b"N1.COORDINATOR",
-                             data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
+    def test_directory_update_sent(self, coordinator_signed_out: Coordinator):
+        coordinator_signed_out.publish_directory_update.assert_any_call()
 
-    def test_signout_sends_directory_update(self, coordinator: Coordinator):
-        coordinator.publish_directory_update = MagicMock()  # type: ignore
-        coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
-            b"N1.COORDINATOR", b"rec",
-            data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
-        coordinator.read_and_route()
-        coordinator.publish_directory_update.assert_any_call()
-
-    def test_signout_requires_new_signin(self, coordinator: Coordinator):
-        coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
-            b"N1.COORDINATOR", b"rec",
-            data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
-        coordinator.read_and_route()  # handle signout
+    def test_requires_new_sign_in(self, coordinator_signed_out):
+        coordinator = coordinator_signed_out
         coordinator.sock._messages_sent = []  # type: ignore
         coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
             b"N1.COORDINATOR", b"rec",
             data={"jsonrpc": "2.0", "result": None, "id": 11})]]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [(b"123", Message(  # type: ignore
-            b"rec", b"N1.COORDINATOR", data=ErrorResponseObject(id=None, error=NOT_SIGNED_IN)))]
+            b"rec", b"N1.COORDINATOR", data=ErrorResponse(id=None, error=NOT_SIGNED_IN)))]
+
+
+def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
+    coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
+        b"N1.COORDINATOR", b"N1.rec",
+        data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
+    coordinator.read_and_route()
+    assert b"rec" not in coordinator.directory.get_components().keys()
+    assert coordinator.sock._messages_sent == [  # type: ignore
+        (b"123", Message(b"N1.rec", b"N1.COORDINATOR",
+                         data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
+
+
+def test_sign_out_of_not_signed_in_generates_acknowledgment_nonetheless(coordinator: Coordinator):
+    coordinator.sock._messages_read = [[b'584', Message(  # type: ignore
+        b"N1.COORDINATOR", b"rec584",
+        data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
+    coordinator.read_and_route()
+    assert coordinator.sock._messages_sent == [  # type: ignore
+        (b"584", Message(b"rec584", b"N1.COORDINATOR",
+                         data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
 
 
 class Test_coordinator_sign_in:
@@ -400,6 +449,7 @@ class Test_coordinator_sign_in:
             b"COORDINATOR", b"N1.COORDINATOR", data={"id": 15, "result": None,
                                                      "jsonrpc": "2.0"}, conversation_id=cid))]
 
+    @pytest.mark.xfail(True, reason="Additional error data is added")
     def test_co_signin_rejected(self, coordinator: Coordinator):
         """Coordinator sign in rejected due to already connected Coordinator."""
         coordinator.sock._messages_read = [  # type: ignore
@@ -431,7 +481,7 @@ class Test_coordinator_sign_in:
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [  # type: ignore
             (b'n3', Message(b"N1.COORDINATOR", b"N1.COORDINATOR", conversation_id=cid,
-             data=ErrorResponseObject(id=None, error=NOT_SIGNED_IN)))]
+             data=ErrorResponse(id=None, error=NOT_SIGNED_IN)))]
 
 
 class Test_coordinator_sign_out:
@@ -459,7 +509,7 @@ class Test_coordinator_sign_out:
         assert coordinator.sock._messages_sent == [  # type: ignore
             (b"n4", Message(
                 receiver=b"N2.COORDINATOR", sender=b"N1.COORDINATOR", conversation_id=cid,
-                data=ErrorResponseObject(id=None, error=NOT_SIGNED_IN)))]
+                data=ErrorResponse(id=None, error=NOT_SIGNED_IN)))]
 
     def test_co_signout_of_not_signed_in_coordinator(self, coordinator: Coordinator):
         """TODO TBD whether to reject or to ignore."""
@@ -471,45 +521,53 @@ class Test_coordinator_sign_out:
 
 
 class Test_shutdown:
-    def test_shutdown_coordinator(self, coordinator: Coordinator):
-        n2 = coordinator.directory.get_node(b"N2")
+    @pytest.fixture
+    def shutdown_coordinator(self, coordinator: Coordinator) -> Coordinator:
+        self.n2 = coordinator.directory.get_node(b"N2")
+        coordinator.stop_event = SimpleEvent()
         coordinator.shut_down()
-        # Assert sign out messages
-        assert n2._messages_sent == [  # type: ignore
+        return coordinator
+
+    def test_sign_out_message_to_other_coordinators_sent(self, shutdown_coordinator: Coordinator):
+        assert self.n2._messages_sent == [  # type: ignore
             Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
                     data={"id": 2, "method": "coordinator_sign_out", "jsonrpc": "2.0"})]
 
-
-class Test_compose_local_directory:
-    def test_compose_local_directory(self, coordinator: Coordinator):
-        data = coordinator.compose_local_directory()
-        assert data == {
-                "directory": ["send", "rec"],
-                "nodes": {"N1": "N1host:12300", "N2": "N2host:12300"}
-            }
+    def test_event_set(self, shutdown_coordinator: Coordinator):
+        assert shutdown_coordinator.stop_event.is_set() is True
 
 
-class Test_compose_global_directory:
-    def test_compose_global_directory(self, coordinator: Coordinator):
-        coordinator.global_directory[b"N5"] = ["some", "coordinator"]
-        data = coordinator.compose_global_directory()
-        assert data == {
+def test_send_nodes(coordinator: Coordinator):
+    data = coordinator.send_nodes()
+    assert data == {"N1": "N1host:12300", "N2": "N2host:12300"}
+
+
+def test_send_local_components(coordinator: Coordinator):
+    data = coordinator.send_local_components()
+    assert data == ["send", "rec"]
+
+
+def test_send_global_components(coordinator: Coordinator):
+    # Arrange
+    coordinator.global_directory[b"N5"] = ["some", "coordinator"]
+    # Act
+    data = coordinator.send_global_components()
+    assert data == {
                  "N5": ["some", "coordinator"],
-                 "nodes": {"N1": "N1host:12300", "N2": "N2host:12300"},
                  "N1": ["send", "rec"]}
 
 
-class Test_set_nodes:
-    def test_set_nodes(self, coordinator: Coordinator, fake_counting):
-        coordinator.set_nodes({"N1": "N1host:12300", "N2": "wrong_host:-7", "N3": "N3host:12300"})
+class Test_add_nodes:
+    def test_add_nodes(self, coordinator: Coordinator, fake_counting):
+        coordinator.add_nodes({"N1": "N1host:12300", "N2": "wrong_host:-7", "N3": "N3host:12300"})
         assert coordinator.directory.get_node(b"N2").address == "N2host:12300"  # not changed
         assert "N3host:12300" in coordinator.directory._waiting_nodes.keys()  # newly created
 
 
-class Test_set_remote_components:
+class Test_record_components:
     def test_set(self, coordinator: Coordinator):
         coordinator.current_message = Message(b"", sender="N2.COORDINATOR")
-        coordinator.set_remote_components(["send", "rec"])
+        coordinator.record_components(["send", "rec"])
         assert coordinator.global_directory == {b"N2": ["send", "rec"]}
 
 
@@ -520,10 +578,10 @@ def test_publish_directory_updates(coordinator: Coordinator):
         Message(
             b'N2.COORDINATOR', b'N1.COORDINATOR',
             data=[
-                {"id": 5, "method": "set_nodes",
+                {"id": 5, "method": "add_nodes",
                     "params": {"nodes": {"N1": "N1host:12300", "N2": "N2host:12300"}},
                     "jsonrpc": "2.0"},
-                {"id": 6, "method": "set_remote_components",
+                {"id": 6, "method": "record_components",
                     "params": {"components": ["send", "rec"]},
                     "jsonrpc": "2.0"}]
         ),

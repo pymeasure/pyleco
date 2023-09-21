@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from jsonrpcobjects.objects import RequestObject, ResultResponseObject, ErrorResponseObject
+from jsonrpcobjects.objects import Request, ResultResponse, ErrorResponse
 import pytest
 
 from pyleco.test import FakeContext
@@ -35,7 +35,8 @@ class TestZmqMultiSocket:
     @pytest.fixture
     def socket(self):
         socket = ZmqMultiSocket(context=FakeContext())  # type: ignore
-        socket._sock._r = [[b"id", b"version", b"receiver", b"sender", b"header", b"data"]]  # noqa: E501
+        socket._sock._r = [  # type: ignore
+            [b"id", b"version", b"receiver", b"sender", b"header", b"data"]]
         return socket
 
     def test_poll_True(self, socket):
@@ -122,10 +123,19 @@ class Test_add_component:
         assert b"name" in empty_directory.get_components()
         assert empty_directory.get_components()[b"name"].identity == b"identity"
 
+    def test_adding_component_of_already_signed_in_component_succeeds(self, fake_counting,
+                                                                      directory: Directory):
+        # TODO not defined in LECO
+        sender = directory._components[b"send"]
+        sender.heartbeat = -100
+        directory.add_component(name=b"send", identity=b"send_id")
+        # test that no error is raised.
+        assert sender.heartbeat == 0
+
     def test_reject_adding(self, directory: Directory):
         with pytest.raises(ValueError):
-            directory.add_component(b"send", b"identity")
-        assert directory.get_components()[b"send"].identity != b"identity"
+            directory.add_component(b"send", b"new_identity")
+        assert directory.get_components()[b"send"].identity != b"new_identity"
 
 
 class Test_remove_component:
@@ -191,8 +201,8 @@ class Test_add_node_sender:
 
     def test_message_sent(self, node: Node):
         assert node._messages_sent == [Message(  # type: ignore
-            b"COORDINATOR", b"N1.COORDINATOR", data=RequestObject(id=1,
-                                                                  method="coordinator_sign_in"),
+            b"COORDINATOR", b"N1.COORDINATOR", data=Request(id=1,
+                                                            method="coordinator_sign_in"),
             conversation_id=cid)]
 
     def test_node_port_added_to_address(self, directory: Directory):
@@ -245,7 +255,7 @@ class Test_check_unfinished_node_connections:
         directory.add_node_sender(FakeNode(), "N3host", b"N3")
         node = directory._waiting_nodes["N3host:12300"]
         node._messages_read = [Message(b"N1.COORDINATOR", b"N3.COORDINATOR",  # type: ignore
-                                       data=ResultResponseObject(id=1, result=None))]
+                                       data=ResultResponse(id=1, result=None))]
         directory.check_unfinished_node_connections()
         return directory
 
@@ -253,13 +263,25 @@ class Test_check_unfinished_node_connections:
         assert directory_cunc.get_node(b"N3") is not None
 
 
+def test_check_unfinished_node_connection_logs_error(directory: Directory, caplog):
+    directory.add_node_sender(FakeNode(), "N3host", b"N3")
+    node = directory._waiting_nodes["N3host:12300"]
+
+    def read_message(timeout: int = 0) -> Message:
+        return Message.from_frames(*[b"frame 1", b"frame 2"])  # not enough frames
+    node.read_message = read_message
+    node._messages_read = ["just something to indicate a message in the buffer"]  # type: ignore
+    directory.check_unfinished_node_connections()
+    assert caplog.records[-1].msg == "Message decoding failed."
+
+
 class Test_handle_node_message:
     """Already included in check_unfinished_node_connections"""
     @pytest.mark.parametrize("message", (
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
-                    data=ErrorResponseObject(id=None, error=DUPLICATE_NAME)),
+                    data=ErrorResponse(id=None, error=DUPLICATE_NAME)),
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
-                    data=ErrorResponseObject(id=None, error=NOT_SIGNED_IN)),
+                    data=ErrorResponse(id=None, error=NOT_SIGNED_IN)),
             Message("N1.COORDINATOR", "N5.COORDINATOR",
                     data={"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"},
                           "id": None})
@@ -313,10 +335,10 @@ class Test_finish_sign_in_to_remote:
                     conversation_id=cid),
             Message(
                 b'N3.COORDINATOR', b'N1.COORDINATOR',
-                data=[{"id": 2, "method": "set_nodes", "params":
+                data=[{"id": 2, "method": "add_nodes", "params":
                        {"nodes": {"N1": "N1host:12300", "N2": "N2host", "N3": "N3host:12300"}},
                        "jsonrpc": "2.0"},
-                      {"id": 3, "method": "set_remote_components", "params":
+                      {"id": 3, "method": "record_components", "params":
                        {"components": ["send", "rec"]}, "jsonrpc": "2.0"}],
                 conversation_id=cid
             )]
@@ -382,6 +404,13 @@ class Test_update_heartbeat:
             b'{"id": 2, "method": "sign_in", "jsonrpc": "2.0"}'))
         # test that no error is raised
 
+    def test_not_signed_in_component_signs_out(self, directory: Directory):
+        # TODO not determined by LECO
+        directory.update_heartbeat(b"new_id", Message.from_frames(
+            b"", b"COORDINATOR", b"send2", b"",
+            b'{"id": 2, "method": "sign_out", "jsonrpc": "2.0"}'))
+        # test that no error is raised
+
     def test_local_component_with_wrong_id(self, directory: Directory):
         with pytest.raises(CommunicationError, match=DUPLICATE_NAME.message):
             directory.update_heartbeat(b"new_id", Message.from_frames(
@@ -438,7 +467,7 @@ class Test_find_expired_nodes:
         directory.get_node_ids()[b"n2"].heartbeat = -1.5
         directory.find_expired_nodes(1)
         assert directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
-            Message(b"N2.COORDINATOR", b"N1.COORDINATOR", RequestObject(id=0, method="pong"),
+            Message(b"N2.COORDINATOR", b"N1.COORDINATOR", Request(id=0, method="pong"),
                     conversation_id=cid)]
 
     def test_active_node(self, directory: Directory, fake_counting):
@@ -457,6 +486,18 @@ class Test_find_expired_nodes:
 
 def test_get_node_id(directory: Directory):
     assert directory.get_node_id(b"N2") == b"n2"
+
+
+def test_get_node_id_not_first_place_in_list(directory: Directory):
+    n3 = FakeNode()
+    n3.namespace = b"N3"
+    directory._node_ids[b"n3"] = n3
+    assert directory.get_node_id(b"N3") == b"n3"
+
+
+def test_get_node_id_fails(directory: Directory):
+    with pytest.raises(ValueError, match="No receiving connection to namespace"):
+        directory.get_node_id(b"N5")
 
 
 class Test_sign_out_from_node:
@@ -480,3 +521,8 @@ class Test_sign_out_from_node:
 
     def test_n2_removed_from_node_ids(self, directory_wo_n2: Directory):
         assert b"n2" not in directory_wo_n2.get_node_ids()
+
+
+def test_sign_out_from_unknown_node_fails(directory: Directory):
+    with pytest.raises(ValueError, match="is not known"):
+        directory.sign_out_from_node(b"unknown node")

@@ -22,33 +22,38 @@
 # THE SOFTWARE.
 #
 
-import logging
+import json
+from typing import Any
 
-from .director import Director
+import numpy as np
+import pint
+
+from pyleco.utils.publisher import Publisher
 
 
-log = logging.getLogger(__name__)
-log.addHandler(logging.NullHandler())
+class PowerEncoder(json.JSONEncoder):
+    """Special json encoder for additional types like numpy, pint..."""
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, np.integer):
+            return int(o)
+        elif isinstance(o, np.floating):
+            return float(o)
+        elif isinstance(o, np.ndarray):
+            return o.tolist()
+        elif isinstance(o, pint.Quantity):
+            return f"{o:~}"  # abbreviated units with '~'
+        return super().default(o)
 
 
-class CoordinatorDirector(Director):
-    """Direct a Coordinator."""
+class ExtendedPublisher(Publisher):
+    """
+    Publishing key-value data via zmq.
+    """
 
-    def __init__(self, actor="COORDINATOR", **kwargs) -> None:
-        super().__init__(actor=actor, **kwargs)
-
-    def get_local_components(self) -> list[str]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_local_components")
-
-    def get_global_components(self) -> dict[str, list[str]]:
-        """Get the directory."""
-        return self.call_method_rpc(method="send_global_components")
-
-    def get_nodes(self) -> dict[str, str]:
-        """Get all known nodes."""
-        return self.call_method_rpc(method="send_nodes")
-
-    def set_directory(self, coordinators: dict[str, str]) -> None:
-        """Tell the Coordinator about other coordinators (dict)."""
-        return self.call_method_rpc(method="set_nodes", nodes=coordinators)
+    def send(self, data: dict[str, Any]) -> None:
+        """Send the dictionay `data`."""
+        if self.fullname == "":
+            raise ValueError("You have to specify the sender name, before sending!")
+        else:
+            self.socket.send_multipart((self.fullname.encode(), json.dumps(data, cls=PowerEncoder)))
