@@ -23,7 +23,7 @@
 #
 
 import pytest
-from jsonrpcobjects.objects import RequestObject
+from jsonrpcobjects.objects import Request
 
 from pyleco.core import serialization
 
@@ -45,6 +45,11 @@ class Test_create_header_frame:
         with pytest.raises(ValueError, match="'message_id'"):
             serialization.create_header_frame(message_id=bytes([0] * mid_l))
 
+    @pytest.mark.parametrize("mtl", (0, 2, 3))
+    def test_wrong_m_type_length_raises_errors(self, mtl):
+        with pytest.raises(ValueError, match="'message_type'"):
+            serialization.create_header_frame(message_type=bytes([0] * mtl))
+
 
 @pytest.mark.parametrize("header, conversation_id, message_id, message_type", (
         (bytes(range(20)), bytes(range(16)), b"\x10\x11\x12", b"\x13"),
@@ -61,15 +66,23 @@ def test_split_name(full_name, node, name):
     assert serialization.split_name(full_name, b"node") == (node, name)
 
 
+@pytest.mark.parametrize("full_name, node, name", (
+    ("local only", "node", "local only"),
+    ("abc.def", "abc", "def"),
+))
+def test_split_name_str(full_name, node, name):
+    assert serialization.split_name_str(full_name, "node") == (node, name)
+
+
 class Test_serialize:
     def test_json_object(self):
-        obj = RequestObject(id=3, method="whatever")
-        expected = b'{"id": 3, "method": "whatever", "jsonrpc": "2.0"}'
+        obj = Request(id=3, method="whatever")
+        expected = b'{"id":3,"method":"whatever","jsonrpc":"2.0"}'
         assert serialization.serialize_data(obj) == expected
 
     def test_dict(self):
         raw = {"some": "item", "key": "value", 5: [7, 3.1]}
-        expected = b'{"some": "item", "key": "value", "5": [7, 3.1]}'
+        expected = b'{"some":"item","key":"value","5":[7,3.1]}'
         assert serialization.serialize_data(raw) == expected
 
 

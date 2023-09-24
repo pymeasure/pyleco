@@ -23,23 +23,25 @@
 #
 
 import json
-from typing import Optional, NamedTuple
+from typing import Any, Optional, NamedTuple
 
 from uuid_extensions import uuid7  # type: ignore  #  as long as uuid does not yet support UUIDv7
-from jsonrpcobjects.objects import (RequestObject, RequestObjectParams,
-                                    ResultResponseObject,
-                                    ErrorResponseObject,
-                                    NotificationObject, NotificationObjectParams,
+from jsonrpcobjects.objects import (Request,
+                                    ParamsRequest,
+                                    ResultResponse,
+                                    ErrorResponse,
+                                    Notification,
+                                    ParamsNotification,
                                     )
 
 
 json_objects = (
-    RequestObject,
-    RequestObjectParams,
-    ResultResponseObject,
-    ErrorResponseObject,
-    NotificationObject,
-    NotificationObjectParams,
+    Request,
+    ParamsRequest,
+    ResultResponse,
+    ErrorResponse,
+    Notification,
+    ParamsNotification,
 )
 
 
@@ -108,18 +110,18 @@ def interpret_header(header: bytes) -> Header:
     return Header(conversation_id, message_id, message_type)
 
 
-def serialize_data(data: object) -> bytes:
+def serialize_data(data: Any) -> bytes:
     """Turn `data` into a bytes object.
 
     Due to json serialization, data must not contain a bytes object!
     """
     if isinstance(data, json_objects):
-        return data.json().encode()  # type: ignore
+        return data.model_dump_json().encode()  # type: ignore
     else:
-        return json.dumps(data).encode()
+        return json.dumps(data, separators=(',', ':')).encode()
 
 
-def deserialize_data(content: bytes) -> object:
+def deserialize_data(content: bytes) -> Any:
     """Turn received message content into python objects."""
     return json.loads(content.decode())
 
