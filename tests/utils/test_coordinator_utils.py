@@ -269,7 +269,7 @@ def test_check_unfinished_node_connection_logs_error(directory: Directory, caplo
 
     def read_message(timeout: int = 0) -> Message:
         return Message.from_frames(*[b"frame 1", b"frame 2"])  # not enough frames
-    node.read_message = read_message
+    node.read_message = read_message  # type: ignore
     node._messages_read = ["just something to indicate a message in the buffer"]  # type: ignore
     directory.check_unfinished_node_connections()
     assert caplog.records[-1].msg == "Message decoding failed."

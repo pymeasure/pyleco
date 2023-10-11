@@ -242,7 +242,7 @@ class Starter(MessageHandler):
 
     def uninstall_task(self, name: str) -> None:
         """Uninstalls a task without stopping it, if it is already running."""
-        self.started_tasks[name] = self.started.tasks.get(name, 0) & ~Status.INSTALLED
+        self.started_tasks[name] = self.started_tasks.get(name, 0) & ~Status.INSTALLED
 
     def status_tasks(self, names: Optional[list[str]] = None) -> dict[str, Status]:
         """Enumerate the status of the started/running tasks and keep the records clean.

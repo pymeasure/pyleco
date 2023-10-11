@@ -27,8 +27,8 @@ import pytest
 from pyleco.test import FakeContext
 
 try:
-    import numpy as np
-    import pint
+    import numpy as np  # type: ignore
+    import pint  # type: ignore
 except ModuleNotFoundError:
     pytest.skip("Numpy or pint is not installed", allow_module_level=True)
 else:

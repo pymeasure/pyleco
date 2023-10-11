@@ -139,7 +139,7 @@ def test_handle_message(handler: MessageHandler, i, out):
 
 
 def test_handle_not_signed_in_message(handler: MessageHandler):
-    handler.sign_in = MagicMock()
+    handler.sign_in = MagicMock()  # type: ignore
     handler.socket._r = [Message(receiver="handler", sender="N1.COORDINATOR", data={  # type: ignore
         "id": 5, "error": {"code": NOT_SIGNED_IN.code}
     }).to_frames()]

@@ -113,7 +113,7 @@ class Director:
     def _prepare_call_action_params(self, args: tuple[Any, ...],
                                     kwargs: dict[str, Any]) -> dict[str, Any]:
         """Generate a params dictionary for the call action method."""
-        params = {}
+        params: dict[str, Any] = {}
         if args:
             params["args"] = args
         if kwargs:

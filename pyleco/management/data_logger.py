@@ -29,14 +29,14 @@ except ImportError:
     # For python<3.11
     from enum import Enum
 
-    class StrEnum(str, Enum):
+    class StrEnum(str, Enum):  # type: ignore
         pass
 import json
 import logging
 from typing import Any, Callable, Optional
 
 try:
-    import numpy as np
+    import numpy as np  # type: ignore
 except ModuleNotFoundError:
     def average(values: list[float | int] | tuple[float | int, ...]):
         return sum(values) / len(values)
@@ -326,7 +326,7 @@ class DataLogger(ExtendedMessageHandler):
 
     def get_configuration(self) -> dict[str, Any]:
         """Get the currently used configuration as a dictionary."""
-        config = {}
+        config: dict[str, Any] = {}
         # Trigger
         config['trigger'] = self.trigger_type.value
         if self.trigger_type == TriggerTypes.TIMER:

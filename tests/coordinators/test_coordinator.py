@@ -190,7 +190,7 @@ def test_heartbeat_local(fake_counting, coordinator: Coordinator):
 def test_routing_connects_to_coordinators(coordinator: Coordinator):
     event = SimpleEvent()
     event.set()
-    coordinator.directory.add_node_sender = MagicMock()
+    coordinator.directory.add_node_sender = MagicMock()  # type: ignore
     coordinator.routing(["abc"], stop_event=event)
     coordinator.directory.add_node_sender.assert_called_once
 
@@ -215,7 +215,7 @@ def test_routing_successful(coordinator: Coordinator, i, o):
 def test_reading_fails(coordinator: Coordinator, caplog: pytest.LogCaptureFixture):
     def read_message() -> tuple[bytes, Message]:
         return b"", Message.from_frames(*[b"frame 1", b"frame 2"])  # less frames than needed.
-    coordinator.sock.read_message = read_message
+    coordinator.sock.read_message = read_message  # type: ignore
     coordinator.read_and_route()
     assert caplog.records[-1].msg == "Not enough frames read."
 
@@ -383,7 +383,7 @@ class Test_sign_out_successful:
                              data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
 
     def test_directory_update_sent(self, coordinator_signed_out: Coordinator):
-        coordinator_signed_out.publish_directory_update.assert_any_call()
+        coordinator_signed_out.publish_directory_update.assert_any_call()  # type: ignore
 
     def test_requires_new_sign_in(self, coordinator_signed_out):
         coordinator = coordinator_signed_out

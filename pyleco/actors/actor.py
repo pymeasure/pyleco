@@ -101,35 +101,24 @@ class Actor(BaseController):
         super().__exit__(*args, **kwargs)
         self.disconnect()
 
-    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100) -> None:
-        """Listen for zmq communication until `stop_event` is set.
-
-        :param waiting_time: Time to wait for a readout signal in ms.
-        """
-        self.log.info("Start to listen.")
-        self.stop_event = stop_event
-        # Prepare
-        poller = zmq.Poller()
+    def _listen_setup(self) -> zmq.Poller:
+        """Setup for listening."""
+        poller = super()._listen_setup()
         poller.register(self.pipeL, zmq.POLLIN)
-        poller.register(self.socket, zmq.POLLIN)
+        return poller
 
-        # Open communication
-        self.sign_in()
-        next_beat = time.perf_counter() + heartbeat_interval
-        # Loop
-        while not stop_event.is_set():
-            socks = dict(poller.poll(timeout=waiting_time))
-            if self.pipeL in socks:
-                self.pipeL.recv()
-                self.readout()
-            if self.socket in socks:
-                self.handle_message()
-            elif (now := time.perf_counter()) > next_beat:
-                self.heartbeat()
-                next_beat = now + heartbeat_interval
-        # Close
-        self.sign_out()
-        self.handle_message()
+    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: int | None
+                             ) -> dict[zmq.Socket, int]:
+        """Check the socks for incoming messages and handle them.
+
+        :param waiting_time: Timeout of the poller in ms.
+        """
+        socks = super()._listen_loop_element(poller, waiting_time)
+        if self.pipeL in socks:
+            self.pipeL.recv()
+            self.readout()
+            del socks[self.pipeL]
+        return socks
 
     def queue_readout(self) -> None:
         self.pipe.send(b"")

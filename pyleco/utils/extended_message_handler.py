@@ -105,7 +105,7 @@ class ExtendedMessageHandler(MessageHandler):
             self.subscriber.subscribe(topic)
             self._subscriptions.append(topic)
         else:
-            self.log.info(f"Already subscribed to {topic}.")
+            self.log.info(f"Already subscribed to {topic!r}.")
 
     def unsubscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
         """Unsubscribe from a topic."""

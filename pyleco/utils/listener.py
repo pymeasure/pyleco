@@ -117,8 +117,8 @@ class Listener(CommunicatorProtocol):
             pass
 
     #   Control protocol
-    def send(self, receiver: bytes | str, data: Optional[Any] = None,
-             conversation_id: Optional[bytes] = None,
+    def send(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
+             data: Optional[Any] = None,
              **kwargs) -> None:
         """Send a message via control protocol."""
         message = Message(receiver=receiver, conversation_id=conversation_id,
@@ -223,7 +223,7 @@ class Listener(CommunicatorProtocol):
                 coordinator_port,
                 data_host or self.data_address[0],
                 data_port or self.data_address[1],
-                ))
+            ))
         self.thread.daemon = True
         self.thread.start()
         for _ in range(10):
@@ -281,7 +281,7 @@ class Republisher(ExtendedMessageHandler):
         self.publisher = Publisher()
         self.handlings = {} if handlings is None else handlings
 
-    def start_listen(self, host: Optional[str] = None, dataPort: Optional[int] = None,
+    def start_listen(self, host: str = "localhost", dataPort: int = PROXY_SENDING_PORT,
                      stop_event: Event | None = None,
                      **kwargs) -> None:
         if stop_event is None:
@@ -289,7 +289,7 @@ class Republisher(ExtendedMessageHandler):
         else:
             self.listen(host=host, dataPort=dataPort, stop_event=stop_event)
 
-    def _listen_setup(self, host: str = "localhost", dataPort: int = ...,
+    def _listen_setup(self, host: str = "localhost", dataPort: int = PROXY_SENDING_PORT,
                       **kwargs) -> zmq.Poller:
         poller = super()._listen_setup(host, dataPort, **kwargs)
         for key in self.handlings.keys():

@@ -64,8 +64,8 @@ class QtListener(Listener):
 
     def start_listen(self, host: str | None = None, dataPort: int | None = None) -> None:
         super().start_listen(host, dataPort)
-        self.message_handler.handle_subscription_data = self.handle_subscription_data
-        self.message_handler.finish_handle_commands = self.finish_handle_commands
+        self.message_handler.handle_subscription_data = self.handle_subscription_data  # type:ignore
+        self.message_handler.finish_handle_commands = self.finish_handle_commands  # type: ignore
 
     def finish_handle_commands(self, message: Message) -> None:
         """Handle the list of commands: Redirect them to the application."""
