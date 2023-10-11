@@ -59,6 +59,8 @@ class MessageHandler(ExtendedComponentProtocol):
     :param protocol: Connection protocol.
     :param log: Logger instance whose logs should be published. Defaults to `getLogger("__main__")`.
     """
+    name: str
+    namespace: None | str
 
     def __init__(self, name: str,
                  host: str = "localhost", port: int = COORDINATOR_PORT, protocol: str = "tcp",

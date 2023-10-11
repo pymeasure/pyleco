@@ -88,6 +88,14 @@ class MessageBuffer:
 
     def retrieve_message(self, conversation_id: bytes, tries: int = 10,
                          timeout: float = 0.1) -> Message:
+        """Retrieve a message with a certain `conversation_id`.
+
+        Try to read up to `tries` messages, waiting each time up to `timeout`.
+
+        :param conversation_id: Conversation_id of the message to retrieve.
+        :param tries: How many messages or timeouts should be read.
+        :param timeout: Timeout in seconds for a single trial.
+        """
         if (result := self._check_message_in_buffer(conversation_id=conversation_id)) is not None:
             return result
         for _ in range(tries):

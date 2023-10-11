@@ -149,7 +149,7 @@ class Actor(BaseController):
         """
         # TODO keep temporarily for backward compatibility
         self._readout(device=device, publisher=publisher)
-        pass
+        self.log.warning("No 'read_publish' method defined, periodic readout does nothing.")
 
     def readout(self) -> None:
         """Do periodic readout of the instrument and publish the data.
