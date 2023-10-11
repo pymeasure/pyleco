@@ -26,6 +26,7 @@ import logging
 from typing import Any, Optional
 
 from ..utils.communicator import CommunicatorProtocol, Communicator
+from ..utils.log_levels import get_leco_log_level
 from ..core.serialization import generate_conversation_id
 from ..core.message import Message
 
@@ -119,7 +120,27 @@ class Director:
             params["kwargs"] = kwargs
         return params
 
-    # Remote control
+    # Remote control synced
+    def call_method_rpc(self, method: str, actor: Optional[bytes | str] = None, **kwargs) -> Any:
+        string = self.generator.build_request_str(method=method, **kwargs)
+        return self.ask(actor=actor, data=string)
+
+    #   Component
+    def get_rpc_capabilities(self, actor: Optional[bytes | str] = None) -> dict:
+        return self.call_method_rpc(method="rpc.discover", actor=actor)
+
+    def shut_down_actor(self, actor: Optional[bytes | str] = None) -> None:
+        """Stop the actor."""
+        self.call_method_rpc(method="shut_down", actor=actor)
+
+    def set_actor_log_level(self, level: str | int, actor: Optional[bytes | str] = None
+                            ) -> None:
+        """Set the log level of the actor"""
+        if isinstance(level, int):
+            level = get_leco_log_level(level).value
+        self.call_method_rpc("set_log_level", level=level, actor=actor)
+
+    #   Actor
     def get_parameters(self, parameters: str | list[str] | tuple[str, ...],
                        actor: Optional[bytes | str] = None) -> dict[str, Any]:
         """Get the values of these `properties` (list, tuple)."""
@@ -147,18 +168,7 @@ class Director:
         params = self._prepare_call_action_params(args, kwargs)
         return self.call_method_rpc("call_action", action=action, actor=actor, **params)
 
-    def call_method_rpc(self, method: str, actor: Optional[bytes | str] = None, **kwargs) -> Any:
-        string = self.generator.build_request_str(method=method, **kwargs)
-        return self.ask(actor=actor, data=string)
-
-    def get_rpc_capabilities(self, actor: Optional[bytes | str] = None) -> dict:
-        return self.call_method_rpc(method="rpc.discover", actor=actor)
-
-    def shut_down_actor(self, actor: Optional[bytes | str] = None) -> None:
-        """Stop the actor."""
-        self.call_method_rpc(method="shut_down", actor=actor)
-
-    #   Async methods: Just send, read later.
+    # Async methods: Just send, read later.
     def send(self, actor: Optional[bytes | str] = None, data=None) -> bytes:
         """Send a request and return the conversation_id."""
         actor = self._actor_check(actor)
@@ -166,6 +176,12 @@ class Director:
         self.communicator.send(actor, conversation_id=cid0, data=data)
         return cid0
 
+    def call_method_rpc_async(self, method: str, actor: Optional[bytes | str] = None,
+                              **kwargs) -> bytes:
+        string = self.generator.build_request_str(method=method, **kwargs)
+        return self.send(actor=actor, data=string)
+
+    #   Actor
     def get_parameters_async(self, parameters: list[str] | tuple[str, ...] | str,
                              actor: Optional[bytes | str] = None) -> bytes:
         """Request the values of these `properties` (list, tuple) and return the conversation_id."""
@@ -195,9 +211,3 @@ class Director:
         params = self._prepare_call_action_params(args, kwargs)
         return self.call_method_rpc_async(method="call_action", action=action, actor=actor,
                                           **params)
-
-    def call_method_rpc_async(self, method: str, actor: Optional[bytes | str] = None,
-                              **kwargs) -> bytes:
-        # TODO what to do with the args?
-        string = self.generator.build_request_str(method=method, **kwargs)
-        return self.send(actor=actor, data=string)

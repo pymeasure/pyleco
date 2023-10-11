@@ -28,7 +28,7 @@ import pytest
 
 from pyleco.core import VERSION_B
 from pyleco.core.message import Message
-from pyleco.core.leco_protocols import ExtendedComponentProtocol
+from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext
 from pyleco.errors import NOT_SIGNED_IN
@@ -203,8 +203,8 @@ class Test_listen:
 
 
 def test_set_log_level(handler: MessageHandler):
-    handler.set_log_level(35)
-    assert handler.root_logger.level == 35
+    handler.set_log_level(LogLevels.ERROR)
+    assert handler.root_logger.level == 40  # logging.ERROR
 
 
 def test_shutdown(handler: MessageHandler):

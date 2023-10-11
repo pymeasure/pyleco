@@ -39,6 +39,7 @@ try:
     from ..utils.timers import RepeatingTimer
     from ..utils.zmq_log_handler import ZmqLogHandler
     from ..utils.events import Event, SimpleEvent
+    from ..utils.log_levels import PythonLogLevels
 except ImportError:  # pragma: no cover
     from pyleco.core import COORDINATOR_PORT
     from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
@@ -48,6 +49,7 @@ except ImportError:  # pragma: no cover
     from pyleco.utils.timers import RepeatingTimer
     from pyleco.utils.zmq_log_handler import ZmqLogHandler
     from pyleco.utils.events import Event, SimpleEvent
+    from pyleco.utils.log_levels import PythonLogLevels
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -347,7 +349,8 @@ class Coordinator:
         pass
 
     @staticmethod
-    def set_log_level(level: int) -> None:
+    def set_log_level(level: str) -> None:
+        level = PythonLogLevels[level]
         log.setLevel(level)
 
     def shut_down(self) -> None:

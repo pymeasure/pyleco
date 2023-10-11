@@ -35,6 +35,7 @@ from ..core.message import Message
 from ..errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..core.rpc_generator import RPCGenerator
 from ..core.serialization import generate_conversation_id
+from .log_levels import PythonLogLevels
 from .zmq_log_handler import ZmqLogHandler
 from .events import Event, SimpleEvent
 
@@ -299,8 +300,9 @@ class MessageHandler(ExtendedComponentProtocol):
         else:
             self.log.warning(f"Unknown message from {msg.sender!r} received: '{msg.data}', {msg.payload!r}.")  # noqa: E501
 
-    def set_log_level(self, level: int) -> None:
+    def set_log_level(self, level: str) -> None:
         """Set the log level."""
+        level = PythonLogLevels[level]
         self.root_logger.setLevel(level)
 
     def shut_down(self) -> None:

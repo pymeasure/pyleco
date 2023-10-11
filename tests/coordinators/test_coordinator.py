@@ -500,7 +500,7 @@ class Test_coordinator_sign_out:
     @pytest.mark.xfail(True, reason="Not yet defined.")
     def test_co_signout_rejected_due_to_different_identity(self, coordinator: Coordinator):
         """TODO TBD how to handle it"""
-        coordinator.set_log_level(10)
+        coordinator.set_log_level("DEBUG")
         coordinator.sock._messages_read = [  # type: ignore
             [b'n4', Message(
                 receiver=b"COORDINATOR", sender=b"N2.COORDINATOR", conversation_id=cid,
