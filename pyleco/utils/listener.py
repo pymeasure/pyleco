@@ -63,10 +63,11 @@ class Listener(CommunicatorProtocol):
                  name: str,
                  host: str = "localhost",
                  port: int = COORDINATOR_PORT,
-                 data_host: str = "localhost",
+                 data_host: str | None = None,
                  data_port: int = PROXY_SENDING_PORT,
                  logger: Optional[logging.Logger] = None,
                  dataPort: int | None = None,  # deprecated
+                 timeout: float = 1,
                  **kwargs) -> None:
         super().__init__(**kwargs)
         log.info(f"Start Listener for '{name}'.")
@@ -77,11 +78,12 @@ class Listener(CommunicatorProtocol):
 
         self._name = name
         self.logger = logger
+        self.timeout = timeout
 
         self.rpc_generator = RPCGenerator()
 
         self.coordinator_address = host, port
-        self.data_address = data_host, data_port
+        self.data_address = data_host or host, data_port
 
     def close(self) -> None:
         """Close everything."""
@@ -94,6 +96,10 @@ class Listener(CommunicatorProtocol):
     @property
     def namespace(self) -> str | None:
         return self.message_handler.namespace
+
+    @property
+    def full_name(self) -> str:
+        return self.message_handler.full_name
 
     # Methods to control the Listener
     def stop_listen(self) -> None:
@@ -160,7 +166,7 @@ class Listener(CommunicatorProtocol):
         return self.ask_message(message=message)
 
     def ask_message(self, message: Message) -> Message:
-        return self.message_handler.pipe_ask(message)
+        return self.message_handler.pipe_ask(message=message, tries=10, timeout=self.timeout / 10)
 
     def ask_rpc(self, receiver: bytes | str, method: str, **kwargs):
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
