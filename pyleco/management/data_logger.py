@@ -23,12 +23,25 @@
 #
 
 import datetime
-from enum import StrEnum, auto
+try:
+    from enum import StrEnum
+except ImportError:
+    # For python<3.11
+    from enum import Enum
+
+    class StrEnum(str, Enum):
+        pass
 import json
 import logging
 from typing import Any, Callable, Optional
 
-import numpy as np
+try:
+    import numpy as np
+except ModuleNotFoundError:
+    def average(values: list[float | int] | tuple[float | int, ...]):
+        return sum(values) / len(values)
+else:
+    average = np.average
 
 if __name__ == "__main__":
     from pyleco.utils.timers import RepeatingTimer
@@ -46,18 +59,18 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 StrFormatter = logging.Formatter("%(asctime)s\t%(levelname)s\t%(name)s\t%(message)s")
 
-nan = np.nan
+nan = float("nan")
 
 
 class TriggerTypes(StrEnum):
-    TIMER = auto()
-    VARIABLE = auto()
-    NONE = auto()
+    TIMER = "timer"
+    VARIABLE = "variable"
+    NONE = "none"
 
 
 class ValuingModes(StrEnum):
-    LAST = auto()
-    AVERAGE = auto()
+    LAST = "last"
+    AVERAGE = "average"
 
 
 class DataLogger(ExtendedMessageHandler):
@@ -92,7 +105,7 @@ class DataLogger(ExtendedMessageHandler):
     trigger_timeout: float
     trigger_variable: str
     value_repeating: bool = False
-    valuing: Callable[[list], Any] = np.average
+    valuing: Callable[[list], Any] = average
 
     last_config: dict[str, Any]  # configuration for the next start
 
@@ -261,7 +274,7 @@ class DataLogger(ExtendedMessageHandler):
         if valuing_mode == ValuingModes.LAST:
             self.valuing = self.last
         elif valuing_mode == ValuingModes.AVERAGE:
-            self.valuing = np.average
+            self.valuing = average
 
     def save_data(self, meta: None | dict = None, suffix: str = "", header: str = "") -> str:
         """Save the data.
