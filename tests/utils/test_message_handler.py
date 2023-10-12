@@ -33,7 +33,7 @@ from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext
 from pyleco.errors import NOT_SIGNED_IN
 
-from pyleco.utils.message_handler import MessageHandler, SimpleEvent, BaseController
+from pyleco.utils.message_handler import MessageHandler, SimpleEvent
 
 
 cid = b"conversation_id;"
@@ -154,7 +154,7 @@ def test_handle_SIGNIN_message_response(handler: MessageHandler):
     handler.socket._r = [Message(receiver=b"N3.handler", sender=b"N3.COORDINATOR",  # type: ignore
                                  conversation_id=b"conversation_si;", data={
                                      "id": 0, "result": None, "jsonrpc": "2.0",
-                                     }).to_frames()]
+                                 }).to_frames()]
     handler.namespace = None
     handler.handle_message()
     assert handler.namespace == "N3"
@@ -211,32 +211,3 @@ def test_shutdown(handler: MessageHandler):
     handler.stop_event = SimpleEvent()
     handler.shut_down()
     assert handler.stop_event.is_set() is True
-
-
-class Test_BaseController:
-    @pytest.fixture
-    def controller(self) -> BaseController:
-        return BaseController(name="controller", context=FakeContext())  # type: ignore
-
-    def test_set_properties(self, controller: BaseController):
-        controller.set_parameters(parameters={"some": 5})
-        assert controller.some == 5  # type: ignore
-
-    def test_get_properties(self, controller: BaseController):
-        controller.whatever = 7  # type: ignore
-        assert controller.get_parameters(parameters=["whatever"])["whatever"] == 7
-
-    def test_call_action(self, controller: BaseController):
-        controller.stop_event = SimpleEvent()
-        controller.call_action(action="shut_down")
-        assert controller.stop_event.is_set() is True
-
-    def test_call_action_args(self, controller: BaseController):
-        controller.test = MagicMock()  # type: ignore
-        controller.call_action(action="test", args=(4,))
-        controller.test.assert_called_with(4)  # type: ignore
-
-    def test_call_action_kwargs(self, controller: BaseController):
-        controller.test = MagicMock()  # type: ignore
-        controller.call_action(action="test", kwargs={"key": 6})
-        controller.test.assert_called_with(key=6)  # type: ignore

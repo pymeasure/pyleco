@@ -1,9 +1,12 @@
 
 import time
+from unittest.mock import MagicMock
 
 import pytest
 
-from pyleco.actors.actor import Actor
+from pyleco.actors.actor import Actor, BaseController
+from pyleco.test import FakeContext
+from pyleco.utils.events import SimpleEvent
 from pyleco.core.leco_protocols import PollingActorProtocol, ExtendedComponentProtocol, Protocol
 
 
@@ -114,3 +117,32 @@ def test_call_silent_method(actor: FakeActor):
 
 def test_returning_method(actor: FakeActor):
     assert actor.call_action('returning_method', kwargs=dict(value=2)) == 4
+
+
+class Test_BaseController:
+    @pytest.fixture
+    def controller(self) -> BaseController:
+        return BaseController(name="controller", context=FakeContext())  # type: ignore
+
+    def test_set_properties(self, controller: BaseController):
+        controller.set_parameters(parameters={"some": 5})
+        assert controller.some == 5  # type: ignore
+
+    def test_get_properties(self, controller: BaseController):
+        controller.whatever = 7  # type: ignore
+        assert controller.get_parameters(parameters=["whatever"])["whatever"] == 7
+
+    def test_call_action(self, controller: BaseController):
+        controller.stop_event = SimpleEvent()
+        controller.call_action(action="shut_down")
+        assert controller.stop_event.is_set() is True
+
+    def test_call_action_args(self, controller: BaseController):
+        controller.test = MagicMock()  # type: ignore
+        controller.call_action(action="test", args=(4,))
+        controller.test.assert_called_with(4)  # type: ignore
+
+    def test_call_action_kwargs(self, controller: BaseController):
+        controller.test = MagicMock()  # type: ignore
+        controller.call_action(action="test", kwargs={"key": 6})
+        controller.test.assert_called_with(key=6)  # type: ignore

@@ -24,7 +24,7 @@
 
 import logging
 import time
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional
 
 from openrpc import RPCServer
 import zmq
@@ -307,38 +307,3 @@ class MessageHandler(ExtendedComponentProtocol):
 
     def shut_down(self) -> None:
         self.stop_event.set()
-
-
-class BaseController(MessageHandler):
-    """Control something, allow to get/set properties and call methods."""
-
-    def register_rpc_methods(self) -> None:
-        super().register_rpc_methods()
-        self.rpc.method()(self.get_parameters)
-        self.rpc.method()(self.set_parameters)
-        self.rpc.method()(self.call_action)
-
-    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
-        data = {}
-        for key in parameters:
-            data[key] = v = getattr(self, key)
-            if callable(v):
-                raise TypeError(f"Attribute '{key}' is a callable!")
-        return data
-
-    def set_parameters(self, parameters: dict[str, Any]) -> None:
-        for key, value in parameters.items():
-            setattr(self, key, value)
-
-    def call_action(self, action: str, args: Optional[Union[list, tuple]] = None,
-                    kwargs: Optional[dict[str, Any]] = None) -> Any:
-        """Call an action with positional arguments ``args`` and keyword arguments ``kwargs``.
-
-        Any action can be called, even if not setup as rpc call.
-        It is preferred though, to add methods of your device with a rpc call.
-        """
-        if args is None:
-            args = ()
-        if kwargs is None:
-            kwargs = {}
-        return getattr(self, action)(*args, **kwargs)
