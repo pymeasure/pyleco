@@ -13,7 +13,7 @@ from typing import Any, Optional
 from pytrinamic.connections import ConnectionManager  # type: ignore
 from pytrinamic.modules import TMCM6110  # type: ignore
 
-from ..utils.message_handler import BaseController
+from .actor import BaseController
 from devices import motors  # type: ignore  # TODO implement differently
 
 
