@@ -350,8 +350,8 @@ class Coordinator:
 
     @staticmethod
     def set_log_level(level: str) -> None:
-        level = PythonLogLevels[level]
-        log.setLevel(level)
+        plevel = PythonLogLevels[level]
+        log.setLevel(plevel)
 
     def shut_down(self) -> None:
         self.sign_out_from_all_coordinators()

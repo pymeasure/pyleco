@@ -93,8 +93,12 @@ class Listener(CommunicatorProtocol):
     def name(self) -> str:
         return self.message_handler.name
 
+    @name.setter
+    def name(self, value: str) -> None:
+        self.message_handler.name = value
+
     @property
-    def namespace(self) -> str | None:
+    def namespace(self) -> str | None:  # type: ignore[override]  # only the handler sets namespace.
         return self.message_handler.namespace
 
     @property

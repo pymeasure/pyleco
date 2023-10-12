@@ -26,7 +26,7 @@ import logging
 import datetime
 from typing import Any
 
-import psycopg2
+import psycopg2  # type: ignore[import-untyped]
 
 from .data_logger import DataLogger
 
@@ -48,6 +48,7 @@ class DataLoggerSQL(DataLogger):
         if table is None:
             raise ValueError("Table must not be empty.")
         self.table = table
+        self.tries = 0
         self.connect_database()
 
     def make_data_point(self):
@@ -75,7 +76,7 @@ class DataLoggerSQL(DataLogger):
             if self.tries < 10:
                 self.tries += 1
             else:
-                self.connectDatabase()
+                self.connect_database()
                 self.tries = 0
             return  # No database connection existing.
         columns = "timestamp"
@@ -87,7 +88,7 @@ class DataLoggerSQL(DataLogger):
                 cursor.execute(f"INSERT INTO {self.table} ({columns}) VALUES (%s{', %s' * length})",
                                (datetime.datetime.now(), *data.values()))
             except (psycopg2.OperationalError, psycopg2.InterfaceError):
-                self.connectDatabase()  # Connection lost, reconnect.
+                self.connect_database()  # Connection lost, reconnect.
             except Exception as exc:
                 log.exception("Database write error.", exc_info=exc)
                 database.rollback()

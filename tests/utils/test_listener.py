@@ -48,7 +48,7 @@ class FakeHandler(PipeHandler):
         self._sent: list[Message] = []
         self._received: list[Message] = received or []
 
-    def pipe_setup(self) -> None:
+    def pipe_setup(self, context=None) -> None:  # type: ignore[override]
         pass
 
     def pipe_send_message(self, message: Message) -> None:

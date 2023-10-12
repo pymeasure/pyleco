@@ -25,8 +25,8 @@
 import json
 from typing import Any
 
-import numpy as np
-import pint
+import numpy as np  # type: ignore[import-not-found]
+import pint  # type: ignore[import-not-found]
 
 from pyleco.utils.publisher import Publisher
 

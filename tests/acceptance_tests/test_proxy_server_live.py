@@ -43,7 +43,7 @@ class ModListener(Listener):
     def __init__(self, name: str, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
                  **kwargs) -> None:
         super().__init__(name=name, host=host, data_port=data_port, **kwargs)
-        self._data = []
+        self._data: list[dict] = []
 
     def handle_subscription_data(self, data: dict) -> None:
         self._data.append(data)
@@ -55,7 +55,7 @@ def publisher() -> Publisher:
 
 
 @pytest.fixture(scope="module")
-def listener(publisher) -> ModListener:
+def listener(publisher):
     context = start_proxy(offset=offset)
     listener = ModListener(name="listener", data_port=port - 1 - 2 * offset)
     listener.start_listen()

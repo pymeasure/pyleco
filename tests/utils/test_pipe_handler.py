@@ -127,7 +127,7 @@ def test_retrieve_message_after_waiting(message_buffer: MessageBuffer):
 
     def fake_check_message_in_buffer(conversation_id: bytes) -> Message | None:
         return msg_list.pop(0)
-    message_buffer._check_message_in_buffer = fake_check_message_in_buffer
+    message_buffer._check_message_in_buffer = fake_check_message_in_buffer  # type:ignore
     message_buffer._event.set()
     # Act + Assert
     assert message_buffer.retrieve_message(conversation_id=cid) == msg

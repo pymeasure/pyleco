@@ -22,13 +22,11 @@
 # THE SOFTWARE.
 #
 
-import time
 from typing import Any, Callable, Optional, Union
 
 import zmq
 
-from ..utils.message_handler import BaseController, heartbeat_interval
-from ..utils.events import Event, SimpleEvent
+from ..utils.message_handler import BaseController
 from ..utils.publisher import Publisher
 from ..utils.timers import RepeatingTimer
 

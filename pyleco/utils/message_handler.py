@@ -302,8 +302,8 @@ class MessageHandler(ExtendedComponentProtocol):
 
     def set_log_level(self, level: str) -> None:
         """Set the log level."""
-        level = PythonLogLevels[level]
-        self.root_logger.setLevel(level)
+        plevel = PythonLogLevels[level]
+        self.root_logger.setLevel(plevel)
 
     def shut_down(self) -> None:
         self.stop_event.set()

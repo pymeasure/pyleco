@@ -36,7 +36,7 @@ import logging
 from typing import Any, Callable, Optional
 
 try:
-    import numpy as np  # type: ignore
+    import numpy as np  # type: ignore[import-not-found]
 except ModuleNotFoundError:
     def average(values: list[float | int] | tuple[float | int, ...]):
         return sum(values) / len(values)
@@ -143,7 +143,8 @@ class DataLogger(ExtendedMessageHandler):
     def __del__(self) -> None:
         self.stop_collecting()
 
-    def _listen_setup(self, start_data: Optional[dict[str, Any]] = None, **kwargs):
+    def _listen_setup(self, start_data: Optional[dict[str, Any]] = None,  # type: ignore[override]
+                      **kwargs):
         poller = super()._listen_setup(**kwargs)
         if start_data is not None:
             self.start_collecting(**start_data)

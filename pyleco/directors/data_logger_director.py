@@ -61,10 +61,13 @@ class DataLoggerDirector(Director):
 
     def saveData(self) -> str:
         """Save the data and return the name of the file."""
-        tmo = self.communicator.timeout
-        self.communicator.timeout = 1000
-        name = self.call_method_rpc("saveData")
-        self.communicator.timeout = tmo
+        try:
+            tmo = self.communicator.timeout  # type:ignore[attr-defined]
+            self.communicator.timeout = 1000  # type:ignore[attr-defined]
+            name = self.call_method_rpc("saveData")
+            self.communicator.timeout = tmo  # type:ignore[attr-defined]
+        except AttributeError:
+            name = self.call_method_rpc("saveData")
         return name
 
     def stop_collecting(self) -> None:
