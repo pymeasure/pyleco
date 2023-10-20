@@ -25,6 +25,7 @@
 from PyQt6 import QtCore  # type: ignore
 
 from ..core.message import Message
+from ..core.data_message import DataMessage
 from .listener import Listener
 
 
@@ -57,15 +58,23 @@ class QtListener(Listener):
         """Signals for the Listener."""
         dataReady = QtCore.pyqtSignal(dict)
         message = QtCore.pyqtSignal(Message)
+        data_message = QtCore.pyqtSignal(DataMessage)
 
     def handle_subscription_data(self, data: dict) -> None:
         """Handle incoming subscription data."""
+        # old style
         self.signals.dataReady.emit(data)
+
+    def handle_subscription_message(self, message: DataMessage) -> None:
+        """Handle an incoming subscription message."""
+        # new style
+        self.signals.data_message.emit(message)
 
     def start_listen(self, host: str | None = None, dataPort: int | None = None) -> None:
         super().start_listen(host, dataPort)
         self.message_handler.handle_subscription_data = self.handle_subscription_data  # type:ignore
         self.message_handler.finish_handle_commands = self.finish_handle_commands  # type: ignore
+        self.message_handler.handle_subscription_message = self.handle_subscription_message  # type: ignore  # noqa
 
     def finish_handle_commands(self, message: Message) -> None:
         """Handle the list of commands: Redirect them to the application."""

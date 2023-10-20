@@ -30,6 +30,7 @@ import zmq
 
 from .message_handler import MessageHandler
 from ..core import PROXY_SENDING_PORT
+from ..core.data_message import DataMessage
 
 
 class ExtendedMessageHandler(MessageHandler):
@@ -59,7 +60,7 @@ class ExtendedMessageHandler(MessageHandler):
                              ) -> dict[zmq.Socket, int]:
         socks = super()._listen_loop_element(poller=poller, waiting_time=waiting_time)
         if self.subscriber in socks:
-            self.handle_subscriber_message()
+            self.read_subscription_message()
             del socks[self.subscriber]
         return socks
 
@@ -67,26 +68,41 @@ class ExtendedMessageHandler(MessageHandler):
         self.subscriber.close(1)
         super()._listen_close()
 
-    def handle_subscriber_message(self) -> None:
-        subscriber = self.subscriber
+    def read_subscription_message(self) -> None:
+        """Read a message from the data protocol."""
         try:
-            topic, content = subscriber.recv_multipart()
+            message = DataMessage.from_frames(*self.subscriber.recv_multipart())
         except Exception as exc:
             self.log.exception("Invalid data", exc)
+            return
+        if message.payload == []:
+            self.handle_legacy_subscription_message(message)
         else:
+            self.handle_subscription_message(message)
+
+    def handle_subscription_message(self, message: DataMessage) -> None:
+        """Handle a message read from the data protocol and handle it."""
+        raise NotImplementedError
+
+    def handle_legacy_subscription_message(self, message: DataMessage) -> None:
+        """Handle an old style data protocol message (`{variable_name: value}`)."""
+        # TODO deprecated
+        topic = message.topic
+        content = message.header
+        try:
+            data = {topic.decode(): pickle.loads(content)}
+        except pickle.UnpicklingError:
             try:
-                data = {topic.decode(): pickle.loads(content)}
-            except pickle.UnpicklingError:
-                try:
-                    data = {topic.decode(): json.loads(content)}
-                except json.JSONDecodeError:
-                    pass  # No valid data
-                else:
-                    self.handle_subscription_data(data)
+                data = {topic.decode(): json.loads(content)}
+            except json.JSONDecodeError:
+                pass  # No valid data
             else:
                 self.handle_subscription_data(data)
+        else:
+            self.handle_subscription_data(data)
 
     def handle_subscription_data(self, data: dict) -> None:
+        # TODO deprecated
         raise NotImplementedError
 
     def subscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
