@@ -110,13 +110,3 @@ class DataMessage:
     def __repr__(self) -> str:
         list_of_frames_strings = [str(frame) for frame in self.to_frames()]
         return f"DataMessage.from_frames({', '.join(list_of_frames_strings)})"
-
-
-class LogMessage(DataMessage):
-    """A message of the data protocol to transmit log entries."""
-
-    def __init__(self,
-                 topic: bytes | str,
-                 log_message: str,
-                 **kwargs) -> None:
-        super().__init__(topic=topic, data=log_message.encode(), **kwargs)

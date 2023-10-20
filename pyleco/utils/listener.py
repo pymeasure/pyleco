@@ -198,6 +198,7 @@ class Listener(CommunicatorProtocol):
         """Unsubscribe from all subscriptions."""
         self.message_handler.pipe_unsubscribe_all()
 
+    # Generic
     def rename(self, new_name: str) -> None:
         """Rename the listener to `new_name`."""
         self.message_handler.pipe_rename_component(new_name=new_name)
