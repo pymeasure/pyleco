@@ -36,17 +36,8 @@ def publisher() -> Publisher:
 
 
 class Test_init:
-    def test_host(self, publisher: Publisher):
-        assert publisher.host == "localhost"
-
     def test_socket_address(self, publisher: Publisher):
         assert publisher.socket.addr == f"tcp://localhost:{PROXY_RECEIVING_PORT}"
 
     def test_socket_type(self, publisher: Publisher):
         assert publisher.socket.socket_type == 1
-
-
-class Test_Publisher:
-    def test_setPort(self, publisher: Publisher):
-        publisher.port = 12345
-        assert publisher._port == 12345

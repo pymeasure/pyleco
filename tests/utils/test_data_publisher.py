@@ -34,6 +34,10 @@ def publisher():
     return publisher
 
 
+def test_socket_type(publisher: DataPublisher):
+    assert publisher.socket.socket_type == 1
+
+
 def test_connection():
     publisher = DataPublisher(full_name="", host="localhost", port=12345,
                               context=FakeContext())  # type: ignore
