@@ -35,7 +35,7 @@ class DataPublisher:
     """
     Publishing data via the LECO data protocol.
 
-    :param str name: Name of the publishing Component
+    :param str full_name: Name of the publishing Component
     :param str address: Address of the server, default is localhost.
     :param int port: Port of the server, defaults to 11100, default proxy.
     :param log: Logger to log to.
@@ -45,10 +45,10 @@ class DataPublisher:
     Quantities may be expressed as a (magnitude number, units str) tuple.
     """
 
-    fullname: str
+    full_name: str
 
     def __init__(self,
-                 fullname: str,
+                 full_name: str,
                  host: str = "localhost", port: int = PROXY_RECEIVING_PORT,
                  log: Optional[logging.Logger] = None,
                  context: Optional[zmq.Context] = None,
@@ -61,7 +61,7 @@ class DataPublisher:
         context = context or zmq.Context.instance()
         self.socket: zmq.Socket = context.socket(zmq.PUB)
         self.socket.connect(f"tcp://{host}:{port}")
-        self.fullname = fullname
+        self.full_name = full_name
         super().__init__(**kwargs)
 
     def __del__(self) -> None:
@@ -77,5 +77,5 @@ class DataPublisher:
 
     def send_data(self, data: Any) -> None:
         """Send the `data` via the data protocol."""
-        message = DataMessage(self.fullname, data=data)
+        message = DataMessage(self.full_name, data=data)
         self.send_message(message)

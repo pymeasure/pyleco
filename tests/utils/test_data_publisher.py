@@ -30,12 +30,12 @@ from pyleco.test import FakeContext
 
 @pytest.fixture
 def publisher():
-    publisher = DataPublisher(fullname="sender", context=FakeContext())  # type: ignore
+    publisher = DataPublisher(full_name="sender", context=FakeContext())  # type: ignore
     return publisher
 
 
 def test_connection():
-    publisher = DataPublisher(fullname="", host="localhost", port=12345,
+    publisher = DataPublisher(full_name="", host="localhost", port=12345,
                               context=FakeContext())  # type: ignore
     assert publisher.socket.addr == "tcp://localhost:12345"
 

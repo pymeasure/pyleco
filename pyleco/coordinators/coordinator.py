@@ -470,6 +470,6 @@ if __name__ == "__main__":  # pragma: no cover
 
     # Run the Coordinator
     with Coordinator(**kwargs) as c:
-        handler = ZmqLogHandler(fullname=c.fname.decode())
+        handler = ZmqLogHandler(full_name=c.fname.decode())
         gLog.addHandler(handler)
         c.routing(coordinators=coordinators)

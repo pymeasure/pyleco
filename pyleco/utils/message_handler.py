@@ -285,7 +285,7 @@ class MessageHandler(ExtendedComponentProtocol):
     def set_full_name(self, full_name: str) -> None:
         self.full_name = full_name
         self.rpc.title = full_name
-        self.logHandler.fullname = self.full_name
+        self.logHandler.full_name = self.full_name
 
     def handle_commands(self, msg: Message) -> None:
         """Handle the list of commands in the message."""
