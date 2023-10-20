@@ -49,7 +49,8 @@ class DataPublisher:
 
     def __init__(self,
                  full_name: str,
-                 host: str = "localhost", port: int = PROXY_RECEIVING_PORT,
+                 host: str = "localhost",
+                 port: int = PROXY_RECEIVING_PORT,
                  log: Optional[logging.Logger] = None,
                  context: Optional[zmq.Context] = None,
                  **kwargs) -> None:
@@ -75,7 +76,15 @@ class DataPublisher:
         """Send a data protocol message."""
         self.socket.send_multipart(message.to_frames())
 
-    def send_data(self, data: Any) -> None:
+    def send_data(self, data: Any,
+                  topic: str | bytes | None = None,
+                  conversation_id: bytes | None = None,
+                  message_type: int | None = None,
+                  ) -> None:
         """Send the `data` via the data protocol."""
-        message = DataMessage(self.full_name, data=data)
+        message = DataMessage(topic=topic or self.full_name,
+                              data=data,
+                              conversation_id=conversation_id,
+                              message_type=message_type
+                              )
         self.send_message(message)

@@ -76,7 +76,10 @@ class ExtendedMessageHandler(MessageHandler):
             self.log.exception("Invalid data", exc)
             return
         if message.payload == []:
-            self.handle_legacy_subscription_message(message)
+            # assume that it is a short (two frames) message of [topic, value]
+            self.handle_short_legacy_subscription_message(message)
+        elif message.message_type > 200:
+            self.handle_full_legacy_subscription_message(message)
         else:
             self.handle_subscription_message(message)
 
@@ -84,7 +87,7 @@ class ExtendedMessageHandler(MessageHandler):
         """Handle a message read from the data protocol and handle it."""
         raise NotImplementedError
 
-    def handle_legacy_subscription_message(self, message: DataMessage) -> None:
+    def handle_short_legacy_subscription_message(self, message: DataMessage) -> None:
         """Handle an old style data protocol message (`{variable_name: value}`)."""
         # TODO deprecated
         topic = message.topic
@@ -100,6 +103,16 @@ class ExtendedMessageHandler(MessageHandler):
                 self.handle_subscription_data(data)
         else:
             self.handle_subscription_data(data)
+
+    def handle_full_legacy_subscription_message(self, message: DataMessage) -> None:
+        """Handle an illegal subscription message (topic is variable name)."""
+        if message.message_type == 234:
+            value = pickle.loads(message.payload[0])
+        elif message.message_type == 235:
+            value = json.loads(message.payload[0])
+        else:
+            raise ValueError(f"Legacy long message cannot be handled")
+        self.handle_subscription_data({message.topic.decode(): value})
 
     def handle_subscription_data(self, data: dict) -> None:
         # TODO deprecated

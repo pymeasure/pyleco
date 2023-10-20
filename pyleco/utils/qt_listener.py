@@ -26,7 +26,7 @@ from PyQt6 import QtCore  # type: ignore
 
 from ..core.message import Message
 from ..core.data_message import DataMessage
-from .listener import Listener
+from .listener import Listener, PipeHandler
 
 
 class QtListener(Listener):
@@ -83,6 +83,6 @@ class QtListener(Listener):
         except AttributeError:
             method = None
         if method in self.local_methods:
-            self.message_handler.finish_handle_commands(message)
+            super(PipeHandler, self.message_handler).handle_commands(message)
         else:
             self.signals.message.emit(message)

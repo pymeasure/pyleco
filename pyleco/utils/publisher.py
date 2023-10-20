@@ -31,9 +31,34 @@ from warnings import warn
 import zmq
 
 from ..core import PROXY_RECEIVING_PORT
+from .data_publisher import DataPublisher
 
 
-class Publisher:
+try:
+    import numpy as np  # type: ignore[import-not-found]
+    import pint  # type: ignore[import-not-found]
+except ModuleNotFoundError:
+    pint = False
+
+if pint:
+    class PowerEncoder(json.JSONEncoder):
+        """Special json encoder for additional types like numpy, pint..."""
+
+        def default(self, o: Any) -> Any:
+            if isinstance(o, np.integer):
+                return int(o)
+            elif isinstance(o, np.floating):
+                return float(o)
+            elif isinstance(o, np.ndarray):
+                return o.tolist()
+            elif isinstance(o, pint.Quantity):
+                return f"{o:~}"  # abbreviated units with '~'
+            return super().default(o)
+else:
+    PowerEncoder = json.JSONEncoder  # type: ignore
+
+
+class Publisher(DataPublisher):
     """
     Publishing key-value data via zmq.
 
@@ -49,91 +74,35 @@ class Publisher:
     Quantities may be expressed as a (magnitude number, units str) tuple.
     """
 
-    fullname: str
-
     def __init__(self, host: str = "localhost", port: int = PROXY_RECEIVING_PORT,
                  log: Optional[logging.Logger] = None,
-                 standalone: bool = False,
+                 standalone: bool | None = None,
                  context: Optional[zmq.Context] = None,
                  fullname: str = "",
                  **kwargs) -> None:
-        if log is None:
-            self.log = logging.getLogger(f"{__name__}.Publisher")
-        else:
-            self.log = log.getChild("Publisher")
-        self.log.info(f"Publisher started at {host}:{port}.")
-        context = context or zmq.Context.instance()
-        self.socket: zmq.Socket = context.socket(zmq.PUB)
-        if standalone:
-            self._connecting = self.socket.bind
-            self._disconnecting = self.socket.unbind
-            self.host = "*"
-        else:
-            self._connecting = self.socket.connect
-            self._disconnecting = self.socket.disconnect
-            self.host = host
-        self._port = 0
-        self.port = port
-        self.fullname = fullname
-        super().__init__(**kwargs)
-
-    def __del__(self) -> None:
-        self.socket.close(1)
+        super().__init__(host=host,
+                         port=port,
+                         log=log,
+                         context=context,
+                         full_name=fullname,
+                         **kwargs)
+        if standalone is not None:
+            warn("Standalone does not work anymore", FutureWarning)
 
     def __call__(self, data: dict[str, Any]) -> None:
         """Publish the dictionary `data`."""
-        self.send(data=data)
+        self.send_legacy(data=data)
 
-    @property
-    def port(self) -> int:
-        """The TCP port to publish to."""
-        return self._port
+    def send_legacy(self, data: dict[str, Any]) -> None:
+        for key, value in data.items():
+            # 234 is message type for legacy: publish variable name as topic and pickle it
+            self.send_data(topic=key, data=pickle.dumps(value), message_type=234)
 
-    @port.setter
-    def port(self, port: int) -> None:
-        self.log.debug(f"Port changed to {port}.")
-        if self._port == port:
-            return
-        if self._port:
-            self._disconnecting(f"tcp://{self.host}:{self._port}")
-        self._connecting(f"tcp://{self.host}:{port}")
-        self._port = port
+    def send_legacy_json(self, data: dict[str, Any]) -> None:
+        for key, value in data.items():
+            # 234 is message type for legacy: publish variable name as topic and json
+            self.send_data(topic=key, data=json.dumps(value, cls=PowerEncoder), message_type=235)
 
     def send(self, data: dict[str, Any]) -> None:
         """Send the dictionay `data`."""
-        # TODO change to send the whole dictionary at once, in the future.
-        assert isinstance(data, dict), "Data has to be a dictionary."
-        for key, value in data.items():
-            if not isinstance(value, (str, float, int, complex)):
-                warn(
-                    f"Data of type {type(value).__name__} might not be serializable in the future.",
-                    FutureWarning)
-            self.socket.send_multipart((key.encode(), pickle.dumps(value)))
-            # for json:
-            # dumped = json.dumps(data)
-
-    def send_json(self, data: dict[str, Any]) -> None:
-        """Send the dictionay `data`."""
-        # TODO change to send the whole dictionary at once, in the future.
-        assert isinstance(data, dict), "Data has to be a dictionary."
-        for key, value in data.items():
-            if not isinstance(value, (str, float, int, complex)):
-                warn(
-                    f"Data of type {type(value).__name__} might not be serializable in the future.",
-                    FutureWarning)
-            self.socket.send_multipart((key.encode(), json.dumps(value).encode()))
-
-    def send_quantities(self, data: dict[str, Any]) -> None:
-        """Send the dictionay `data` containing Quantities."""
-        assert isinstance(data, dict), "Data has to be a dictionary."
-        for key, value in data.items():
-            self.socket.send_multipart((
-                key.encode(),
-                pickle.dumps((value.magnitude, f"{value.units:~}"))))
-
-    def send_total(self, data: dict[str, Any]) -> None:
-        """Send the whole data dictionary in one message, using the fullname."""
-        if self.fullname == "":
-            raise ValueError("You have to specify the sender name, before sending!")
-        else:
-            self.socket.send_multipart((self.fullname.encode(), json.dumps(data)))
+        self.send_legacy(data=data)
