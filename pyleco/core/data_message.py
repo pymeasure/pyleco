@@ -49,7 +49,7 @@ class DataMessage:
                 "You may not specify the header and some header element at the same time!")
         if header is None:
             cid = generate_conversation_id() if conversation_id is None else conversation_id
-            self.header = cid + bytes(message_type or 0)
+            self.header = cid + bytes([message_type or 0])
         else:
             self.header = header
         if isinstance(data, bytes):
@@ -108,7 +108,8 @@ class DataMessage:
                     and self.payload[1:] == other.payload[1:])
 
     def __repr__(self) -> str:
-        return f"DataMessage.from_frames({self.to_frames()})"
+        list_of_frames_strings = [str(frame) for frame in self.to_frames()]
+        return f"DataMessage.from_frames({', '.join(list_of_frames_strings)})"
 
 
 class LogMessage(DataMessage):

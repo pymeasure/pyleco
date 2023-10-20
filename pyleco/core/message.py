@@ -145,4 +145,5 @@ class Message:
                     and self.payload[1:] == other.payload[1:])
 
     def __repr__(self) -> str:
-        return f"Message.from_frames({self._to_frames_without_sender_check()})"
+        list_of_frames_strings = [str(frame) for frame in self.to_frames()]
+        return f"Message.from_frames({', '.join(list_of_frames_strings)})"

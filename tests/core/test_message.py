@@ -201,3 +201,8 @@ class TestComparison:
     @pytest.mark.parametrize("other", (5, 3.4, [64, 3], (5, "string"), "string"))
     def test_comparison_with_something_else_fails(self, message, other):
         assert message != other
+
+
+def test_repr():
+    message = Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')
+    assert repr(message) == r"Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')"
