@@ -56,4 +56,5 @@ class ExtendedPublisher(Publisher):
         if self.full_name == "":
             raise ValueError("You have to specify the sender name, before sending!")
         else:
-            self.socket.send_multipart((self.full_name.encode(), json.dumps(data, cls=PowerEncoder)))
+            self.socket.send_multipart((self.full_name.encode(),
+                                        json.dumps(data, cls=PowerEncoder)))
