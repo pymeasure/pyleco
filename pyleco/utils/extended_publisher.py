@@ -53,7 +53,7 @@ class ExtendedPublisher(Publisher):
 
     def send(self, data: dict[str, Any]) -> None:
         """Send the dictionay `data`."""
-        if self.fullname == "":
+        if self.full_name == "":
             raise ValueError("You have to specify the sender name, before sending!")
         else:
-            self.socket.send_multipart((self.fullname.encode(), json.dumps(data, cls=PowerEncoder)))
+            self.socket.send_multipart((self.full_name.encode(), json.dumps(data, cls=PowerEncoder)))

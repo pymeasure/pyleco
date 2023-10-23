@@ -111,7 +111,7 @@ class ExtendedMessageHandler(MessageHandler):
         elif message.message_type == 235:
             value = json.loads(message.payload[0])
         else:
-            raise ValueError(f"Legacy long message cannot be handled")
+            raise ValueError("Legacy long message cannot be handled")
         self.handle_subscription_data({message.topic.decode(): value})
 
     def handle_subscription_data(self, data: dict) -> None:
