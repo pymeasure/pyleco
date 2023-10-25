@@ -96,7 +96,7 @@ class LogLogger(ExtendedMessageHandler):
     def __del__(self) -> None:
         self.stop_collecting()
 
-    def _listen_setup(self, subscriptions: Optional[list[str] | tuple[str, ...]] = None,
+    def _listen_setup(self, subscriptions: Optional[list[str] | tuple[str, ...]] = None,  # type: ignore  # noqa
                       data_port: int = LOG_SENDING_PORT,
                       **kwargs):
         poller = super()._listen_setup(data_port=data_port, **kwargs)
@@ -186,7 +186,8 @@ class LogLogger(ExtendedMessageHandler):
         """Return the name of the last save."""
         return self.last_save_name
 
-    def get_log_entries(self, emitters: list[str] | tuple[str, ...]) -> dict[str, list[list[str]]]:
+    def get_log_entries(self, emitters: list[str] | tuple[str, ...]
+                        ) -> dict[str, list[list[str]] | None]:
         return_dict = {}
         for emitter in emitters:
             return_dict[emitter] = self.log_entries.get(emitter)
