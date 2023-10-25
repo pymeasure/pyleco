@@ -70,8 +70,8 @@ class QtListener(Listener):
         # new style
         self.signals.data_message.emit(message)
 
-    def start_listen(self, host: str | None = None, dataPort: int | None = None) -> None:
-        super().start_listen(host, dataPort)
+    def start_listen(self, host: str | None = None, data_port: int | None = None) -> None:
+        super().start_listen(host, data_port)
         self.message_handler.handle_subscription_data = self.handle_subscription_data  # type:ignore
         self.message_handler.finish_handle_commands = self.finish_handle_commands  # type: ignore
         self.message_handler.handle_subscription_message = self.handle_subscription_message  # type: ignore  # noqa

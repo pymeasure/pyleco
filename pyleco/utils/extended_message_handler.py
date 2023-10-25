@@ -47,11 +47,11 @@ class ExtendedMessageHandler(MessageHandler):
         self.rpc.method()(self.unsubscribe)
         self.rpc.method()(self.unsubscribe_all)
 
-    def _listen_setup(self, host: str = "localhost", dataPort: int = PROXY_SENDING_PORT,
+    def _listen_setup(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
                       **kwargs) -> zmq.Poller:
         poller = super()._listen_setup(**kwargs)
         subscriber: zmq.Socket = self.context.socket(zmq.SUB)
-        subscriber.connect(f"tcp://{host}:{dataPort}")
+        subscriber.connect(f"tcp://{host}:{data_port}")
         self.subscriber = subscriber
         poller.register(subscriber, zmq.POLLIN)
         return poller

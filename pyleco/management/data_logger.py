@@ -24,7 +24,7 @@
 
 import datetime
 try:
-    from enum import StrEnum
+    from enum import StrEnum  # type: ignore
 except ImportError:
     # For python<3.11
     from enum import Enum
@@ -41,7 +41,7 @@ except ModuleNotFoundError:
     def average(values: list[float | int] | tuple[float | int, ...]):
         return sum(values) / len(values)
 else:
-    average = np.average
+    average = np.average  # type: ignore
 
 if __name__ == "__main__":
     from pyleco.utils.timers import RepeatingTimer

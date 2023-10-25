@@ -142,9 +142,9 @@ class PipeHandler(ExtendedMessageHandler):
         self.internal_pipe.close(1)
         super().close()
 
-    def _listen_setup(self, host: str = "localhost", dataPort: int = PROXY_SENDING_PORT,
+    def _listen_setup(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
                       **kwargs) -> zmq.Poller:
-        poller = super()._listen_setup(host=host, dataPort=dataPort, **kwargs)
+        poller = super()._listen_setup(host=host, data_port=data_port, **kwargs)
         poller.register(self.internal_pipe, zmq.POLLIN)
         return poller
 
