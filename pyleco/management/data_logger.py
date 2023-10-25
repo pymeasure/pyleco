@@ -47,12 +47,12 @@ if __name__ == "__main__":
     from pyleco.utils.timers import RepeatingTimer
     from pyleco.utils.extended_message_handler import ExtendedMessageHandler
     from pyleco.utils.parser import parser
-    from pyleco.utils.publisher import Publisher
+    from pyleco.utils.data_publisher import DataPublisher
 else:
     from ..utils.timers import RepeatingTimer
     from ..utils.extended_message_handler import ExtendedMessageHandler
     from ..utils.parser import parser
-    from ..utils.publisher import Publisher
+    from ..utils.data_publisher import DataPublisher
 
 
 log = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ class DataLogger(ExtendedMessageHandler):
         self.last_datapoint = {}
         self.last_config = {}
         self.lists = {}
-        self.publisher = Publisher()
+        self.publisher = DataPublisher(full_name=name)
         self.last_save_name = None
         # TODO add auto_save functionality?
 
@@ -150,6 +150,10 @@ class DataLogger(ExtendedMessageHandler):
             self.start_collecting(**start_data)
         return poller
 
+    def set_full_name(self, full_name: str) -> None:
+        super().set_full_name(full_name=full_name)
+        self.publisher.full_name = full_name
+
     # Data management
     def handle_subscription_data(self, data: dict) -> None:
         """Store `data` dict in `tmp`"""
@@ -166,7 +170,7 @@ class DataLogger(ExtendedMessageHandler):
         datapoint = self.calculate_data()
         self.last_datapoint = datapoint
         if self.namespace is not None:
-            self.publisher.send({self.full_name: self.last_datapoint})
+            self.publisher.send_data(data=self.last_datapoint)
 
     def calculate_data(self) -> dict[str, Any]:
         """Calculate data for a data point and return the data point."""
