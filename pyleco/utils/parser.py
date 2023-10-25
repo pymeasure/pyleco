@@ -36,7 +36,7 @@ parser.add_argument("-v", "--verbose", action="count", default=0,
                     help="increase the logging level by one, may be used more than once")
 
 
-def parse_command_line_parameters(parser: ArgumentParser,
+def parse_command_line_parameters(parser: ArgumentParser = parser,
                                   logger: Optional[logging.Logger] = None,
                                   arguments: Optional[list[str]] = None,
                                   parser_description: Optional[str] = None,
@@ -44,10 +44,10 @@ def parse_command_line_parameters(parser: ArgumentParser,
                                   ) -> dict:
     """Parse the command line parameters and return a dictionary for GUIs.
 
-    :param logger: The logger whose log level to set. Defaults to "__main__" logger.
     :param parser: parser to use, for example with more settings.
+    :param logger: The logger whose log level to set. Defaults to "__main__" logger.
     :param list arguments: Arguments for the parser to parse. Per default, take it from `sys.argv`.
-    :param str description: Override the parsers program description description.
+    :param str parser_description: Override the parsers program description description.
     :param int logging_default: Default level for logging.
     :return: Dictionary with keyword arguments parsed from the command line parameters.
     """
