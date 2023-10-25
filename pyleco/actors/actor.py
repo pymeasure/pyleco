@@ -224,7 +224,7 @@ class Actor(BaseController):
         self.polling_interval = polling_interval
 
     def connect(self, *args, **kwargs) -> None:
-        """Connect to the device."""
+        """Connect to the device with the given arguments and keyword arguments."""
         # TODO read auto_connect?
         self.log.info("Connecting")
         self.device = self.cls(*args, **kwargs)
