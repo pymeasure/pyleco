@@ -34,7 +34,7 @@ from pyleco.utils.listener import Listener
 
 
 cid = b"conversation_id;"  # conversation_id
-header = b"".join((cid, b"mid", MessageTypes.JSON.to_bytes()))
+header = b"".join((cid, b"mid", MessageTypes.JSON.to_bytes(length=1, byteorder="big")))
 # the result
 msg = Message(b"r", b"s", conversation_id=cid, message_id=b"mid")
 msg_list = ("r", "s", cid, b"", None)

@@ -89,7 +89,7 @@ def create_header_frame(conversation_id: Optional[bytes] = None,
     elif len(message_id) != 3:
         raise ValueError("Length of 'message_id' is not 3 bytes.")
     if isinstance(message_type, int):
-        message_type = message_type.to_bytes(length=1)
+        message_type = message_type.to_bytes(length=1, byteorder="big")
     elif len(message_type) != 1:
         raise ValueError("Length of 'message_type' is not 1 bytes.")
     return b"".join((conversation_id, message_id, message_type))
@@ -116,7 +116,7 @@ def interpret_header(header: bytes) -> Header:
     """
     conversation_id = header[:16]
     message_id = header[16:19]
-    message_type = int.from_bytes(header[19:20])
+    message_type = int.from_bytes(header[19:20], byteorder="big")
     return Header(conversation_id, message_id, message_type)
 
 
