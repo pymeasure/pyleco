@@ -25,7 +25,7 @@
 from json import JSONDecodeError
 from typing import Any
 
-from .serialization import deserialize_data, generate_conversation_id, serialize_data
+from .serialization import deserialize_data, generate_conversation_id, serialize_data, MessageTypes
 
 
 class DataMessage:
@@ -40,7 +40,7 @@ class DataMessage:
                  header: bytes | None = None,
                  data: bytes | str | Any | None = None,
                  conversation_id: bytes | None = None,
-                 message_type: int | None = None,
+                 message_type: MessageTypes = MessageTypes.NOT_DEFINED,
                  **kwargs) -> None:
         super().__init__(**kwargs)
         self.topic = topic.encode() if isinstance(topic, str) else topic
@@ -49,7 +49,7 @@ class DataMessage:
                 "You may not specify the header and some header element at the same time!")
         if header is None:
             cid = generate_conversation_id() if conversation_id is None else conversation_id
-            self.header = cid + bytes([message_type or 0])
+            self.header = cid + message_type.to_bytes(length=1)
         else:
             self.header = header
         if isinstance(data, bytes):

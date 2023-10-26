@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from enum import IntEnum
 import json
 from typing import Any, Optional, NamedTuple
 
@@ -58,12 +59,19 @@ class FullNameStr(NamedTuple):
 class Header(NamedTuple):
     conversation_id: bytes
     message_id: bytes
-    message_type: bytes
+    message_type: int
+
+
+class MessageTypes(IntEnum):
+    """The different message types, represented as an integer in the range [0, 255]."""
+    NOT_DEFINED = 0
+    JSON = 1
 
 
 def create_header_frame(conversation_id: Optional[bytes] = None,
                         message_id: Optional[bytes | int] = 0,
-                        message_type: Optional[bytes | int] = 0) -> bytes:
+                        message_type: bytes | int | MessageTypes = MessageTypes.NOT_DEFINED,
+                        ) -> bytes:
     """Create the header frame.
 
     :param bytes conversation_id: ID of the conversation.
@@ -80,9 +88,7 @@ def create_header_frame(conversation_id: Optional[bytes] = None,
         message_id = message_id.to_bytes(length=3, byteorder='big')
     elif len(message_id) != 3:
         raise ValueError("Length of 'message_id' is not 3 bytes.")
-    if message_type is None:
-        message_type = b"\x00"
-    elif isinstance(message_type, int):
+    if isinstance(message_type, int):
         message_type = message_type.to_bytes(length=1)
     elif len(message_type) != 1:
         raise ValueError("Length of 'message_type' is not 1 bytes.")
@@ -110,7 +116,7 @@ def interpret_header(header: bytes) -> Header:
     """
     conversation_id = header[:16]
     message_id = header[16:19]
-    message_type = header[19:20]
+    message_type = header[19]
     return Header(conversation_id, message_id, message_type)
 
 

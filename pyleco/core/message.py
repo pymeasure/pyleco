@@ -22,20 +22,14 @@
 # THE SOFTWARE.
 #
 
-from enum import IntEnum
 from json import JSONDecodeError
 from typing import Any, Optional
 
 
 from . import VERSION_B
 from .serialization import (create_header_frame, serialize_data, interpret_header, split_name,
-                            deserialize_data, FullName, Header
+                            deserialize_data, FullName, Header, MessageTypes,
                             )
-
-
-class MessageTypes(IntEnum):
-    NOT_DEFINED = 0
-    JSON = 1
 
 
 # Control transfer protocol
@@ -66,7 +60,7 @@ class Message:
                  header: Optional[bytes] = None,
                  conversation_id: Optional[bytes] = None,
                  message_id: Optional[bytes] = None,
-                 message_type: Optional[bytes | MessageTypes] = MessageTypes.NOT_DEFINED,
+                 message_type: MessageTypes = MessageTypes.NOT_DEFINED,
                  ) -> None:
         self.receiver = receiver.encode() if isinstance(receiver, str) else receiver
         self.sender = sender.encode() if isinstance(sender, str) else sender
