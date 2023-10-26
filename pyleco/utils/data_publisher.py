@@ -28,7 +28,7 @@ from typing import Any, Optional
 import zmq
 
 from ..core import PROXY_RECEIVING_PORT
-from ..core.data_message import DataMessage
+from ..core.data_message import DataMessage, MessageTypes
 
 
 class DataPublisher:
@@ -79,7 +79,7 @@ class DataPublisher:
     def send_data(self, data: Any,
                   topic: str | bytes | None = None,
                   conversation_id: bytes | None = None,
-                  message_type: int | None = None,
+                  message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
                   ) -> None:
         """Send the `data` via the data protocol."""
         message = DataMessage(topic=topic or self.full_name,
