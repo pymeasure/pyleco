@@ -31,7 +31,7 @@ import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
-from ..core.message import Message
+from ..core.message import Message, MessageTypes
 from ..errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..core.rpc_generator import RPCGenerator
 from ..core.serialization import generate_conversation_id
@@ -156,6 +156,7 @@ class MessageHandler(ExtendedComponentProtocol):
         """Send a message and store the converation_id."""
         cid = generate_conversation_id()
         message = Message(receiver=receiver, conversation_id=cid,
+                          message_type=MessageTypes.JSON,
                           data=self.rpc_generator.build_request_str(method=method, **kwargs))
         self._requests[cid] = method
         self._send_message(message)
@@ -293,7 +294,8 @@ class MessageHandler(ExtendedComponentProtocol):
             if b'"method":' in msg.payload[0]:
                 self.log.info(f"Handling commands of  {msg}.")
                 reply = self.rpc.process_request(msg.payload[0])
-                response = Message(msg.sender, conversation_id=msg.conversation_id, data=reply)
+                response = Message(msg.sender, conversation_id=msg.conversation_id,
+                                   message_type=MessageTypes.JSON, data=reply)
                 self.send_message(response)
             else:
                 self.log.error(f"Unknown message from {msg.sender!r} received: {msg.payload[0]!r}")

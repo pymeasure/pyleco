@@ -27,7 +27,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyleco.core import VERSION_B
-from pyleco.core.message import Message
+from pyleco.core.message import Message, MessageTypes
 from pyleco.errors import NOT_SIGNED_IN
 from pyleco.core.serialization import serialize_data
 
@@ -123,6 +123,7 @@ class Test_ask_raw:
 
     def test_ignore_ping(self, communicator: Communicator):
         ping_message = Message(receiver=b"N1.Test", sender=b"N1.COORDINATOR",
+                               message_type=MessageTypes.JSON,
                                data={"id": 0, "method": "pong", "jsonrpc": "2.0"})
         communicator.connection._r = [ping_message.to_frames(),
                                       self.response.to_frames()]
@@ -132,6 +133,7 @@ class Test_ask_raw:
     def test_sign_in(self, communicator: Communicator):
         communicator.sign_in = MagicMock()  # type: ignore
         not_signed_in = Message(receiver="N1.Test", sender="N1.COORDINATOR",
+                                message_type=MessageTypes.JSON,
                                 data={"id": None,
                                       "error": NOT_SIGNED_IN.model_dump(),
                                       "jsonrpc": "2.0"},
@@ -148,7 +150,8 @@ class Test_ask_raw:
                                    caplog: pytest.LogCaptureFixture):
         """A wrong response should not be returned."""
         caplog.set_level(10)
-        m = Message(receiver="whatever", sender="s", data={'jsonrpc': "2.0"}).to_frames()
+        m = Message(receiver="whatever", sender="s", message_type=MessageTypes.JSON,
+                    data={'jsonrpc': "2.0"}).to_frames()
         communicator.connection._r = [m, self.response.to_frames()]
         assert communicator.ask_raw(self.request) == self.response
         assert caplog.records[-1].msg.startswith("Message with different conversation id received:")
@@ -161,16 +164,18 @@ def test_ask_rpc(communicator: Communicator, fake_cid_generation):
     communicator.connection._r = [received.to_frames()]
     response = communicator.ask_rpc(receiver="N1.receiver", method="test_method", some_arg=4)
     assert communicator.connection._s == [
-        [b'\x00', b'N1.receiver', b'Test', b'conversation_id;\x00\x00\x00\x00',
-         serialize_data({"id": 1, "method": "test_method",
-                         "params": {"some_arg": 4}, "jsonrpc": "2.0"})]]
+        Message(b'N1.receiver', b'Test',
+                conversation_id=cid,
+                message_type=MessageTypes.JSON,
+                data={"id": 1, "method": "test_method",
+                      "params": {"some_arg": 4}, "jsonrpc": "2.0"}).to_frames()]
     assert response == 123.45
 
 
 def test_communicator_sign_in(fake_cid_generation, communicator: Communicator):
-    communicator.connection._r = [[
-        VERSION_B, b"N2.n", b"N2.COORDINATOR",
-        b"".join((cid, b"mid", b"0")),
-        serialize_data({"id": 1, "result": None, "jsonrpc": "2.0"})]]
+    communicator.connection._r = [
+        Message(b"N2.n", b"N2.COORDINATOR",
+                conversation_id=cid, message_type=MessageTypes.JSON,
+                data={"id": 1, "result": None, "jsonrpc": "2.0"}).to_frames()]
     communicator.sign_in()
     assert communicator.namespace == "N2"

@@ -31,7 +31,7 @@ import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.internal_protocols import CommunicatorProtocol
-from ..core.message import Message
+from ..core.message import Message, MessageTypes
 from ..core.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
 from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
 
@@ -210,7 +210,7 @@ class Communicator(CommunicatorProtocol):
         return result
 
     def ask_json(self, receiver: bytes | str, json_string: str) -> bytes:
-        message = Message(receiver=receiver, data=json_string)
+        message = Message(receiver=receiver, data=json_string, message_type=MessageTypes.JSON)
         response = self.ask_message(message=message)
         return response.payload[0]
 
@@ -220,7 +220,7 @@ class Communicator(CommunicatorProtocol):
         self.namespace = None
         self._last_beat = perf_counter()  # to not sign in again...
         json_string = self.rpc_generator.build_request_str(method="sign_in")
-        request = Message(receiver=b"COORDINATOR", data=json_string)
+        request = Message(receiver=b"COORDINATOR", data=json_string, message_type=MessageTypes.JSON)
         cid0 = request.conversation_id
         response = self.ask_raw(message=request)
         if b"error" in response.payload[0]:
