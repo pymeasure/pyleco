@@ -33,7 +33,7 @@ from ..core import PROXY_SENDING_PORT, COORDINATOR_PORT
 from .extended_message_handler import ExtendedMessageHandler
 from .publisher import Publisher
 from .pipe_handler import PipeHandler
-from ..core.message import Message
+from ..core.message import Message, MessageTypes
 from ..core.serialization import generate_conversation_id
 from ..core.rpc_generator import RPCGenerator
 from ..core.internal_protocols import CommunicatorProtocol
@@ -174,7 +174,7 @@ class Listener(CommunicatorProtocol):
 
     def ask_rpc(self, receiver: bytes | str, method: str, **kwargs):
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
-        response = self.ask(receiver=receiver, data=string)
+        response = self.ask(receiver=receiver, data=string, message_type=MessageTypes.JSON)
         return self.rpc_generator.get_result_from_response(response.payload[0])
 
     #   Data protocol

@@ -26,9 +26,9 @@ import pytest
 
 from pyleco.core import VERSION_B
 
-from pyleco.core.message import Message
+from pyleco.core.message import Message, MessageTypes
 from pyleco.core.internal_protocols import CommunicatorProtocol
-from pyleco.utils.pipe_handler import PipeHandler
+from pyleco.utils.pipe_handler import PipeHandler, MessageBuffer
 
 from pyleco.utils.listener import Listener
 
@@ -47,11 +47,15 @@ class FakeHandler(PipeHandler):
     def __init__(self, received: list[Message] | None = None) -> None:
         self._sent: list[Message] = []
         self._received: list[Message] = received or []
+        self.buffer = MessageBuffer()
+        self.full_name = "N.Pipe"
 
     def pipe_setup(self, context=None) -> None:  # type: ignore[override]
         pass
 
     def pipe_send_message(self, message: Message) -> None:
+        if not message.sender:
+            message.sender = self.full_name.encode()
         self._sent.append(message)
 
     def pipe_read_message(self, conversation_id: bytes, tries: int = 10, timeout: float = 0.1
@@ -75,7 +79,7 @@ def static_test_listener_is_communicator():
 def test_send(listener: Listener):
     listener.send(receiver="N2.CB", conversation_id=cid, message_id=b"mid", data=[["TEST"]])
     assert listener.message_handler._sent == [  # type: ignore
-        Message.from_frames(VERSION_B, b"N2.CB", b"", header, b'[["TEST"]]')]
+        Message.from_frames(VERSION_B, b"N2.CB", b"N.Pipe", header, b'[["TEST"]]')]
 
 
 @pytest.mark.parametrize("buffer", ([msg], [msg, other]))
@@ -88,3 +92,15 @@ def test_read_answer_success(listener: Listener, buffer):
 def test_read_answer_as_message_success(listener: Listener, buffer):
     listener.message_handler._received = buffer  # type: ignore
     assert listener.read_answer_as_message(cid) == msg
+
+
+def test_ask_rpc(listener: Listener):
+    response = Message("test", "receiver", conversation_id=cid,
+                       data={'jsonrpc': "2.0", "result": None, "id": 1})
+    listener.message_handler._received = [response]  # type: ignore
+    listener.ask_rpc("receiver", method="test_method")
+    sent_message = listener.message_handler._sent[0]  # type: ignore
+    assert sent_message == Message(b"receiver", b"N.Pipe",
+                                   conversation_id=sent_message.conversation_id,
+                                   message_type=MessageTypes.JSON,
+                                   data={'jsonrpc': "2.0", "method": "test_method", "id": 1})
