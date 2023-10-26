@@ -40,11 +40,11 @@ class DataMessage:
                  header: bytes | None = None,
                  data: bytes | str | Any | None = None,
                  conversation_id: bytes | None = None,
-                 message_type: MessageTypes = MessageTypes.NOT_DEFINED,
+                 message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
                  **kwargs) -> None:
         super().__init__(**kwargs)
         self.topic = topic.encode() if isinstance(topic, str) else topic
-        if header and (conversation_id or message_type is not None):
+        if header and (conversation_id or message_type != MessageTypes.NOT_DEFINED):
             raise ValueError(
                 "You may not specify the header and some header element at the same time!")
         if header is None:

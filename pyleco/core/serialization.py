@@ -116,7 +116,7 @@ def interpret_header(header: bytes) -> Header:
     """
     conversation_id = header[:16]
     message_id = header[16:19]
-    message_type = header[19]
+    message_type = int.from_bytes(header[19:20])
     return Header(conversation_id, message_id, message_type)
 
 

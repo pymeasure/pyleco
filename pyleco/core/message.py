@@ -60,11 +60,11 @@ class Message:
                  header: Optional[bytes] = None,
                  conversation_id: Optional[bytes] = None,
                  message_id: Optional[bytes] = None,
-                 message_type: MessageTypes = MessageTypes.NOT_DEFINED,
+                 message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
                  ) -> None:
         self.receiver = receiver.encode() if isinstance(receiver, str) else receiver
         self.sender = sender.encode() if isinstance(sender, str) else sender
-        if header and (conversation_id or message_id or message_type):
+        if header and (conversation_id or message_id or message_type != MessageTypes.NOT_DEFINED):
             raise ValueError(
                 "You may not specify the header and some header element at the same time!")
         self.header = (create_header_frame(conversation_id=conversation_id, message_id=message_id,
