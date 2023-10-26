@@ -33,7 +33,7 @@ import zmq
 
 from ..core import COORDINATOR_PORT
 from ..errors import CommunicationError, NOT_SIGNED_IN, DUPLICATE_NAME
-from ..core.message import Message
+from ..core.message import Message, MessageTypes
 from ..core.serialization import deserialize_data
 from ..core.rpc_generator import RPCGenerator
 
@@ -267,6 +267,7 @@ class Directory:
             message=Message(
                 receiver=b"COORDINATOR",
                 sender=self.full_name,
+                message_type=MessageTypes.JSON,
                 data=self.rpc_generator.build_request_str(method="coordinator_sign_in"),
             )
         )
@@ -320,6 +321,7 @@ class Directory:
             Message(
                 receiver=message.sender,
                 sender=self.full_name,
+                message_type=MessageTypes.JSON,
                 data=(
                     "["
                     + self.rpc_generator.build_request_str(
@@ -451,6 +453,7 @@ class Directory:
                     Message(
                         receiver=node.namespace + b".COORDINATOR",
                         sender=self.full_name,
+                        message_type=MessageTypes.JSON,
                         data=Request(id=0, method="pong"),
                     )
                 )
@@ -508,6 +511,7 @@ class Directory:
             Message(
                 receiver=b".".join((namespace, b"COORDINATOR")),
                 sender=self.full_name,
+                message_type=MessageTypes.JSON,
                 data=self.rpc_generator.build_request_str(method="coordinator_sign_out"),
             )
         )

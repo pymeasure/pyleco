@@ -26,7 +26,7 @@ from jsonrpcobjects.objects import Request, ResultResponse, ErrorResponse
 import pytest
 
 from pyleco.test import FakeContext
-from pyleco.core.message import Message
+from pyleco.core.message import Message, MessageTypes
 from pyleco.errors import CommunicationError, NOT_SIGNED_IN, DUPLICATE_NAME
 from pyleco.utils.coordinator_utils import ZmqNode, ZmqMultiSocket, Node, Directory, FakeNode
 
@@ -201,8 +201,9 @@ class Test_add_node_sender:
 
     def test_message_sent(self, node: Node):
         assert node._messages_sent == [Message(  # type: ignore
-            b"COORDINATOR", b"N1.COORDINATOR", data=Request(id=1,
-                                                            method="coordinator_sign_in"),
+            b"COORDINATOR", b"N1.COORDINATOR",
+            data=Request(id=1, method="coordinator_sign_in"),
+            message_type=MessageTypes.JSON,
             conversation_id=cid)]
 
     def test_node_port_added_to_address(self, directory: Directory):
@@ -255,6 +256,7 @@ class Test_check_unfinished_node_connections:
         directory.add_node_sender(FakeNode(), "N3host", b"N3")
         node = directory._waiting_nodes["N3host:12300"]
         node._messages_read = [Message(b"N1.COORDINATOR", b"N3.COORDINATOR",  # type: ignore
+                                       message_type=MessageTypes.JSON,
                                        data=ResultResponse(id=1, result=None))]
         directory.check_unfinished_node_connections()
         return directory
@@ -279,10 +281,13 @@ class Test_handle_node_message:
     """Already included in check_unfinished_node_connections"""
     @pytest.mark.parametrize("message", (
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
+                    message_type=MessageTypes.JSON,
                     data=ErrorResponse(id=None, error=DUPLICATE_NAME)),
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
+                    message_type=MessageTypes.JSON,
                     data=ErrorResponse(id=None, error=NOT_SIGNED_IN)),
             Message("N1.COORDINATOR", "N5.COORDINATOR",
+                    message_type=MessageTypes.JSON,
                     data={"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"},
                           "id": None})
     ))
@@ -294,8 +299,10 @@ class Test_handle_node_message:
 
     @pytest.mark.parametrize("message", (
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
+                    message_type=MessageTypes.JSON,
                     data={"jsonrpc": "2.0", "result": None, "id": 1}),
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
+                    message_type=MessageTypes.JSON,
                     data={"jsonrpc": "2.0", "result": None, "id": 5}),
     ))
     def test_successful_sign_in(self, directory: Directory, message):
@@ -315,6 +322,7 @@ class Test_finish_sign_in_to_remote:
         directory._finish_sign_in_to_remote(temp_namespace, Message(
             receiver=b"N1.COORDINATOR",
             sender=b"N3.COORDINATOR",
+            message_type=MessageTypes.JSON,
             data={"id": 1, "result": None, "jsonrpc": "2.0"},
         ))
         return directory
@@ -332,6 +340,7 @@ class Test_finish_sign_in_to_remote:
         assert directory_sirn._nodes[b"N3"]._messages_sent == [  # type: ignore
             Message(b'COORDINATOR', b'N1.COORDINATOR',
                     {"id": 1, "method": "coordinator_sign_in", "jsonrpc": "2.0"},
+                    message_type=MessageTypes.JSON,
                     conversation_id=cid),
             Message(
                 b'N3.COORDINATOR', b'N1.COORDINATOR',
@@ -340,7 +349,8 @@ class Test_finish_sign_in_to_remote:
                        "jsonrpc": "2.0"},
                       {"id": 3, "method": "record_components", "params":
                        {"components": ["send", "rec"]}, "jsonrpc": "2.0"}],
-                conversation_id=cid
+                message_type=MessageTypes.JSON,
+                conversation_id=cid,
             )]
 
 
@@ -467,7 +477,9 @@ class Test_find_expired_nodes:
         directory.get_node_ids()[b"n2"].heartbeat = -1.5
         directory.find_expired_nodes(1)
         assert directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
-            Message(b"N2.COORDINATOR", b"N1.COORDINATOR", Request(id=0, method="pong"),
+            Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
+                    Request(id=0, method="pong"),
+                    message_type=MessageTypes.JSON,
                     conversation_id=cid)]
 
     def test_active_node(self, directory: Directory, fake_counting):
@@ -510,7 +522,8 @@ class Test_sign_out_from_node:
     def test_message_sent(self, directory_wo_n2: Directory):
         assert directory_wo_n2._test._messages_sent == [  # type: ignore
             Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
-                    {"id": 1, "method": "coordinator_sign_out", "jsonrpc": "2.0"},
+                    data={"id": 1, "method": "coordinator_sign_out", "jsonrpc": "2.0"},
+                    message_type=MessageTypes.JSON,
                     conversation_id=cid)]
 
     def test_connection_closed(self, directory_wo_n2: Directory):

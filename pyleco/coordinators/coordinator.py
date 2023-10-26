@@ -33,7 +33,7 @@ import zmq
 try:
     from ..core import COORDINATOR_PORT
     from ..utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
-    from ..core.message import Message
+    from ..core.message import Message, MessageTypes
     from ..errors import CommunicationError
     from ..errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
     from ..utils.timers import RepeatingTimer
@@ -43,7 +43,7 @@ try:
 except ImportError:  # pragma: no cover
     from pyleco.core import COORDINATOR_PORT
     from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
-    from pyleco.core.message import Message
+    from pyleco.core.message import Message, MessageTypes
     from pyleco.errors import CommunicationError
     from pyleco.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
     from pyleco.utils.timers import RepeatingTimer
@@ -186,11 +186,13 @@ class Coordinator:
         sender_identity: bytes,
         original_message: Message,
         data: Optional[bytes | str | object] = None,
+        message_type: Optional[bytes | int | MessageTypes] = None,
     ) -> None:
         response = self.create_message(
             receiver=original_message.sender,
             conversation_id=original_message.conversation_id,
             data=data,
+            message_type=message_type,
         )
         self.sock.send_message(sender_identity, response)
 
@@ -208,6 +210,7 @@ class Coordinator:
         for identity, name in to_admonish:
             message = self.create_message(
                 receiver=b".".join((self.namespace, name)),
+                message_type=MessageTypes.JSON,
                 data=Request(id=0, method="pong"),
             )
             self.sock.send_message(identity, message)
@@ -263,6 +266,7 @@ class Coordinator:
                 self.send_main_sock_reply(
                     sender_identity=sender_identity,
                     original_message=message,
+                    message_type=MessageTypes.JSON,
                     data=exc.error_payload,
                 )
                 return
@@ -284,6 +288,7 @@ class Coordinator:
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,
+                message_type=MessageTypes.JSON,
                 data=ErrorResponse(id=None, error=error),
             )
         else:
@@ -297,6 +302,7 @@ class Coordinator:
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,
+                message_type=MessageTypes.JSON,
                 data=ErrorResponse(id=None, error=error),
             )
 
@@ -335,11 +341,13 @@ class Coordinator:
                 sender_identity=sender_identity,
                 original_message=message,
                 data=reply,
+                message_type=MessageTypes.JSON,
             )
         else:
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,
+                message_type=MessageTypes.JSON,
                 data=reply,
             )
 
@@ -396,6 +404,7 @@ class Coordinator:
                 receiver=sender_namespace + b".COORDINATOR",
                 sender=self.fname,
                 conversation_id=message.conversation_id,
+                message_type=MessageTypes.JSON,
                 data=Request(id=100, method="coordinator_sign_out"),
             )
         )
@@ -440,6 +449,7 @@ class Coordinator:
         for node in self.directory.get_nodes().keys():
             self.send_message(
                 receiver=b".".join((node, b"COORDINATOR")),
+                message_type=MessageTypes.JSON,
                 data=[
                     ParamsRequest(
                         id=5, method="add_nodes",
