@@ -162,7 +162,9 @@ class Communicator(CommunicatorProtocol):
         while True:
             response = self.read()
             # skip pings as we either are still signed in or going to sign in again.
-            if b"jsonrpc" in response.payload[0] and isinstance(response.data, dict):
+            if (response.header_elements.message_type == MessageTypes.JSON
+                    or b"jsonrpcXXX" in response.payload[0]) and isinstance(response.data, dict):
+                # TODO use MessageType instead of "jsonrpc"
                 if response.data.get("method") == "pong":
                     continue
                 elif (error := response.data.get("error")):

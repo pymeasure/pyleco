@@ -430,6 +430,7 @@ class Test_update_heartbeat:
         with pytest.raises(CommunicationError, match=DUPLICATE_NAME.message):
             directory.update_heartbeat(b"new_id", Message(
                 receiver=b"COORDINATOR", sender=b"send",
+                message_type=MessageTypes.JSON,
                 data={"jsonrpc": "2.0", "id": 2, "method": "sign_in"}))
 
     def test_known_node(self, fake_counting, directory: Directory):
@@ -442,7 +443,7 @@ class Test_update_heartbeat:
     ))
     def test_signing_in_out_node(self, directory: Directory, data):
         directory.update_heartbeat(b"n3", Message(
-            b"COORDINATOR", b"N3.COORDINATOR", data=data))
+            b"COORDINATOR", b"N3.COORDINATOR", data=data, message_type=MessageTypes.JSON))
         # test that no error is raised
 
     def test_from_unknown_node(self, directory: Directory):

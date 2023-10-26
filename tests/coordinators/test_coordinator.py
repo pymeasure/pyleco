@@ -328,7 +328,7 @@ class Test_handle_commands:
                                          caplog: pytest.LogCaptureFixture, data):
         coordinator_hc.handle_commands(b"",
                                        Message(receiver=b"COORDINATOR", sender=b"send",
-                                               data=data))
+                                               data=data, message_type=MessageTypes.JSON,))
         assert caplog.records[-1].msg.startswith("Unknown message")
 
 
@@ -414,7 +414,7 @@ class Test_sign_out_successful:
 
 def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
     coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
-        b"N1.COORDINATOR", b"N1.rec",
+        b"N1.COORDINATOR", b"N1.rec", message_type=MessageTypes.JSON,
         data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
     coordinator.read_and_route()
     assert b"rec" not in coordinator.directory.get_components().keys()
@@ -425,7 +425,7 @@ def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
 
 def test_sign_out_of_not_signed_in_generates_acknowledgment_nonetheless(coordinator: Coordinator):
     coordinator.sock._messages_read = [[b'584', Message(  # type: ignore
-        b"N1.COORDINATOR", b"rec584",
+        b"N1.COORDINATOR", b"rec584", message_type=MessageTypes.JSON,
         data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
     coordinator.read_and_route()
     assert coordinator.sock._messages_sent == [  # type: ignore

@@ -316,7 +316,9 @@ class Coordinator:
             return  # Empty payload, just heartbeat.
         self.current_message = message
         self.current_identity = sender_identity
-        if b'"jsonrpc"' in message.payload[0]:
+        if (message.header_elements.message_type == MessageTypes.JSON
+                or b'"jsonrpc"' in message.payload[0]):
+            # TODO use MessageType instead of jsonrpc
             log.debug(f"Coordinator json commands: {message.payload[0]!r}")
             if b'"method":' in message.payload[0]:
                 self.handle_rpc_call(sender_identity=sender_identity, message=message)

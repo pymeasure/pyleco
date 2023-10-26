@@ -34,7 +34,7 @@ from pyleco.utils.listener import Listener
 
 
 cid = b"conversation_id;"  # conversation_id
-header = b"".join((cid, b"mid", b"\x00"))
+header = b"".join((cid, b"mid", MessageTypes.JSON.to_bytes()))
 # the result
 msg = Message(b"r", b"s", conversation_id=cid, message_id=b"mid")
 msg_list = ("r", "s", cid, b"", None)
@@ -77,7 +77,8 @@ def static_test_listener_is_communicator():
 
 
 def test_send(listener: Listener):
-    listener.send(receiver="N2.CB", conversation_id=cid, message_id=b"mid", data=[["TEST"]])
+    listener.send(receiver="N2.CB", conversation_id=cid, message_id=b"mid", data=[["TEST"]],
+                  message_type=MessageTypes.JSON)
     assert listener.message_handler._sent == [  # type: ignore
         Message.from_frames(VERSION_B, b"N2.CB", b"N.Pipe", header, b'[["TEST"]]')]
 
@@ -95,7 +96,7 @@ def test_read_answer_as_message_success(listener: Listener, buffer):
 
 
 def test_ask_rpc(listener: Listener):
-    response = Message("test", "receiver", conversation_id=cid,
+    response = Message("test", "receiver", conversation_id=cid, message_type=MessageTypes.JSON,
                        data={'jsonrpc': "2.0", "result": None, "id": 1})
     listener.message_handler._received = [response]  # type: ignore
     listener.ask_rpc("receiver", method="test_method")

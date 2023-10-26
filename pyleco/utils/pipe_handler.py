@@ -184,14 +184,7 @@ class PipeHandler(ExtendedMessageHandler):
     def handle_commands(self, message: Message) -> None:
         """Handle commands: collect a requested response or give to :meth:`finish_handle_message`.
         """
-        try:
-            json = b"id" in message.payload[0] and (b"result" in message.payload[0]
-                                                    or b"error" in message.payload[0])
-        except (IndexError, KeyError):
-            json = False
-        if json and self.buffer.add_response_message(message):
-            pass
-        else:
+        if not self.buffer.add_response_message(message):
             self.finish_handle_commands(message)
 
     def finish_handle_commands(self, message: Message) -> None:

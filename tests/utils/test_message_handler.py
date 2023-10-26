@@ -107,8 +107,9 @@ def test_finish_sign_out(handler: MessageHandler):
 
 # test communication
 def test_send(handler: MessageHandler):
-    handler.send("N2.CB", conversation_id=cid, message_id=b"sen", data=[["TEST"]])
-    assert handler.socket._s == [[VERSION_B, b"N2.CB", b"N1.handler", b"conversation_id;sen\x00",
+    handler.send("N2.CB", conversation_id=cid, message_id=b"sen", data=[["TEST"]],
+                 message_type=MessageTypes.JSON)
+    assert handler.socket._s == [[VERSION_B, b"N2.CB", b"N1.handler", b"conversation_id;sen\x01",
                                   b'[["TEST"]]']]
 
 

@@ -36,16 +36,17 @@ from pyleco.test import FakeSocket
 
 
 cid = b"conversation_id;"
-header = b"".join((cid, b"\x00" * 4))
+header = b"".join((cid, b"\x00" * 3, b"\x01"))
 
 
 message_tests = (
-    ({'receiver': "broker", 'data': [["GET", [1, 2]], ["GET", 3]], 'sender': 's'},
+    ({'receiver': "broker", 'data': [["GET", [1, 2]], ["GET", 3]], 'sender': 's',
+      'message_type': MessageTypes.JSON},
      [VERSION_B, b"broker", b"s", header, serialize_data([["GET", [1, 2]], ["GET", 3]])]),
     ({'receiver': "someone", 'conversation_id': cid, 'sender': "ego", 'message_id': b"mid"},
      [VERSION_B, b'someone', b'ego', b'conversation_id;mid\x00']),
     ({'receiver': "router", 'sender': "origin"},
-     [VERSION_B, b"router", b"origin", header]),
+     [VERSION_B, b"router", b"origin", header[:-1] + b"\x00"]),
 )
 
 
@@ -119,6 +120,7 @@ def test_communicator_read(communicator: Communicator, kwargs, message):
 class Test_ask_raw:
     request = Message(receiver=b"N1.receiver", data="whatever")
     response = Message(receiver=b"N1.Test", sender=b"N1.receiver", data=["xyz"],
+                       message_type=MessageTypes.JSON,
                        conversation_id=request.conversation_id)
 
     def test_ignore_ping(self, communicator: Communicator):

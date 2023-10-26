@@ -290,7 +290,9 @@ class MessageHandler(ExtendedComponentProtocol):
 
     def handle_commands(self, msg: Message) -> None:
         """Handle the list of commands in the message."""
-        if msg.payload and b'"jsonrpc":' in msg.payload[0]:
+        if msg.header_elements.message_type == MessageTypes.JSON or (
+                msg.payload and b'"jsonrpc":' in msg.payload[0]):
+            # TODO switch to Message Type recognition instead of jsonrpc
             if b'"method":' in msg.payload[0]:
                 self.log.info(f"Handling commands of  {msg}.")
                 reply = self.rpc.process_request(msg.payload[0])

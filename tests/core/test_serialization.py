@@ -52,7 +52,7 @@ class Test_create_header_frame:
 
 
 @pytest.mark.parametrize("header, conversation_id, message_id, message_type", (
-        (bytes(range(20)), bytes(range(16)), b"\x10\x11\x12", b"\x13"),
+        (bytes(range(20)), bytes(range(16)), b"\x10\x11\x12", 19),
 ))
 def test_interpret_header(header, conversation_id, message_id, message_type):
     assert serialization.interpret_header(header) == (conversation_id, message_id, message_type)

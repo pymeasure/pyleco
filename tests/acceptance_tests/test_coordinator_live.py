@@ -30,7 +30,7 @@ import threading
 import pytest
 
 from pyleco.errors import DUPLICATE_NAME
-from pyleco.core.message import Message
+from pyleco.core.message import Message, MessageTypes
 from pyleco.utils.listener import Listener
 from pyleco.utils.communicator import Communicator
 
@@ -114,7 +114,8 @@ def test_Component_to_Component_via_1_Coordinator(leco: Listener):
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
 def test_Component_to_Component_via_2_Coordinators(leco: Listener):
     with Communicator(name="whatever", port=PORT2) as c:
-        response = c.ask("N1.Controller", data={"id": 1, "method": "pong", "jsonrpc": "2.0"})
+        response = c.ask("N1.Controller", data={"id": 1, "method": "pong", "jsonrpc": "2.0"},
+                         message_type=MessageTypes.JSON)
         assert response == Message(
             b'N2.whatever', b'N1.Controller', data={"id": 1, "result": None, "jsonrpc": "2.0"},
             header=response.header)
@@ -124,7 +125,7 @@ def test_Component_to_Component_via_2_Coordinators(leco: Listener):
 def test_Component_lists_propgate_through_Coordinators(leco: Listener):
     """Test that Component lists are propagated from one Coordinator to another."""
     with Communicator(name="whatever", port=PORT2) as c:
-        response = c.ask("N2.COORDINATOR", data={
+        response = c.ask("N2.COORDINATOR", message_type=MessageTypes.JSON, data={
             "id": 1, "method": "send_global_components", "jsonrpc": "2.0"})
         assert response == Message(
             b'N2.whatever', b'N2.COORDINATOR', data={
@@ -159,7 +160,8 @@ def test_connect_N3_to_N2(leco: Listener):
 def test_shutdown_N3(leco: Listener):
     c = Communicator(name="whatever", port=PORT3)
     c.sign_in()
-    c.ask(receiver="N3.COORDINATOR", data={"id": 3, "method": "shut_down", "jsonrpc": "2.0"})
+    c.ask(receiver="N3.COORDINATOR", data={"id": 3, "method": "shut_down", "jsonrpc": "2.0"},
+          message_type=MessageTypes.JSON)
 
     sleep(0.5)  # time for coordinators to talk
     nodes = leco.ask_rpc(receiver="COORDINATOR", method="send_nodes")
