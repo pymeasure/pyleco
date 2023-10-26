@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from enum import IntEnum
 from json import JSONDecodeError
 from typing import Any, Optional
 
@@ -30,6 +31,11 @@ from . import VERSION_B
 from .serialization import (create_header_frame, serialize_data, interpret_header, split_name,
                             deserialize_data, FullName, Header
                             )
+
+
+class MessageTypes(IntEnum):
+    NOT_DEFINED = 0
+    JSON = 1
 
 
 # Control transfer protocol
@@ -60,10 +66,10 @@ class Message:
                  header: Optional[bytes] = None,
                  conversation_id: Optional[bytes] = None,
                  message_id: Optional[bytes] = None,
-                 message_type: Optional[bytes] = None,
+                 message_type: Optional[bytes | MessageTypes] = MessageTypes.NOT_DEFINED,
                  ) -> None:
-        self.receiver = receiver if isinstance(receiver, bytes) else receiver.encode()
-        self.sender = sender if isinstance(sender, bytes) else sender.encode()
+        self.receiver = receiver.encode() if isinstance(receiver, str) else receiver
+        self.sender = sender.encode() if isinstance(sender, str) else sender
         if header and (conversation_id or message_id or message_type):
             raise ValueError(
                 "You may not specify the header and some header element at the same time!")
