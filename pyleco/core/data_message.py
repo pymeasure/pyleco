@@ -49,7 +49,7 @@ class DataMessage:
                 "You may not specify the header and some header element at the same time!")
         if header is None:
             cid = generate_conversation_id() if conversation_id is None else conversation_id
-            self.header = cid + message_type.to_bytes(length=1)
+            self.header = cid + message_type.to_bytes(length=1, byteorder="big")
         else:
             self.header = header
         if isinstance(data, bytes):

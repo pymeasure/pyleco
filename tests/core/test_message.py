@@ -41,7 +41,7 @@ def message() -> Message:
         data=[["GET", [1, 2]], ["GET", 3]],
         conversation_id=cid,
         message_id=b"mid",
-        message_type=int.from_bytes(b"T")
+        message_type=int.from_bytes(b"T", byteorder="big")
     )
 
 
@@ -139,7 +139,7 @@ class Test_Message_frame_splitting:
         assert message.header_elements.message_id == b"mid"
 
     def test_header_message_type(self, message: Message):
-        assert message.header_elements.message_type == int.from_bytes(b"T")
+        assert message.header_elements.message_type == int.from_bytes(b"T", byteorder="big")
 
 
 class Test_Message_with_string_parameters:
