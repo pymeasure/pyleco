@@ -28,7 +28,7 @@ from typing import Any, Optional
 from ..utils.communicator import CommunicatorProtocol, Communicator
 from ..utils.log_levels import get_leco_log_level
 from ..core.serialization import generate_conversation_id
-from ..core.message import Message
+from ..core.message import Message, MessageTypes
 
 
 log = logging.getLogger(__name__)
@@ -85,21 +85,20 @@ class Director:
 
     # Message handling
     def ask_message(self, actor: Optional[bytes | str] = None,
-                    data: Optional[Any] = None) -> Message:
+                    data: Optional[Any] = None, **kwargs) -> Message:
         cid0 = generate_conversation_id()
         actor = self._actor_check(actor)
         log.debug(f"Asking {actor!r} with message '{data}'.")
-        response = self.communicator.ask(actor, conversation_id=cid0,
-                                         data=data)
+        response = self.communicator.ask(actor, conversation_id=cid0, data=data, **kwargs)
         log.debug(f"Data '{response.data}' received.")
         if response.conversation_id == cid0:
             return response
         else:
             raise ValueError(f"Response {response} does not match message_id {cid0!r}.")
 
-    def ask(self, actor: Optional[bytes | str] = None, data: Optional[Any] = None) -> Any:
+    def ask(self, actor: Optional[bytes | str] = None, data: Optional[Any] = None, **kwargs) -> Any:
         """Send a request to the actor and return the content of the response."""
-        response = self.ask_message(actor=actor, data=data)
+        response = self.ask_message(actor=actor, data=data, **kwargs)
         response_string = response.payload[0]
         return self.generator.get_result_from_response(response_string)
 
@@ -123,7 +122,7 @@ class Director:
     # Remote control synced
     def call_method_rpc(self, method: str, actor: Optional[bytes | str] = None, **kwargs) -> Any:
         string = self.generator.build_request_str(method=method, **kwargs)
-        return self.ask(actor=actor, data=string)
+        return self.ask(actor=actor, data=string, message_type=MessageTypes.JSON)
 
     #   Component
     def get_rpc_capabilities(self, actor: Optional[bytes | str] = None) -> dict:
@@ -169,17 +168,17 @@ class Director:
         return self.call_method_rpc("call_action", action=action, actor=actor, **params)
 
     # Async methods: Just send, read later.
-    def send(self, actor: Optional[bytes | str] = None, data=None) -> bytes:
+    def send(self, actor: Optional[bytes | str] = None, data=None, **kwargs) -> bytes:
         """Send a request and return the conversation_id."""
         actor = self._actor_check(actor)
         cid0 = generate_conversation_id()
-        self.communicator.send(actor, conversation_id=cid0, data=data)
+        self.communicator.send(actor, conversation_id=cid0, data=data, **kwargs)
         return cid0
 
     def call_method_rpc_async(self, method: str, actor: Optional[bytes | str] = None,
                               **kwargs) -> bytes:
         string = self.generator.build_request_str(method=method, **kwargs)
-        return self.send(actor=actor, data=string)
+        return self.send(actor=actor, data=string, message_type=MessageTypes.JSON)
 
     #   Actor
     def get_parameters_async(self, parameters: list[str] | tuple[str, ...] | str,
