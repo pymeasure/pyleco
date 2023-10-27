@@ -178,13 +178,12 @@ def test_handle_ACK_does_not_change_Namespace(handler: MessageHandler):
 
 class Test_listen:
     @pytest.fixture
-    def handler_l(self, handler):
+    def handler_l(self, handler: MessageHandler):
         event = SimpleEvent()
         event.set()
-        handler.socket._r = [Message(
-            "handler", "COORDINATOR",
-            message_type=MessageTypes.JSON,
-            data={"id": 2, "result": None, "jsonrpc": "2.0"}).to_frames()]
+        handler.socket._r = [  # type: ignore
+            Message("handler", "COORDINATOR", message_type=MessageTypes.JSON,
+                    data={"id": 2, "result": None, "jsonrpc": "2.0"}).to_frames()]
         handler.listen(stop_event=event)
         return handler
 

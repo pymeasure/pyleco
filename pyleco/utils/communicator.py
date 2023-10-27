@@ -85,9 +85,9 @@ class Communicator(CommunicatorProtocol):
         self.rpc_generator = RPCGenerator()
         super().__init__(**kwargs)
 
-    def open(self) -> None:
+    def open(self, context: Optional[zmq.Context] = None) -> None:
         """Open the connection."""
-        context = zmq.Context.instance()
+        context = context or zmq.Context.instance()
         self.connection = context.socket(zmq.DEALER)
         protocol, standalone = self._conn_details
         if standalone:
@@ -101,7 +101,9 @@ class Communicator(CommunicatorProtocol):
             if not self.connection.closed:
                 self.sign_out()
                 self.connection.close(1)
-        except (AttributeError, TimeoutError):
+        except TimeoutError:
+            self.log.warning("Closing, the sign out failed with a timeout.")
+        except AttributeError:
             pass
 
     def reset(self) -> None:

@@ -84,10 +84,13 @@ class Test_Message_create_message:
         message = Message(b"rec", data="some string")
         assert message.payload[0] == b"some string"
 
-    @pytest.mark.parametrize("key", ("conversation_id", "message_id"))
-    def test_header_param_incompatible_with_header_element_params(self, key):
+    @pytest.mark.parametrize("key, value", (("conversation_id", b"content"),
+                                            ("message_id", b"mid"),
+                                            ("message_type", 7),
+                                            ))
+    def test_header_param_incompatible_with_header_element_params(self, key, value):
         with pytest.raises(ValueError, match="header"):
-            Message(receiver=b"", header=b"whatever", **{key: b"content"})
+            Message(receiver=b"", header=b"whatever", **{key: value})
 
 
 class Test_Message_from_frames:
@@ -208,3 +211,7 @@ class TestComparison:
 def test_repr():
     message = Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')
     assert repr(message) == r"Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')"
+
+
+def test_conversation_id_getter(message: Message):
+    assert message.conversation_id == cid

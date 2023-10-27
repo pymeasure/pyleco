@@ -32,7 +32,7 @@ from pyleco.errors import NOT_SIGNED_IN
 from pyleco.core.serialization import serialize_data
 
 from pyleco.utils.communicator import Communicator
-from pyleco.test import FakeSocket
+from pyleco.test import FakeSocket, FakeContext
 
 
 cid = b"conversation_id;"
@@ -69,8 +69,8 @@ def fake_cid_generation(monkeypatch):
 
 # intercom
 class FakeCommunicator(Communicator):
-    def open(self):
-        self.connection = FakeSocket(7)
+    def open(self, context=None):
+        super().open(context=FakeContext())  # type: ignore
 
 
 @pytest.fixture()
@@ -92,10 +92,43 @@ def test_auto_open():
 
 def test_context_manager_opens_connection():
     class FK2(FakeCommunicator):
+        def __init__(self, **kwargs):
+            super().__init__(auto_open=False, **kwargs)
+
         def sign_in(self):
             pass
     with FK2(name="Test") as c:
         assert isinstance(c.connection, FakeSocket)
+
+
+class Test_close:
+    @pytest.fixture
+    def closed_communicator(self, communicator: Communicator, fake_cid_generation):
+        communicator.connection._r = [Message("Test", "COORDINATOR", message_type=MessageTypes.JSON,
+                                              conversation_id=cid, data={
+                                                  "jsonrcp": "2.0", "result": None, "id": 1,
+                                              },
+                                              ).to_frames()]
+        communicator.close()
+        return communicator
+
+    def test_socket_closed(self, closed_communicator: Communicator):
+        assert closed_communicator.connection.closed is True
+
+    def test_signed_out(self, closed_communicator: Communicator):
+        sign_out_message = Message.from_frames(*closed_communicator.connection._s.pop())  # type: ignore  # noqa
+        assert sign_out_message == Message(
+            "COORDINATOR",
+            "Test",
+            conversation_id=sign_out_message.conversation_id,
+            message_type=MessageTypes.JSON,
+            data={'jsonrpc': "2.0", 'method': "sign_out", "id": 1}
+        )
+
+    def test_no_error_without_socket(self):
+        communicator = FakeCommunicator("Test", auto_open=False)
+        communicator.close()
+        # no error raised
 
 
 @pytest.mark.parametrize("kwargs, message", message_tests)
