@@ -78,8 +78,8 @@ class MessageHandler(ExtendedComponentProtocol):
 
         self._requests: dict[bytes, str] = {}
         self.response_methods: dict[str, Callable] = {
-            "sign_in": self.handle_sign_in,
-            "sign_out": self.handle_sign_out
+            "sign_in": self.handle_sign_in_response,
+            "sign_out": self.handle_sign_out_response
         }
 
         if log is None:
@@ -234,7 +234,7 @@ class MessageHandler(ExtendedComponentProtocol):
         msg = Message.from_frames(*self.socket.recv_multipart())
         self.log.debug(f"Handling message {msg}")
         if not msg.payload:
-            return
+            return  # no payload, that means just a heartbeat
         try:
             if (msg.sender_elements.name == b"COORDINATOR"
                     and (error := msg.data.get("error"))  # type: ignore
@@ -256,7 +256,7 @@ class MessageHandler(ExtendedComponentProtocol):
         del self._requests[message.conversation_id]
         self.response_methods[method](message)
 
-    def handle_sign_in(self, message: Message) -> None:
+    def handle_sign_in_response(self, message: Message) -> None:
         if not isinstance(message.data, dict):
             self.log.error(f"Not json message received: {message}")
             return
@@ -267,7 +267,7 @@ class MessageHandler(ExtendedComponentProtocol):
                 self.log.warning("Sign in failed, the name is already used.")
                 return
 
-    def handle_sign_out(self, message: Message) -> None:
+    def handle_sign_out_response(self, message: Message) -> None:
         if isinstance(message.data, dict) and message.data.get("result", False) is None:
             self.finish_sign_out(message)
         else:

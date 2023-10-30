@@ -31,7 +31,7 @@ from pyleco.core.message import Message, MessageTypes
 from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext
-from pyleco.errors import NOT_SIGNED_IN
+from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME
 
 from pyleco.utils.message_handler import MessageHandler, SimpleEvent
 
@@ -176,6 +176,47 @@ def test_handle_ACK_does_not_change_Namespace(handler: MessageHandler):
     assert handler.namespace == "N1"
 
 
+def test_handle_corrupted_message(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+    handler.socket._r = [Message(b"N3.handler", b"N3.COORDINATOR",  # type: ignore
+                                 message_type=MessageTypes.JSON,
+                                 data=[]).to_frames()]
+    handler.handle_message()
+    assert caplog.records[-1].msg.startswith("Message data")
+
+
+class Test_HandleSignInResponses:
+    def test_not_valid_message(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+        message = Message("handler", "COORDINATOR", data=b"[]")
+        handler.handle_sign_in_response(message)
+        caplog.records[-1].msg.startswith("Not json message received:")
+
+    def test_sign_in_successful(self, handler: MessageHandler):
+        handler.namespace = None
+        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+            "jsonrcpc": "2.0", "result": None, "id": 1,
+        })
+        handler.handle_sign_in_response(message)
+        assert handler.namespace == "N3"
+
+    def test_duplicate_name(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+        handler.namespace = None
+        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+            "jsonrpc": "2.0", "error": {'code': DUPLICATE_NAME.code}, "id": 5
+        })
+        handler.handle_sign_in_response(message=message)
+        assert handler.namespace is None
+        assert caplog.records[-1].msg == "Sign in failed, the name is already used."
+
+
+def test_handle_sign_out_response(handler: MessageHandler):
+    handler.namespace = "N3"
+    message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+        "jsonrpc": "2.0", "result": None, "id": 1,
+    })
+    handler.handle_sign_out_response(message)
+    assert handler.namespace is None
+
+
 class Test_listen:
     @pytest.fixture
     def handler_l(self, handler: MessageHandler):
@@ -209,6 +250,30 @@ class Test_listen:
         # Act
         handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore
         assert handler_l.next_beat > 0
+
+
+def test_listen_loop_element(handler: MessageHandler):
+    class FakePoller:
+        def __init__(self):
+            self.sockets = []
+
+        def register(self, socket, flag=None):
+            self.sockets.append(socket)
+
+        def poll(self, timeout):
+            socks = {}
+            for sock in self.sockets:
+                if sock.poll():
+                    socks[sock] = True
+            return socks
+
+    poller = FakePoller()
+    poller.register(handler.socket)
+    handler.socket._r = [  # type: ignore
+        Message("Test", "COORDINATOR").to_frames()
+    ]
+    socks = handler._listen_loop_element(poller, 0)  # type: ignore
+    assert socks == {}
 
 
 def test_set_log_level(handler: MessageHandler):
