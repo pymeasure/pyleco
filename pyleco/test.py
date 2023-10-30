@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from .core.message import Message
 from .core.internal_protocols import CommunicatorProtocol
@@ -58,6 +58,8 @@ class FakeSocket:
         # they contain a list of messages sent/received
         self._s: list[list[bytes]] = []
         self._r: list[list[bytes]] = []
+        if socket_type == 2:  # zmq.SUB
+            self._subscriptions: list[bytes] = []
 
     def bind(self, addr: str) -> None:
         self.addr = addr
@@ -96,9 +98,53 @@ class FakeSocket:
                 raise TypeError(f"Frame {i} ({part}) does not support the buffer interface.")
         self._s.append(list(msg_parts))
 
+    def subscribe(self, topic: str | bytes) -> None:
+        if self.socket_type != 2:
+            raise ValueError("Invalid argument")  # it is a ZMQError
+        else:
+            if isinstance(topic, str):
+                topic = topic.encode()
+            self._subscriptions.append(topic)
+
+    def unsubscribe(self, topic: str | bytes) -> None:
+        if self.socket_type != 2:
+            raise ValueError("Invalid argument")  # it is a ZMQError
+        else:
+            if isinstance(topic, str):
+                topic = topic.encode()
+            try:
+                index = self._subscriptions.index(topic)
+            except ValueError:
+                pass  # not found
+            else:
+                del self._subscriptions[index]
+
     def close(self, linger: Optional[int] = None) -> None:
         self.addr = None
         self.closed = True
+
+
+class FakePoller:
+    """A fake zmq poller."""
+    def __init__(self):
+        self._sockets: list[FakeSocket] = []
+
+    def poll(self, timeout: int | None = None) -> list[tuple[int, Any]]:
+        """Returns a list of events (socket, event_mask)"""
+        events = []
+        for sock in self._sockets:
+            if sock.poll():
+                events.append((sock, 1))
+        return events
+
+    def register(self, socket,
+                 flags: int = "PollEvent.POLLIN",  # type: ignore
+                 ) -> None:
+        self._sockets.append(socket)
+
+    def unregister(self, socket: FakeSocket) -> None:
+        if socket in self._sockets:
+            del self._sockets[self._sockets.index(socket)]
 
 
 class FakeCommunicator(CommunicatorProtocol):

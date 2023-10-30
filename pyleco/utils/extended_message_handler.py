@@ -50,10 +50,9 @@ class ExtendedMessageHandler(MessageHandler):
     def _listen_setup(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
                       **kwargs) -> zmq.Poller:
         poller = super()._listen_setup(**kwargs)
-        subscriber: zmq.Socket = self.context.socket(zmq.SUB)
-        subscriber.connect(f"tcp://{host}:{data_port}")
-        self.subscriber = subscriber
-        poller.register(subscriber, zmq.POLLIN)
+        self.subscriber: zmq.Socket = self.context.socket(zmq.SUB)
+        self.subscriber.connect(f"tcp://{host}:{data_port}")
+        poller.register(self.subscriber, zmq.POLLIN)
         return poller
 
     def _listen_loop_element(self, poller: zmq.Poller, waiting_time: int | None
@@ -76,9 +75,11 @@ class ExtendedMessageHandler(MessageHandler):
             self.log.exception("Invalid data", exc)
             return
         if message.payload == []:
+            # TODO legacy, remove
             # assume that it is a short (two frames) message of [topic, value]
             self.handle_short_legacy_subscription_message(message)
         elif message.message_type > 200:
+            # legacy style: topic is a variable name!
             self.handle_full_legacy_subscription_message(message)
         else:
             self.handle_subscription_message(message)

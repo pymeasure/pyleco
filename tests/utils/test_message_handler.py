@@ -30,7 +30,7 @@ from pyleco.core import VERSION_B
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
 from pyleco.core.serialization import serialize_data
-from pyleco.test import FakeContext
+from pyleco.test import FakeContext, FakePoller
 from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME
 
 from pyleco.utils.message_handler import MessageHandler, SimpleEvent
@@ -243,9 +243,6 @@ class Test_listen:
         assert handler_l.next_beat > 0
 
     def test_loop_element_changes_heartbeat(self, handler_l: MessageHandler):
-        class FakePoller:
-            def poll(self, timeout):
-                return {}
         handler_l.next_beat = 0
         # Act
         handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore
@@ -253,20 +250,6 @@ class Test_listen:
 
 
 def test_listen_loop_element(handler: MessageHandler):
-    class FakePoller:
-        def __init__(self):
-            self.sockets = []
-
-        def register(self, socket, flag=None):
-            self.sockets.append(socket)
-
-        def poll(self, timeout):
-            socks = {}
-            for sock in self.sockets:
-                if sock.poll():
-                    socks[sock] = True
-            return socks
-
     poller = FakePoller()
     poller.register(handler.socket)
     handler.socket._r = [  # type: ignore
