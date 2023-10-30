@@ -167,7 +167,7 @@ class Test_handle_commands:
     def test_handle_request(self, pipe_handler: PipeHandler):
         """Message is not a response, but a request."""
         message = Message("rec", "send")
-        pipe_handler.finish_handle_commands = MagicMock()
+        pipe_handler.finish_handle_commands = MagicMock()  # type: ignore[method-assign]
         # act
         pipe_handler.handle_commands(message)
         # assert
@@ -193,7 +193,7 @@ class Test_pipe_setup:
 
 def test_pipe_send_message(pipe_handler_pipe: PipeHandler):
     message = Message("rec", "send")
-    pipe_handler_pipe._send_frames = MagicMock()
+    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
     pipe_handler_pipe.pipe_send_message(message)
     pipe_handler_pipe.handle_pipe_message()
     # assert that the message is actually sent
@@ -202,7 +202,7 @@ def test_pipe_send_message(pipe_handler_pipe: PipeHandler):
 
 def test_pipe_send_message_without_sender(pipe_handler_pipe: PipeHandler):
     message = Message("rec", sender="")
-    pipe_handler_pipe._send_frames = MagicMock()
+    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
     pipe_handler_pipe.pipe_send_message(message)
     pipe_handler_pipe.handle_pipe_message()
     # assert that the message is actually sent
@@ -222,7 +222,7 @@ def test_pipe_read_message(pipe_handler_pipe: PipeHandler):
 def test_pipe_ask_message(pipe_handler_pipe: PipeHandler):
     message = Message("rec", "handler", conversation_id=cid)
     response = Message("handler", "rec", conversation_id=cid)
-    pipe_handler_pipe._send_frames = MagicMock()
+    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
     pipe_handler_pipe.buffer.add_conversation_id(cid)
     pipe_handler_pipe.buffer.add_response_message(response)
     # act
@@ -235,7 +235,7 @@ def test_pipe_ask_message(pipe_handler_pipe: PipeHandler):
 
 
 def test_pipe_subscribe(pipe_handler_pipe: PipeHandler):
-    pipe_handler_pipe.subscribe_single = MagicMock()
+    pipe_handler_pipe.subscribe_single = MagicMock()  # type: ignore[method-assign]
     # act
     pipe_handler_pipe.pipe_subscribe("topic")
     pipe_handler_pipe.handle_pipe_message()
@@ -244,7 +244,7 @@ def test_pipe_subscribe(pipe_handler_pipe: PipeHandler):
 
 
 def test_pipe_unsubscribe(pipe_handler_pipe: PipeHandler):
-    pipe_handler_pipe.unsubscribe_single = MagicMock()
+    pipe_handler_pipe.unsubscribe_single = MagicMock()  # type: ignore[method-assign]
     # act
     pipe_handler_pipe.pipe_unsubscribe("topic")
     pipe_handler_pipe.handle_pipe_message()
@@ -253,7 +253,7 @@ def test_pipe_unsubscribe(pipe_handler_pipe: PipeHandler):
 
 
 def test_pipe_unsubscribe_all(pipe_handler_pipe: PipeHandler):
-    pipe_handler_pipe.unsubscribe_all = MagicMock()
+    pipe_handler_pipe.unsubscribe_all = MagicMock()  # type: ignore[method-assign]
     # act
     pipe_handler_pipe.pipe_unsubscribe_all()
     pipe_handler_pipe.handle_pipe_message()
@@ -262,8 +262,8 @@ def test_pipe_unsubscribe_all(pipe_handler_pipe: PipeHandler):
 
 
 def test_pipe_rename(pipe_handler_pipe: PipeHandler):
-    pipe_handler_pipe.sign_in = MagicMock()
-    pipe_handler_pipe.sign_out = MagicMock()
+    pipe_handler_pipe.sign_in = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe.sign_out = MagicMock()  # type: ignore[method-assign]
     # act
     pipe_handler_pipe.pipe_rename_component("new name")
     pipe_handler_pipe.handle_pipe_message()

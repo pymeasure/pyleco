@@ -126,10 +126,10 @@ class FakeSocket:
 
 class FakePoller:
     """A fake zmq poller."""
-    def __init__(self):
+    def __init__(self) -> None:
         self._sockets: list[FakeSocket] = []
 
-    def poll(self, timeout: int | None = None) -> list[tuple[int, Any]]:
+    def poll(self, timeout: int | None = None) -> list[tuple[FakeSocket, Any]]:
         """Returns a list of events (socket, event_mask)"""
         events = []
         for sock in self._sockets:
