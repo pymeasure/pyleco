@@ -22,7 +22,10 @@
 # THE SOFTWARE.
 #
 
+from unittest.mock import MagicMock
+
 import pytest
+import zmq
 
 from pyleco.core.message import Message
 from pyleco.test import FakeContext
@@ -45,11 +48,7 @@ def message_buffer() -> MessageBuffer:
     return message_buffer
 
 
-@pytest.fixture
-def pipe_handler() -> PipeHandler:
-    return PipeHandler(name="handler", context=FakeContext())  # type: ignore
-
-
+# Test MessageBuffer
 def test_add_conversation_id(message_buffer: MessageBuffer):
     message_buffer.add_conversation_id(conversation_id=cid)
     assert cid in message_buffer._cids
@@ -133,3 +132,142 @@ def test_retrieve_message_after_waiting(message_buffer: MessageBuffer):
     assert message_buffer.retrieve_message(conversation_id=cid) == msg
     assert message_buffer._event.is_set() is False  # test that it did not return in the first read
     assert msg_list == []
+
+
+# Test PipeHandler
+@pytest.fixture
+def pipe_handler():
+    """With fake contexts, that is with a broken pipe."""
+    pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
+    pipe_handler.pipe_setup(context=FakeContext())  # type: ignore
+    return pipe_handler
+
+
+@pytest.fixture
+def pipe_handler_pipe():
+    """With a working pipe!"""
+    pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
+    pipe_handler.internal_pipe = zmq.Context.instance().socket(zmq.PAIR)
+    pipe_handler.pipe_port = pipe_handler.internal_pipe.bind_to_random_port(
+        "inproc://listenerPipe", min_port=12345)
+    pipe_handler.pipe_setup()
+    yield pipe_handler
+    pipe_handler.pipe_close()
+    pipe_handler.close()
+
+
+class Test_handle_commands:
+    def test_handle_response(self, pipe_handler: PipeHandler):
+        message = Message("rec", "send")
+        pipe_handler.buffer.add_conversation_id(message.conversation_id)
+        # act
+        pipe_handler.handle_commands(message)
+        assert pipe_handler.buffer.retrieve_message(message.conversation_id) == message
+
+    def test_handle_request(self, pipe_handler: PipeHandler):
+        """Message is not a response, but a request."""
+        message = Message("rec", "send")
+        pipe_handler.finish_handle_commands = MagicMock()
+        # act
+        pipe_handler.handle_commands(message)
+        # assert
+        pipe_handler.finish_handle_commands.assert_called_once_with(message)
+
+
+class Test_pipe_setup:
+    @pytest.fixture
+    def pipe_handler_setup(self):
+        pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
+        pipe_handler.pipe_setup(context=FakeContext())  # type: ignore
+        return pipe_handler
+
+    def test_external_pipe_type(self, pipe_handler_setup: PipeHandler):
+        assert isinstance(pipe_handler_setup.external_pipe, PipeHandler.Pipe)
+
+    def test_pipe_ports_match(self, pipe_handler_setup: PipeHandler):
+        port_number = pipe_handler_setup.pipe_port
+        assert port_number == 5  # due to FakeSocket
+        assert pipe_handler_setup.internal_pipe.addr == "inproc://listenerPipe"
+        assert pipe_handler_setup.external_pipe.socket.addr == "inproc://listenerPipe:5"
+
+
+def test_pipe_send_message(pipe_handler_pipe: PipeHandler):
+    message = Message("rec", "send")
+    pipe_handler_pipe._send_frames = MagicMock()
+    pipe_handler_pipe.pipe_send_message(message)
+    pipe_handler_pipe.handle_pipe_message()
+    # assert that the message is actually sent
+    pipe_handler_pipe._send_frames.assert_called_once_with(frames=message.to_frames())
+
+
+def test_pipe_send_message_without_sender(pipe_handler_pipe: PipeHandler):
+    message = Message("rec", sender="")
+    pipe_handler_pipe._send_frames = MagicMock()
+    pipe_handler_pipe.pipe_send_message(message)
+    pipe_handler_pipe.handle_pipe_message()
+    # assert that the message is actually sent
+    message.sender = b"handler"  # should have been added by the handler
+    pipe_handler_pipe._send_frames.assert_called_once_with(frames=message.to_frames())
+
+
+def test_pipe_read_message(pipe_handler_pipe: PipeHandler):
+    response = Message("handler", "rec", conversation_id=cid)
+    pipe_handler_pipe.buffer.add_conversation_id(cid)
+    pipe_handler_pipe.buffer.add_response_message(response)
+    # act
+    read = pipe_handler_pipe.pipe_read_message(cid)
+    assert read == response
+
+
+def test_pipe_ask_message(pipe_handler_pipe: PipeHandler):
+    message = Message("rec", "handler", conversation_id=cid)
+    response = Message("handler", "rec", conversation_id=cid)
+    pipe_handler_pipe._send_frames = MagicMock()
+    pipe_handler_pipe.buffer.add_conversation_id(cid)
+    pipe_handler_pipe.buffer.add_response_message(response)
+    # act
+    read = pipe_handler_pipe.pipe_ask(message)
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    assert read == response
+    pipe_handler_pipe._send_frames.assert_called_once_with(frames=message.to_frames())
+    assert cid in pipe_handler_pipe.buffer._cids
+
+
+def test_pipe_subscribe(pipe_handler_pipe: PipeHandler):
+    pipe_handler_pipe.subscribe_single = MagicMock()
+    # act
+    pipe_handler_pipe.pipe_subscribe("topic")
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    pipe_handler_pipe.subscribe_single.assert_called_once_with(topic=b"topic")
+
+
+def test_pipe_unsubscribe(pipe_handler_pipe: PipeHandler):
+    pipe_handler_pipe.unsubscribe_single = MagicMock()
+    # act
+    pipe_handler_pipe.pipe_unsubscribe("topic")
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    pipe_handler_pipe.unsubscribe_single.assert_called_once_with(topic=b"topic")
+
+
+def test_pipe_unsubscribe_all(pipe_handler_pipe: PipeHandler):
+    pipe_handler_pipe.unsubscribe_all = MagicMock()
+    # act
+    pipe_handler_pipe.pipe_unsubscribe_all()
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    pipe_handler_pipe.unsubscribe_all.assert_called_once()
+
+
+def test_pipe_rename(pipe_handler_pipe: PipeHandler):
+    pipe_handler_pipe.sign_in = MagicMock()
+    pipe_handler_pipe.sign_out = MagicMock()
+    # act
+    pipe_handler_pipe.pipe_rename_component("new name")
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    pipe_handler_pipe.sign_out.assert_called_once()
+    assert pipe_handler_pipe.name == "new name"
+    pipe_handler_pipe.sign_in.assert_called_once()

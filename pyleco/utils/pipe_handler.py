@@ -158,7 +158,7 @@ class PipeHandler(ExtendedMessageHandler):
 
     def handle_pipe_message(self) -> None:
         msg = self.internal_pipe.recv_multipart()
-        # HACK noq due to spyder "match"
+        # HACK noqa due to spyder "match"
         match msg:  # noqa
             case [b"SUB", topic]:  # noqa: 211
                 self.subscribe_single(topic=topic)
