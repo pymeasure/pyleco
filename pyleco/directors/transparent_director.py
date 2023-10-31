@@ -23,6 +23,7 @@
 #
 
 import logging
+from typing import Optional
 
 from .director import Director
 
@@ -51,7 +52,10 @@ class RemoteCall:
         instance of RemoteCall, in the example by 'method'.
     """
 
-    def __init__(self, doc: str = "Call '{name}' at the remote driver.", **kwargs) -> None:
+    def __init__(self, name: str = "", doc: Optional[str] = None, **kwargs) -> None:
+        self._name = name
+        if doc is None:
+            doc = "Call '{name}' at the remote driver."
         self._doc = doc
         super().__init__(**kwargs)
 

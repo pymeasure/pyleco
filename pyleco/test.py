@@ -148,6 +148,8 @@ class FakePoller:
 
 
 class FakeCommunicator(CommunicatorProtocol):
+    """Contains lists with received (`_r`) and sent (`_s`) messages."""
+
     def __init__(self, name: str):
         super().__init__()
         self.name = name
