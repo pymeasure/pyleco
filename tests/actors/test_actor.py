@@ -10,6 +10,22 @@ from pyleco.utils.events import SimpleEvent
 from pyleco.core.leco_protocols import PollingActorProtocol, ExtendedComponentProtocol, Protocol
 
 
+class FantasyChannel:
+    def __init__(self) -> None:
+        self._prop = -1
+
+    @property
+    def channel_property(self):
+        return self._prop
+
+    @channel_property.setter
+    def channel_property(self, value):
+        self._prop = value
+
+    def channel_method(self, value):
+        return 2 * value
+
+
 class FantasyInstrument:
 
     def __init__(self, adapter, name="FantasyInstrument", *args, **kwargs):
@@ -18,6 +34,8 @@ class FantasyInstrument:
         super().__init__()
         self._prop = 5
         self._prop2 = 7
+        self.channel = FantasyChannel()
+        self.channel.trace = FantasyChannel()  # type: ignore
 
     @property
     def prop(self):
@@ -105,9 +123,29 @@ def test_get_properties(actor: FakeActor):
     assert actor.get_parameters(['prop']) == {'prop': 5}
 
 
+def test_get_channel_properties(actor: FakeActor):
+    assert actor.get_parameters(["channel.channel_property"]) == {
+        "channel.channel_property": -1}
+
+
+def test_get_nested_channel_properties(actor: FakeActor):
+    assert actor.get_parameters(["channel.trace.channel_property"]) == {
+        "channel.trace.channel_property": -1}
+
+
 def test_set_properties(actor: FakeActor):
     actor.set_parameters({'prop2': 10})
     assert actor.device.prop2 == 10
+
+
+def test_set_channel_properties(actor: FakeActor):
+    actor.set_parameters(parameters={'channel.channel_property': 10})
+    assert actor.device.channel.channel_property == 10
+
+
+def test_set_nested_channel_properties(actor: FakeActor):
+    actor.set_parameters(parameters={'channel.trace.channel_property': 10})
+    assert actor.device.channel.trace.channel_property == 10
 
 
 def test_call_silent_method(actor: FakeActor):
@@ -117,6 +155,14 @@ def test_call_silent_method(actor: FakeActor):
 
 def test_returning_method(actor: FakeActor):
     assert actor.call_action('returning_method', kwargs=dict(value=2)) == 4
+
+
+def test_channel_method(actor: FakeActor):
+    assert actor.call_action("channel.channel_method", args=(7,)) == 14
+
+
+def test_nested_channel_method(actor: FakeActor):
+    assert actor.call_action("channel.trace.channel_method", args=(7,)) == 14
 
 
 class Test_BaseController:

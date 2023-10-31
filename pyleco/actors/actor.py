@@ -125,6 +125,7 @@ class Actor(BaseController):
         self.rpc.method()(self.connect)
         self.rpc.method()(self.disconnect)
         # TODO decide how to call the actor and how to call the device?
+        # Is it necessary to call actions get/set_parameters for the actor itself outside RPC calls?
 
     def register_device_method(self, method: Callable):
         name = method.__name__
@@ -249,9 +250,13 @@ class Actor(BaseController):
         if parameters[0] == "_actor":
             return super().get_parameters(parameters[1:])
         for key in parameters:
-            data[key] = v = getattr(self.device, key)
+            path = key.split(".")
+            v = self.device
+            for attr in path:
+                v = getattr(v, attr)
             if callable(v):
                 raise TypeError(f"Attribute '{key}' is a callable!")
+            data[key] = v
         return data
 
     def set_parameters(self, parameters: dict[str, Any]) -> None:
@@ -260,7 +265,11 @@ class Actor(BaseController):
             if key == "_actor":
                 super().set_parameters(value)
             else:
-                setattr(self.device, key, value)
+                path = key.split(".")
+                obj = self.device
+                for attr in path[:-1]:
+                    obj = getattr(obj, attr)
+                setattr(obj, path[-1], value)
 
     def call_action(self, action: str, args: Optional[list | tuple] = None,
                     kwargs: Optional[dict[str, Any]] = None) -> Any:
@@ -272,4 +281,8 @@ class Actor(BaseController):
         if action == "_actor":
             action = kwargs.pop("_actor")
             return super().call_action(action=action, args=args, kwargs=kwargs)
-        return getattr(self.device, action)(*args, **kwargs)
+        path = action.split(".")
+        obj = self.device
+        for attr in path[:-1]:
+            obj = getattr(obj, attr)
+        return getattr(obj, path[-1])(*args, **kwargs)
