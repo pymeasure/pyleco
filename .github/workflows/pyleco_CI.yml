@@ -163,9 +163,22 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           echo "::add-matcher::.github/pytest.json"
-          xvfb-run -a pytest
+          xvfb-run -a pytest --ignore=tests/acceptance_tests/
+      - name: Run pytest acceptance_tests with xvfb
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          echo "::add-matcher::.github/pytest.json"
+          xvfb-run -a pytest tests/acceptance_tests/
       - name: Run pytest
         if: runner.os != 'Linux'
         run: |
           echo "::add-matcher::.github/pytest.json"
-          pytest
+          pytest --ignore=tests/acceptance_tests/
+      - name: Run pytest acceptance tests
+        if: runner.os != 'Linux'
+        # do not stop the matrix on errors (sometime Timeout errors) in the acceptance tests
+        continue-on-error: true
+        run: |
+          echo "::add-matcher::.github/pytest.json"
+          pytest tests/acceptance_tests/
