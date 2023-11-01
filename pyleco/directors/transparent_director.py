@@ -23,13 +23,16 @@
 #
 
 import logging
-from typing import Optional
+from typing import Generic, Optional, TypeVar
 
 from .director import Director
 
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
+
+
+Instrument = TypeVar("Instrument")
 
 
 class RemoteCall:
@@ -48,6 +51,8 @@ class RemoteCall:
         # equivalent to:
         director.call_method("method", *some_args, **kwargs)
 
+    :param str name: Name of the method, only necessary if the RemoteCall is added after class
+        creation.
     :param str doc: Docstring for the method. {name} is replaced by the attribute name of the
         instance of RemoteCall, in the example by 'method'.
     """
@@ -74,29 +79,52 @@ class RemoteCall:
         return remote_call
 
 
-class TransparentDirector(Director):
-    """Director getting/setting all properties remotely.
+class TransparentDevice:
+    """For all property access, the remote device is called.
 
-    Whenever you try to get/set a property, which does not belong to the director itself,
-    it tries to get/set it remotely from the actor.
-    If you want to add method calls, you might use the :class:`RemoteCall` Descriptor to add methods
-    to a subclass. For example :code:`method = RemoteCall()` in the class definition will make sure,
-    that :code:`method(*args, **kwargs)` will be executed remotely.
+    If you want to call methods, you can add them. with :class:`RemoteCall` to a subclass of this
+    instrument.
     """
+
+    director: Director
+
+    def __init__(self, director: Director):
+        self.director = director
+
+    def call_action(self, action: str, *args, **kwargs):
+        self.director.call_action(action=action, *args, **kwargs)
 
     def __getattr__(self, name):
         if name in dir(self):
             return super().__getattribute__(name)
         else:
-            return self.get_parameters((name,)).get(name)
+            return self.director.get_parameters(parameters=(name,)).get(name)
 
     def __setattr__(self, name, value) -> None:
-        if name in dir(self) or name.startswith("_") or name in ("actor", "communicator",
-                                                                 "generator"
-                                                                 ):
+        if name in dir(self) or name.startswith("_") or name in ("director"):
             super().__setattr__(name, value)
         else:
-            self.set_parameters({name: value})
+            self.director.set_parameters(parameters={name: value})
 
     # TODO generate a list of capabilities of the actor and return these capabilites during a call
     # to __dir__. That enables autocompletion etc.
+
+
+class TransparentDirector(Director, Generic[Instrument]):
+    """Director getting/setting all properties remotely.
+
+    It has an :attr:`device`. Whenever you get/set an attribute of `device`, the Director will call
+    the Actor and try to get/set the corresponding attribute of the Actor's device.
+    If you want to add method calls, you might use the :class:`RemoteCall` Descriptor to add methods
+    to a subclass of :class:`TransparentDevice`.
+    For example :code:`method = RemoteCall()` in the class definition will make sure,
+    that :code:`method(*args, **kwargs)` will be executed remotely.
+
+    :param cls: Subclass of :class:`TransparentDevice` to use as a device dummy.
+    """
+
+    def __init__(self, actor: bytes | str | None = None,
+                 cls: type[Instrument] = TransparentDevice,
+                 **kwargs):
+        super().__init__(actor=actor, **kwargs)
+        self.device = cls(director=self)

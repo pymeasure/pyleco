@@ -113,4 +113,4 @@ See the docstrings of the individual classes for more information and for exampl
   * The `DataLogger` listens to published data (data protocol) and collects them.
 * The `directors` subpackage contains Directors, which facilitate controlling actors or management utilities.
   For example the `CoordinatorDirector` has a method for getting Coordinators and Components connected to a Coordinator.
-  The `TransparentDirector` reads / writes all messages to the remote actor, such that you use the director as if it were the instrument itself.
+  The `TransparentDirector` reads / writes all messages to the remote actor, such that you use the director's `device` as if it were the instrument itself.
