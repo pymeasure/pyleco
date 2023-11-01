@@ -60,14 +60,14 @@ def director() -> TransparentDirector:
 
 def test_get_parameters(director: TransparentDirector):
     assert director.device.getter == 0
-    director.get_parameters.assert_called_once_with(parameters=("getter",))
+    director.get_parameters.assert_called_once_with(parameters=("getter",))  # type: ignore
 
 
 def test_set_parameters(director: TransparentDirector):
     director.device.setter = 5
-    director.set_parameters.assert_called_once_with(parameters={"setter": 5})
+    director.set_parameters.assert_called_once_with(parameters={"setter": 5})  # type: ignore
 
 
 def test_method(director: TransparentDirector):
     director.device.method(5, kwarg=7)
-    director.call_action.assert_called_once_with(5, action="method", kwarg=7)
+    director.call_action.assert_called_once_with("method", 5, kwarg=7)  # type: ignore

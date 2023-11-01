@@ -92,7 +92,7 @@ class TransparentDevice:
         self.director = director
 
     def call_action(self, action: str, *args, **kwargs):
-        self.director.call_action(action=action, *args, **kwargs)
+        self.director.call_action(action, *args, **kwargs)
 
     def __getattr__(self, name):
         if name in dir(self):

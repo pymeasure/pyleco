@@ -158,7 +158,8 @@ class Director:
     def call_action(self, action: str, *args, actor: Optional[bytes | str] = None, **kwargs) -> Any:
         """Call an action remotely and return its return value.
 
-        :param str action: Name of the action to call.
+        :param str action: Name of the action to call. If you have positional arguments, this
+            parameter has to be the first positional argument
         :param \\*args: Arguments for the action to call.
         :param str actor: Name of the actor to execute the action.
             Defaults to the stored actor name.
