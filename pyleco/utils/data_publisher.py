@@ -23,6 +23,7 @@
 #
 
 import logging
+import pickle
 from typing import Any, Optional
 
 import zmq
@@ -88,3 +89,8 @@ class DataPublisher:
                               message_type=message_type
                               )
         self.send_message(message)
+
+    def send_legacy(self, data: dict[str, Any]) -> None:
+        for key, value in data.items():
+            # 234 is message type for legacy pickle: publish variable name as topic and pickle it
+            self.send_data(topic=key, data=pickle.dumps(value), message_type=234)

@@ -24,7 +24,6 @@
 
 import json
 import logging
-import pickle
 from typing import Any, Optional
 from warnings import warn
 
@@ -91,16 +90,12 @@ class Publisher(DataPublisher):
 
     def __call__(self, data: dict[str, Any]) -> None:
         """Publish the dictionary `data`."""
+        warn("Publisher is deprecated, use DataPublisher instead.", FutureWarning)
         self.send_legacy(data=data)
-
-    def send_legacy(self, data: dict[str, Any]) -> None:
-        for key, value in data.items():
-            # 234 is message type for legacy: publish variable name as topic and pickle it
-            self.send_data(topic=key, data=pickle.dumps(value), message_type=234)
 
     def send_legacy_json(self, data: dict[str, Any]) -> None:
         for key, value in data.items():
-            # 234 is message type for legacy: publish variable name as topic and json
+            # 235 is message type for legacy json: publish variable name as topic and json
             self.send_data(topic=key, data=json.dumps(value, cls=PowerEncoder), message_type=235)
 
     def send(self, data: dict[str, Any]) -> None:

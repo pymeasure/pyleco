@@ -27,7 +27,7 @@ from typing import Any, Callable, Generic, Optional, TypeVar, Union
 import zmq
 
 from ..utils.message_handler import MessageHandler
-from ..utils.publisher import Publisher
+from ..utils.data_publisher import DataPublisher
 from ..utils.timers import RepeatingTimer
 
 
@@ -40,7 +40,7 @@ class Actor(MessageHandler, Generic[Device]):
     .. code::
 
         a = Actor("testing", TestClass)
-        # define some function `readout(device: Device, publisher: Publisher)`
+        # define some function `readout(device: Device, publisher: DataPublisher)`
         a.read_publish = readout
         a.connect("COM5")  # connect to device
         # in listen everything happens until told to stop from elsewhere
@@ -82,7 +82,7 @@ class Actor(MessageHandler, Generic[Device]):
         self.pipeL.connect(f"inproc://listenerPipe:{pipe_port}")
 
         self.timer = RepeatingTimer(interval=periodic_reading, function=self.queue_readout)
-        self.publisher = Publisher(log=self.root_logger)
+        self.publisher = DataPublisher(full_name=name, log=self.root_logger)
 
         if auto_connect:
             self.connect(**auto_connect)
@@ -113,6 +113,10 @@ class Actor(MessageHandler, Generic[Device]):
         super().__exit__(*args, **kwargs)
         self.disconnect()
 
+    def set_full_name(self, full_name: str) -> None:
+        super().set_full_name(full_name=full_name)
+        self.publisher.full_name = full_name
+
     def _listen_setup(self) -> zmq.Poller:
         """Setup for listening."""
         poller = super()._listen_setup()
@@ -135,11 +139,7 @@ class Actor(MessageHandler, Generic[Device]):
     def queue_readout(self) -> None:
         self.pipe.send(b"")
 
-    def publish(self, data: Any) -> None:
-        """Publish `data` over the data channel."""
-        self.publisher.send(data=data)
-
-    def read_publish(self, device: Device, publisher: Publisher) -> None:
+    def read_publish(self, device: Device, publisher: DataPublisher) -> None:
         """Read the device and publish the results.
 
         Defaults to doing nothing. Implement in a subclass.
