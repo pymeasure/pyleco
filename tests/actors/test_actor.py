@@ -1,12 +1,12 @@
 
 import time
+
 from unittest.mock import MagicMock
 
 import pytest
 
-from pyleco.actors.actor import Actor, BaseController
-from pyleco.test import FakeContext
-from pyleco.utils.events import SimpleEvent
+from pyleco.test import FakePoller
+from pyleco.actors.actor import Actor
 from pyleco.core.leco_protocols import PollingActorProtocol, ExtendedComponentProtocol, Protocol
 
 
@@ -73,10 +73,6 @@ class FantasyInstrument:
 
 class FakeActor(Actor):
 
-    def _readout(self, device, publisher):
-        print("read", time.perf_counter())
-        time.sleep(1)
-
     def queue_readout(self):
         print("queue", time.perf_counter())
         super().queue_readout()
@@ -90,10 +86,12 @@ class ExtendedActorProtocol(ExtendedComponentProtocol, PollingActorProtocol, Pro
     pass
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def actor() -> FakeActor:
-    return FakeActor("test", FantasyInstrument, auto_connect={'adapter': "abc"}, port=1234,
-                     protocol="inproc")
+    actor = FakeActor("test", FantasyInstrument, auto_connect={'adapter': MagicMock()}, port=1234,
+                      protocol="inproc")
+    actor.next_beat = float("inf")
+    return actor
 
 
 class TestProtocolImplemented:
@@ -105,7 +103,7 @@ class TestProtocolImplemented:
         testing(FakeActor(name="test", cls=FantasyInstrument))
 
     @pytest.fixture
-    def component_methods(self, actor: FakeActor):
+    def component_methods(self, actor: Actor):
         response = actor.rpc.process_request(
             '{"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}')
         result = actor.rpc_generator.get_result_from_response(response)  # type: ignore
@@ -119,76 +117,124 @@ class TestProtocolImplemented:
         raise AssertionError(f"Method {method} is not available.")
 
 
-def test_get_properties(actor: FakeActor):
+def test_get_properties(actor: Actor):
     assert actor.get_parameters(['prop']) == {'prop': 5}
 
 
-def test_get_channel_properties(actor: FakeActor):
+def test_get_channel_properties(actor: Actor):
     assert actor.get_parameters(["channel.channel_property"]) == {
         "channel.channel_property": -1}
 
 
-def test_get_nested_channel_properties(actor: FakeActor):
+def test_get_nested_channel_properties(actor: Actor):
     assert actor.get_parameters(["channel.trace.channel_property"]) == {
         "channel.trace.channel_property": -1}
 
 
-def test_set_properties(actor: FakeActor):
+def test_set_properties(actor: Actor):
     actor.set_parameters({'prop2': 10})
     assert actor.device.prop2 == 10
 
 
-def test_set_channel_properties(actor: FakeActor):
+def test_set_channel_properties(actor: Actor):
     actor.set_parameters(parameters={'channel.channel_property': 10})
     assert actor.device.channel.channel_property == 10
 
 
-def test_set_nested_channel_properties(actor: FakeActor):
+def test_set_nested_channel_properties(actor: Actor):
     actor.set_parameters(parameters={'channel.trace.channel_property': 10})
-    assert actor.device.channel.trace.channel_property == 10
+    assert actor.device.channel.trace.channel_property == 10  # type: ignore
 
 
-def test_call_silent_method(actor: FakeActor):
+def test_call_silent_method(actor: Actor):
     assert actor.call_action("silent_method", kwargs=dict(value=7)) is None
     assert actor.device._method_value == 7
 
 
-def test_returning_method(actor: FakeActor):
+def test_returning_method(actor: Actor):
     assert actor.call_action('returning_method', kwargs=dict(value=2)) == 4
 
 
-def test_channel_method(actor: FakeActor):
+def test_channel_method(actor: Actor):
     assert actor.call_action("channel.channel_method", args=(7,)) == 14
 
 
-def test_nested_channel_method(actor: FakeActor):
+def test_nested_channel_method(actor: Actor):
     assert actor.call_action("channel.trace.channel_method", args=(7,)) == 14
 
 
-class Test_BaseController:
+def test_register_device_method(actor: Actor):
+    actor.register_device_method(actor.device.returning_method)
+    response = actor.rpc.process_request(
+            '{"id": 1, "method": "device.returning_method", "params": [5], "jsonrpc": "2.0"}')
+    result = actor.rpc_generator.get_result_from_response(response)  # type: ignore
+    assert result == 25
+
+
+class Test_disconnect:
     @pytest.fixture
-    def controller(self) -> BaseController:
-        return BaseController(name="controller", context=FakeContext())  # type: ignore
+    def disconnected_actor(self):
+        actor = FakeActor("name", cls=FantasyInstrument, auto_connect={"adapter": MagicMock()})
+        actor._device = actor.device  # type: ignore
+        actor.device.adapter.close = MagicMock()
+        actor.disconnect()
+        return actor
 
-    def test_set_properties(self, controller: BaseController):
-        controller.set_parameters(parameters={"some": 5})
-        assert controller.some == 5  # type: ignore
+    def test_device_deleted(self, disconnected_actor: Actor):
+        assert not hasattr(disconnected_actor, "device")
 
-    def test_get_properties(self, controller: BaseController):
-        controller.whatever = 7  # type: ignore
-        assert controller.get_parameters(parameters=["whatever"])["whatever"] == 7
+    def test_timer_canceled(self, disconnected_actor: Actor):
+        assert disconnected_actor.timer.finished.is_set() is True
 
-    def test_call_action(self, controller: BaseController):
-        controller.stop_event = SimpleEvent()
-        controller.call_action(action="shut_down")
-        assert controller.stop_event.is_set() is True
+    def test_device_closed(self, disconnected_actor: Actor):
+        disconnected_actor._device.adapter.close.assert_called_once()  # type: ignore
 
-    def test_call_action_args(self, controller: BaseController):
-        controller.test = MagicMock()  # type: ignore
-        controller.call_action(action="test", args=(4,))
-        controller.test.assert_called_with(4)  # type: ignore
 
-    def test_call_action_kwargs(self, controller: BaseController):
-        controller.test = MagicMock()  # type: ignore
-        controller.call_action(action="test", kwargs={"key": 6})
-        controller.test.assert_called_with(key=6)  # type: ignore
+def test_exit_calls_disconnect():
+    with FakeActor("name", cls=FantasyInstrument) as actor:
+        actor.disconnect = MagicMock()
+    actor.disconnect.assert_called_once()
+
+
+class Test_listen_loop_element:
+    @pytest.fixture
+    def looped_actor(self, actor: Actor):
+        """Check a loop with a value in the pipe"""
+        poller = FakePoller()
+        poller.register(actor.pipeL)
+        actor.queue_readout()  # enqueue a readout
+        actor.readout = MagicMock()  # type: ignore
+        # act
+        socks = actor._listen_loop_element(poller=poller,  # type: ignore
+                                           waiting_time=None)
+        actor._socks = socks  # type: ignore  # for assertions
+        return actor
+
+    def test_socks_empty(self, looped_actor: Actor):
+        assert looped_actor._socks == {}  # type: ignore
+
+    def test_readout_called(self, looped_actor: Actor):
+        looped_actor.readout.assert_called_once()  # type: ignore
+
+    def test_no_readout_queued(self, actor: Actor):
+
+        poller = FakePoller()
+        poller.register(actor.pipeL)
+        actor.readout = MagicMock()  # type: ignore
+        # act
+        actor._listen_loop_element(poller=poller,  # type: ignore
+                                   waiting_time=0)
+        actor.readout.assert_not_called()
+
+
+def test_timer_enqueues_heartbeat(actor: Actor):
+    actor.start_timer(0.0000001)  # s
+    assert actor.pipeL.poll(timeout=50) == 1  # ms
+
+
+def test_restart_stopped_timer(actor: Actor):
+    """Starting a stopped timer is impossible, ensure, that it works as expected (new timer)."""
+    actor.start_timer(10)  # s
+    actor.stop_timer()
+    actor.start_timer(0.0000001)  # s
+    assert actor.pipeL.poll(timeout=50) == 1  # ms

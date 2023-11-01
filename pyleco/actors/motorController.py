@@ -7,17 +7,17 @@ Created on Tue Nov 29 17:34:36 2022
 @author: moneke
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 # import PyTrinamic
 from pytrinamic.connections import ConnectionManager  # type: ignore
 from pytrinamic.modules import TMCM6110  # type: ignore
 
-from .actor import BaseController
+from ..utils.message_handler import MessageHandler
 from devices import motors  # type: ignore  # TODO implement differently
 
 
-class MotorController(BaseController):
+class MotorController(MessageHandler):
     """Control a motorcard.
 
     You may supply any value as a motor argument. Either the motor number as an
@@ -37,10 +37,42 @@ class MotorController(BaseController):
         if isinstance(port, str):
             port = motors.getPort(port)
         self.connectionManager = ConnectionManager(f"--port COM{port}")
-        self.card = TMCM6110(self.connectionManager.connect())
+        self.device = TMCM6110(self.connectionManager.connect())
         self.configs: dict[str | int, dict] = {}
         self.motorDict: dict[str, int] = {} if motorDict is None else motorDict
 
+    def register_rpc_methods(self) -> None:
+        super().register_rpc_methods()
+        self.rpc.method()(self.get_parameters)
+        self.rpc.method()(self.set_parameters)
+        self.rpc.method()(self.call_action)
+
+    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
+        data = {}
+        for key in parameters:
+            data[key] = v = getattr(self, key)
+            if callable(v):
+                raise TypeError(f"Attribute '{key}' is a callable!")
+        return data
+
+    def set_parameters(self, parameters: dict[str, Any]) -> None:
+        for key, value in parameters.items():
+            setattr(self, key, value)
+
+    def call_action(self, action: str, args: Optional[Union[list, tuple]] = None,
+                    kwargs: Optional[dict[str, Any]] = None) -> Any:
+        """Call an action with positional arguments ``args`` and keyword arguments ``kwargs``.
+
+        Any action can be called, even if not setup as rpc call.
+        It is preferred though, to add methods of your device with a rpc call.
+        """
+        if args is None:
+            args = ()
+        if kwargs is None:
+            kwargs = {}
+        return getattr(self, action)(*args, **kwargs)
+
+    # Motor methods
     def _get_motor_number(self, motor: int | str) -> int:
         """Get a motor number from the input, using the dictionary."""
         if isinstance(motor, int):
@@ -60,7 +92,7 @@ class MotorController(BaseController):
     def configure_motor(self, config: dict) -> None:
         """Configure a motor according to the dictionary."""
         try:
-            motors.configureMotor(self.card, config)
+            motors.configureMotor(self.device, config)
         except KeyError:
             pass
         try:
@@ -73,29 +105,29 @@ class MotorController(BaseController):
         return self.configs.get(motor, {'motorNumber': motor})
 
     def get_global_parameter(self, gp_type: int, bank: int, signed: bool = False) -> Any:
-        return self.card.get_global_parameter(gp_type=gp_type, bank=bank, signed=signed)
+        return self.device.get_global_parameter(gp_type=gp_type, bank=bank, signed=signed)
 
     def set_global_parameter(self, gp_type: int, bank: int, value) -> None:
-        return self.card.set_global_parameter(gp_type=gp_type, bank=bank, value=value)
+        return self.device.set_global_parameter(gp_type=gp_type, bank=bank, value=value)
 
     def get_axis_parameter(self, ap_type: int, axis: int, signed: bool = False) -> Any:
-        return self.card.get_axis_parameter(ap_type=ap_type, axis=axis, signed=signed)
+        return self.device.get_axis_parameter(ap_type=ap_type, axis=axis, signed=signed)
 
     def set_axis_parameter(self, ap_type: int, axis: int, value) -> None:
-        return self.card.set_axis_parameter(ap_type=ap_type, axis=axis, value=value)
+        return self.device.set_axis_parameter(ap_type=ap_type, axis=axis, value=value)
 
     # Motor controls
     def stop(self, motor: int | str) -> None:
         motor = self._get_motor_number(motor)
-        self.card.stop(motor)
+        self.device.stop(motor)
 
     def get_actual_velocity(self, motor: int | str) -> int:
         motor = self._get_motor_number(motor)
-        return self.card.motors[motor].get_actual_velocity()
+        return self.device.motors[motor].get_actual_velocity()
 
     def get_actual_position(self, motor: int | str) -> int:
         motor = self._get_motor_number(motor)
-        return self.card.motors[motor].actual_position
+        return self.device.motors[motor].actual_position
 
     def get_actual_units(self, motor: int | str) -> float:
         """Get the actual position in units."""
@@ -105,17 +137,17 @@ class MotorController(BaseController):
     def set_actual_position(self, motor: int | str, steps: int) -> None:
         """Set the current position in steps."""
         motor = self._get_motor_number(motor)
-        self.card.stop(motor)
-        self.card.motors[motor].actual_position = steps
+        self.device.stop(motor)
+        self.device.motors[motor].actual_position = steps
 
     def move_to(self, motor: int | str, position: int, velocity: int | None = None) -> None:
         """Move to a specific position."""
         motor = self._get_motor_number(motor)
-        self.card.move_to(motor, position, velocity)
+        self.device.move_to(motor, position, velocity)
 
     def move_by(self, motor: int | str, difference: int, velocity: int | None = None) -> None:
         motor = self._get_motor_number(motor)
-        self.card.move_by(motor, difference, velocity)
+        self.device.move_by(motor, difference, velocity)
 
     def move_to_units(self, motor: int | str, position: float, velocity: int | None = None) -> None:
         """Move to a specific position in units."""
@@ -126,7 +158,7 @@ class MotorController(BaseController):
             self.log.exception(f"Unsufficient configuration for motor {motor} to move to.")
             raise ValueError(f"Unsufficient configuration for motor {motor} to move to.")
         else:
-            self.card.move_to(motor, position, velocity)
+            self.device.move_to(motor, position, velocity)
 
     def move_by_units(self, motor: int | str, difference: float,
                       velocity: int | None = None) -> None:
@@ -137,15 +169,15 @@ class MotorController(BaseController):
             self.log.exception(f"Unsufficient configuration for motor {motor} to move by.")
             raise ValueError(f"Unsufficient configuration for motor {motor} to move by.")
         else:
-            self.card.move_by(motor, difference, velocity)
+            self.device.move_by(motor, difference, velocity)
 
     def rotate(self, motor: int | str, velocity: int) -> None:
         motor = self._get_motor_number(motor)
-        self.card.rotate(motor, velocity)
+        self.device.rotate(motor, velocity)
 
     def get_position_reached(self, motor: int | str) -> bool:
         motor = self._get_motor_number(motor)
-        return self.card.motors[motor].get_position_reached()
+        return self.device.motors[motor].get_position_reached()
 
     def get_motor_dict(self) -> dict[str, int]:
         return self.motorDict
@@ -155,16 +187,16 @@ class MotorController(BaseController):
 
     # In/outs
     def get_analog_input(self, connection: int) -> float:
-        return self.card.get_analog_input(connection)
+        return self.device.get_analog_input(connection)
 
     def get_digital_input(self, connection: int) -> bool:
-        return self.card.get_digital_input(connection)
+        return self.device.get_digital_input(connection)
 
     def get_digital_output(self, connection: int) -> bool:
-        return self.card.get_digital_output(connection)
+        return self.device.get_digital_output(connection)
 
     def set_digital_output(self, connection: int, enabled: bool) -> None:
         if enabled:
-            self.card.set_digital_output(connection)
+            self.device.set_digital_output(connection)
         else:
-            self.card.clear_digital_output(connection)
+            self.device.clear_digital_output(connection)

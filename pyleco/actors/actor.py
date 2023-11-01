@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 import zmq
 
@@ -31,45 +31,10 @@ from ..utils.publisher import Publisher
 from ..utils.timers import RepeatingTimer
 
 
-class BaseController(MessageHandler):
-    """Control something, allow to get/set properties and call methods of this class.
-
-    You can create a subclass, of which properties can be gotten/set or methods called.
-    """
-
-    def register_rpc_methods(self) -> None:
-        super().register_rpc_methods()
-        self.rpc.method()(self.get_parameters)
-        self.rpc.method()(self.set_parameters)
-        self.rpc.method()(self.call_action)
-
-    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
-        data = {}
-        for key in parameters:
-            data[key] = v = getattr(self, key)
-            if callable(v):
-                raise TypeError(f"Attribute '{key}' is a callable!")
-        return data
-
-    def set_parameters(self, parameters: dict[str, Any]) -> None:
-        for key, value in parameters.items():
-            setattr(self, key, value)
-
-    def call_action(self, action: str, args: Optional[Union[list, tuple]] = None,
-                    kwargs: Optional[dict[str, Any]] = None) -> Any:
-        """Call an action with positional arguments ``args`` and keyword arguments ``kwargs``.
-
-        Any action can be called, even if not setup as rpc call.
-        It is preferred though, to add methods of your device with a rpc call.
-        """
-        if args is None:
-            args = ()
-        if kwargs is None:
-            kwargs = {}
-        return getattr(self, action)(*args, **kwargs)
+Instrument = TypeVar("Instrument")
 
 
-class Actor(BaseController):
+class Actor(MessageHandler, Generic[Instrument]):
     """Control an instrument listening to zmq messages and regularly read some values.
 
     .. code::
@@ -85,6 +50,11 @@ class Actor(BaseController):
     Like the :class:`MessageHandler`, this class can be used as a context manager disconnecting at
     the end of the context.
 
+    The (via RPC available) methods :meth:`get_parameters`, :meth:`set_parameters`, and
+    :meth:`call_action` get/set parameters of the device or call an action of the device.
+    You can also register device methods with :meth:`register_device_method`, such that this method
+    is available via RPC as well.
+
     :param str name: Name to listen to and to publish values with.
     :param class cls: Instrument class.
     :param int port: Port number to connect to.
@@ -93,7 +63,9 @@ class Actor(BaseController):
     :param \\**kwargs: Keywoard arguments for the general message handling.
     """
 
-    def __init__(self, name: str, cls, periodic_reading: float = -1,
+    device: Instrument
+
+    def __init__(self, name: str, cls: type[Instrument], periodic_reading: float = -1,
                  auto_connect: Optional[dict] = None,
                  context: Optional[zmq.Context] = None,
                  **kwargs):
@@ -102,10 +74,10 @@ class Actor(BaseController):
         self.cls = cls
 
         # Pipe for the periodic readout timer
-        self.pipe = context.socket(zmq.PAIR)
+        self.pipe: zmq.Socket = context.socket(zmq.PAIR)
         self.pipe.set_hwm(1)
         pipe_port = self.pipe.bind_to_random_port("inproc://listenerPipe", min_port=12345)
-        self.pipeL = context.socket(zmq.PAIR)
+        self.pipeL: zmq.Socket = context.socket(zmq.PAIR)
         self.pipeL.set_hwm(1)
         self.pipeL.connect(f"inproc://listenerPipe:{pipe_port}")
 
@@ -118,6 +90,9 @@ class Actor(BaseController):
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
+        self.rpc.method()(self.get_parameters)
+        self.rpc.method()(self.set_parameters)
+        self.rpc.method()(self.call_action)
         self.rpc.method()(self.start_polling)
         self.rpc.method()(self.stop_polling)
         self.rpc.method()(self.get_polling_interval)
@@ -125,9 +100,9 @@ class Actor(BaseController):
         self.rpc.method()(self.connect)
         self.rpc.method()(self.disconnect)
         # TODO decide how to call the actor and how to call the device?
-        # Is it necessary to call actions get/set_parameters for the actor itself outside RPC calls?
 
-    def register_device_method(self, method: Callable):
+    def register_device_method(self, method: Callable) -> None:
+        """Make a device method available via RPC. The method name is prefixed with `device.`."""
         name = method.__name__
         self.rpc.method(name="device." + name)(method)
 
@@ -164,17 +139,11 @@ class Actor(BaseController):
         """Publish `data` over the data channel."""
         self.publisher.send(data=data)
 
-    def _readout(self, device, publisher) -> None:
-        """Deprecated, use `read_publish` instead."""
-        pass
-
-    def read_publish(self, device, publisher: Publisher) -> None:
+    def read_publish(self, device: Instrument, publisher: Publisher) -> None:
         """Read the device and publish the results.
 
         Defaults to doing nothing. Implement in a subclass.
         """
-        # TODO keep temporarily for backward compatibility
-        self._readout(device=device, publisher=publisher)
         self.log.warning("No 'read_publish' method defined, periodic readout does nothing.")
 
     def readout(self) -> None:
@@ -236,7 +205,8 @@ class Actor(BaseController):
         self.log.info("Disconnecting.")
         self.stop_timer()
         try:
-            self.device.adapter.close()
+            # Assumes a pymeasure instrument
+            self.device.adapter.close()  # type: ignore
         except AttributeError:
             pass
         try:
@@ -245,10 +215,8 @@ class Actor(BaseController):
             pass
 
     def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
-        """Get properties from the list `properties`."""
+        """Get device properties from the list `properties`."""
         data = {}
-        if parameters[0] == "_actor":
-            return super().get_parameters(parameters[1:])
         for key in parameters:
             path = key.split(".")
             v = self.device
@@ -260,27 +228,21 @@ class Actor(BaseController):
         return data
 
     def set_parameters(self, parameters: dict[str, Any]) -> None:
-        """Set properties from a dictionary."""
+        """Set devcie properties from a dictionary."""
         for key, value in parameters.items():
-            if key == "_actor":
-                super().set_parameters(value)
-            else:
-                path = key.split(".")
-                obj = self.device
-                for attr in path[:-1]:
-                    obj = getattr(obj, attr)
-                setattr(obj, path[-1], value)
+            path = key.split(".")
+            obj = self.device
+            for attr in path[:-1]:
+                obj = getattr(obj, attr)
+            setattr(obj, path[-1], value)
 
     def call_action(self, action: str, args: Optional[list | tuple] = None,
                     kwargs: Optional[dict[str, Any]] = None) -> Any:
-        """Call an action with positional arguments ``args`` and keyword arguments ``kwargs``."""
+        """Call a device action with positional ``args`` and keyword arguments ``kwargs``."""
         if args is None:
             args = ()
         if kwargs is None:
             kwargs = {}
-        if action == "_actor":
-            action = kwargs.pop("_actor")
-            return super().call_action(action=action, args=args, kwargs=kwargs)
         path = action.split(".")
         obj = self.device
         for attr in path[:-1]:

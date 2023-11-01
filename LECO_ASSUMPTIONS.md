@@ -22,6 +22,9 @@ Messages use JSONRPC messages.
 Also the control messages (sign_in etc.) are done via JSONRPC.
 Error codes are also defined.
 All this is in [PR #56](https://github.com/pymeasure/leco-protocol/pull/56) defined.
+Some assumptions of that content:
+* Get/set_parameters and call_action refers to the Actor's device only (see definition of Actor)
+* Parameters/actions of channels are indicated by a period (e.g. `ch_A.par1` will call the parameter `par1` of channel `ch_A`)
 
 
 ### Coordinator Workings

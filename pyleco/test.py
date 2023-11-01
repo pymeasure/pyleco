@@ -133,7 +133,7 @@ class FakePoller:
         """Returns a list of events (socket, event_mask)"""
         events = []
         for sock in self._sockets:
-            if sock.poll():
+            if sock.poll(timeout=timeout):
                 events.append((sock, 1))
         return events
 
