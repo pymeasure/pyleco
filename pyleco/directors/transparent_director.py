@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
-Instrument = TypeVar("Instrument")
+Device = TypeVar("Device")
 
 
 class RemoteCall:
@@ -110,7 +110,7 @@ class TransparentDevice:
     # to __dir__. That enables autocompletion etc.
 
 
-class TransparentDirector(Director, Generic[Instrument]):
+class TransparentDirector(Director, Generic[Device]):
     """Director getting/setting all properties remotely.
 
     It has an :attr:`device`. Whenever you get/set an attribute of `device`, the Director will call
@@ -124,7 +124,7 @@ class TransparentDirector(Director, Generic[Instrument]):
     """
 
     def __init__(self, actor: bytes | str | None = None,
-                 cls: type[Instrument] = TransparentDevice,
+                 cls: type[Device] = TransparentDevice,  # type: ignore[assignment]
                  **kwargs):
         super().__init__(actor=actor, **kwargs)
-        self.device = cls(director=self)
+        self.device = cls(director=self)  # type: ignore[call-arg]

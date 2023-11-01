@@ -31,16 +31,16 @@ from ..utils.publisher import Publisher
 from ..utils.timers import RepeatingTimer
 
 
-Instrument = TypeVar("Instrument")
+Device = TypeVar("Device")
 
 
-class Actor(MessageHandler, Generic[Instrument]):
+class Actor(MessageHandler, Generic[Device]):
     """Control an instrument listening to zmq messages and regularly read some values.
 
     .. code::
 
         a = Actor("testing", TestClass)
-        # define some function `readout(device: Instrument, publisher: Publisher)`
+        # define some function `readout(device: Device, publisher: Publisher)`
         a.read_publish = readout
         a.connect("COM5")  # connect to device
         # in listen everything happens until told to stop from elsewhere
@@ -63,9 +63,9 @@ class Actor(MessageHandler, Generic[Instrument]):
     :param \\**kwargs: Keywoard arguments for the general message handling.
     """
 
-    device: Instrument
+    device: Device
 
-    def __init__(self, name: str, cls: type[Instrument], periodic_reading: float = -1,
+    def __init__(self, name: str, cls: type[Device], periodic_reading: float = -1,
                  auto_connect: Optional[dict] = None,
                  context: Optional[zmq.Context] = None,
                  **kwargs):
@@ -139,7 +139,7 @@ class Actor(MessageHandler, Generic[Instrument]):
         """Publish `data` over the data channel."""
         self.publisher.send(data=data)
 
-    def read_publish(self, device: Instrument, publisher: Publisher) -> None:
+    def read_publish(self, device: Device, publisher: Publisher) -> None:
         """Read the device and publish the results.
 
         Defaults to doing nothing. Implement in a subclass.

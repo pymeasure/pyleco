@@ -47,13 +47,13 @@ class FakeDirector(TransparentDirector):
         self.set_parameters = MagicMock()
 
 
-class FantasyInstrument(TransparentDevice):
+class FantasyDevice(TransparentDevice):
     method = RemoteCall()
 
 
 @pytest.fixture
 def director() -> TransparentDirector:
-    director = FakeDirector(cls=FantasyInstrument,
+    director = FakeDirector(cls=FantasyDevice,
                             communicator=FakeCommunicator(name="Communicator"))  # type: ignore
     return director
 
