@@ -82,19 +82,29 @@ def test_add_fails_without_previous_cid():
 
 
 class Test_check_message_in_buffer:
-    def test_message_is_in_first_place(self, message_buffer: MessageBuffer):
-        assert message_buffer._check_message_in_buffer(conversation_id=cid) == msg
-        assert message_buffer._buffer == []
+    @pytest.fixture
+    def message_buffer_cmib(self, message_buffer: MessageBuffer):
+        predicate = message_buffer._predicate_generator(cid)
+        message_buffer._predicate = predicate  # type: ignore
+        return message_buffer
+
+    def test_message_is_in_first_place(self, message_buffer_cmib: MessageBuffer):
+        assert message_buffer_cmib._predicate() is True  # type: ignore
+        assert message_buffer_cmib._result == msg
+        assert message_buffer_cmib._buffer == []
 
     def test_no_suitable_message_in_buffer(self, message_buffer: MessageBuffer):
-        assert message_buffer._check_message_in_buffer(conversation_id=b"other_cid") is None
+        predicate = message_buffer._predicate_generator(conversation_id=b"other_cid")
+        assert predicate() is False
+        assert not hasattr(message_buffer, "_result")
         assert message_buffer._buffer != []
 
-    def test_msg_somewhere_in_buffer(self, message_buffer: MessageBuffer):
+    def test_msg_somewhere_in_buffer(self, message_buffer_cmib: MessageBuffer):
         o2 = Message(b"r", b"s", conversation_id=b"conversation_id9", message_id=b"mi7")
-        message_buffer._buffer = [other, msg, o2]
-        assert message_buffer._check_message_in_buffer(conversation_id=cid) == msg
-        assert message_buffer._buffer == [other, o2]
+        message_buffer_cmib._buffer = [other, msg, o2]
+        assert message_buffer_cmib._predicate() is True  # type:ignore
+        assert message_buffer_cmib._result == msg
+        assert message_buffer_cmib._buffer == [other, o2]
 
 
 @pytest.mark.parametrize("buffer", (
@@ -117,21 +127,13 @@ def test_retrieve_message_success(message_buffer: MessageBuffer, buffer):
 def test_retrieve_message_fail(message_buffer: MessageBuffer, buffer):
     message_buffer._buffer = buffer
     with pytest.raises(TimeoutError):
-        message_buffer.retrieve_message(conversation_id=cid, tries=3, timeout=0.01)
+        message_buffer.retrieve_message(conversation_id=cid, timeout=0.01)
 
 
-def test_retrieve_message_after_waiting(message_buffer: MessageBuffer):
-    # Arrange
-    msg_list = [None, msg]
-
-    def fake_check_message_in_buffer(conversation_id: bytes) -> Message | None:
-        return msg_list.pop(0)
-    message_buffer._check_message_in_buffer = fake_check_message_in_buffer  # type:ignore
-    message_buffer._event.set()
-    # Act + Assert
-    assert message_buffer.retrieve_message(conversation_id=cid) == msg
-    assert message_buffer._event.is_set() is False  # test that it did not return in the first read
-    assert msg_list == []
+@pytest.mark.parametrize("length", (1, 3, 7))
+def test_length_of_buffer(message_buffer: MessageBuffer, length: int):
+    message_buffer._buffer = length * [msg]
+    assert len(message_buffer) == length
 
 
 # Test PipeHandler

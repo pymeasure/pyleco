@@ -22,8 +22,9 @@
 # THE SOFTWARE.
 #
 
-from threading import Lock, Event
-from typing import Optional
+from threading import Condition, Lock
+from typing import Callable, Optional
+from warnings import warn
 
 import zmq
 
@@ -47,19 +48,18 @@ class MessageBuffer:
     check, whether that message fits the conversation_id.
     This is repeated until the suiting response is found or a limit is reached.
     """
+    _result: Message
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
         # Storage for returning asked messages
         self._buffer: list[Message] = []
-        self._buffer_lock = Lock()
-        self._event = Event()
+        self._buffer_lock = Condition()
         self._cids: list[bytes] = []  # List of conversation_ids of asked questions.
 
     def add_conversation_id(self, conversation_id: bytes) -> None:
         """Add the conversation_id of a sent message."""
-        self._event.clear()
         with self._buffer_lock:
             self._cids.append(conversation_id)
 
@@ -72,22 +72,23 @@ class MessageBuffer:
             if message.conversation_id in self._cids:
                 self._buffer.append(message)
                 del self._cids[self._cids.index(message.conversation_id)]
-                self._event.set()
+                self._buffer_lock.notify_all()
                 return True
             else:
                 return False
 
-    def _check_message_in_buffer(self, conversation_id: bytes) -> Message | None:
-        """Check the buffer for a message with the specified id."""
-        with self._buffer_lock:
+    def _predicate_generator(self, conversation_id: bytes) -> Callable[[], bool]:
+        def check_message_in_buffer() -> bool:
             for (i, message) in enumerate(self._buffer):
                 if message.conversation_id == conversation_id:
                     del self._buffer[i]
-                    return message
-        return None
+                    self._result = message
+                    return True
+            return False
+        return check_message_in_buffer
 
-    def retrieve_message(self, conversation_id: bytes, tries: int = 10,
-                         timeout: float = 0.1) -> Message:
+    def retrieve_message(self, conversation_id: bytes, tries: Optional[int] = None,
+                         timeout: float = 1) -> Message:
         """Retrieve a message with a certain `conversation_id`.
 
         Try to read up to `tries` messages, waiting each time up to `timeout`.
@@ -96,15 +97,19 @@ class MessageBuffer:
         :param tries: How many messages or timeouts should be read.
         :param timeout: Timeout in seconds for a single trial.
         """
-        if (result := self._check_message_in_buffer(conversation_id=conversation_id)) is not None:
-            return result
-        for _ in range(tries):
-            if self._event.wait(timeout):
-                self._event.clear()
-                if (result := self._check_message_in_buffer(conversation_id)) is not None:
-                    return result
+        if tries is not None:
+            warn("`tries` is deprecated as it is not used anymore.", FutureWarning)
+        with self._buffer_lock:
+            found = self._buffer_lock.wait_for(
+                self._predicate_generator(conversation_id=conversation_id),
+                timeout=timeout)
+            if found:
+                return self._result
         # No result found:
         raise TimeoutError("Reading timed out.")
+
+    def __len__(self):
+        return len(self._buffer)
 
 
 class PipeHandler(ExtendedMessageHandler):
@@ -208,16 +213,13 @@ class PipeHandler(ExtendedMessageHandler):
             message.sender = self.full_name.encode()
         self.external_pipe.send_multipart((b"SND", *message.to_frames()))
 
-    def pipe_read_message(self, conversation_id: bytes, tries: int = 10,
-                          timeout: float = 0.1) -> Message:
-        return self.buffer.retrieve_message(conversation_id=conversation_id, tries=tries,
-                                            timeout=timeout)
+    def pipe_read_message(self, conversation_id: bytes, timeout: float = 1) -> Message:
+        return self.buffer.retrieve_message(conversation_id=conversation_id, timeout=timeout)
 
-    def pipe_ask(self, message: Message, tries: int = 10, timeout: float = 0.1) -> Message:
+    def pipe_ask(self, message: Message, timeout: float = 1) -> Message:
         self.buffer.add_conversation_id(message.conversation_id)
         self.pipe_send_message(message=message)
-        return self.pipe_read_message(conversation_id=message.conversation_id, tries=tries,
-                                      timeout=timeout)
+        return self.pipe_read_message(conversation_id=message.conversation_id, timeout=timeout)
 
     def pipe_subscribe(self, topic: str | bytes) -> None:
         if isinstance(topic, str):
