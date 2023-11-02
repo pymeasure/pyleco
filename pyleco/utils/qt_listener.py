@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from PyQt6 import QtCore  # type: ignore
+from qtpy.QtCore import QObject, Signal  # type: ignore
 
 from ..core.message import Message
 from ..core.data_message import DataMessage
@@ -54,11 +54,11 @@ class QtListener(Listener):
 
     local_methods = ["pong", "set_log_level"]
 
-    class ListenerSignals(QtCore.QObject):
+    class ListenerSignals(QObject):
         """Signals for the Listener."""
-        dataReady = QtCore.pyqtSignal(dict)
-        message = QtCore.pyqtSignal(Message)
-        data_message = QtCore.pyqtSignal(DataMessage)
+        dataReady = Signal(dict)
+        message = Signal(Message)
+        data_message = Signal(DataMessage)
 
     def handle_subscription_data(self, data: dict) -> None:
         """Handle incoming subscription data."""
