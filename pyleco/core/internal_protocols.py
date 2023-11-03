@@ -46,7 +46,7 @@ class CommunicatorProtocol(Protocol):
     name: str
     namespace: Optional[str] = None
     rpc_generator: RPCGenerator
-    timeout: float = 1
+    timeout: float = 1  # default reading timeout in seconds
 
     def sign_in(self) -> None: ...  # pragma: no cover
 

@@ -23,14 +23,14 @@
 #
 
 from threading import get_ident, Condition
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 from warnings import warn
 
 import zmq
 
 from ..core import PROXY_SENDING_PORT
 from .extended_message_handler import ExtendedMessageHandler
-from ..core.message import Message, MessageTypes
+from ..core.message import Message
 from ..core.internal_protocols import CommunicatorProtocol
 
 
@@ -162,7 +162,10 @@ class CommunicatorPipe(CommunicatorProtocol):
             message.sender = self.full_name.encode()
         self._send_pipe_message(b"SND", *message.to_frames())
 
-    def read_message(self, conversation_id: bytes, timeout: Optional[float] = None) -> Message:
+    def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
+                     ) -> Message:
+        if conversation_id is None:
+            raise ValueError("You have to request a messsage with its conversation_id.")
         return self.buffer.retrieve_message(conversation_id=conversation_id,
                                             timeout=self.timeout if timeout is None else timeout,
                                             )

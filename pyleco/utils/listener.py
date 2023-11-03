@@ -34,7 +34,6 @@ from .extended_message_handler import ExtendedMessageHandler
 from .publisher import Publisher
 from .pipe_handler import PipeHandler, CommunicatorPipe
 from ..core.message import Message
-from ..core.serialization import generate_conversation_id
 from ..core.rpc_generator import RPCGenerator
 from ..core.internal_protocols import CommunicatorProtocol
 
@@ -151,23 +150,17 @@ class Listener(CommunicatorProtocol):
                                timeout: float = 1) -> Message:
         return self.read_message(conversation_id=conversation_id, timeout=timeout)
 
-    def read_message(self, conversation_id: bytes, timeout: Optional[float] = None) -> Message:
+    def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
+                     ) -> Message:
         return self.communicator.read_message(conversation_id=conversation_id, timeout=timeout)
 
-    def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None, data=None,
-            **kwargs) -> Message:
-        if conversation_id is None:
-            conversation_id = generate_conversation_id()
-        if isinstance(receiver, str):
-            receiver = receiver.encode()
-        message = Message(receiver=receiver, conversation_id=conversation_id, data=data, **kwargs)
-        return self.ask_message(message=message)
+    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
+        return self.communicator.ask_message(message=message, timeout=timeout)
 
-    def ask_message(self, message: Message) -> Message:
-        return self.communicator.ask_message(message=message)
-
-    def ask_rpc(self, receiver: bytes | str, method: str, **kwargs) -> Any:
-        return self.communicator.ask_rpc(receiver=receiver, method=method, **kwargs)
+    def ask_rpc(self, receiver: bytes | str, method: str, timeout: Optional[float] = None,
+                **kwargs) -> Any:
+        return self.communicator.ask_rpc(receiver=receiver, method=method, timeout=timeout,
+                                         **kwargs)
 
     #   Data protocol
     def subscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:

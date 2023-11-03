@@ -37,7 +37,7 @@ try:
     import numpy as np  # type: ignore[import-not-found]
     import pint  # type: ignore[import-not-found]
 except ModuleNotFoundError:
-    pint = False
+    pint = False  # type: ignore[assignment]
 
 if pint:
     class PowerEncoder(json.JSONEncoder):
@@ -50,7 +50,7 @@ if pint:
                 return float(o)
             elif isinstance(o, np.ndarray):
                 return o.tolist()
-            elif isinstance(o, pint.Quantity):
+            elif isinstance(o, pint.Quantity):  # type: ignore
                 return f"{o:~}"  # abbreviated units with '~'
             return super().default(o)
 else:
