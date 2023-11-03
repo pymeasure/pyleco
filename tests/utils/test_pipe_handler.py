@@ -158,6 +158,11 @@ def pipe_handler_pipe():
     pipe_handler.close()
 
 
+@pytest.fixture
+def communicator(pipe_handler_pipe: PipeHandler):
+    return pipe_handler_pipe.get_communicator()
+
+
 class Test_handle_commands:
     def test_handle_response(self, pipe_handler: PipeHandler):
         message = Message("rec", "send")
@@ -198,6 +203,92 @@ class Test_get_communicator:
         assert com2 == pipe_handler_setup.external_pipe
 
 
+def test_communicator_send_message(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
+    message = Message("rec", "send")
+    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
+    communicator.send_message(message)
+    pipe_handler_pipe.handle_pipe_message()
+    # assert that the message is actually sent
+    pipe_handler_pipe._send_frames.assert_called_once_with(frames=message.to_frames())
+
+
+def test_communicator_send_message_without_sender(pipe_handler_pipe: PipeHandler,
+                                                  communicator: CommunicatorPipe):
+    message = Message("rec", sender="")
+    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
+    communicator.send_message(message)
+    pipe_handler_pipe.handle_pipe_message()
+    # assert that the message is actually sent
+    message.sender = b"handler"  # should have been added by the handler
+    pipe_handler_pipe._send_frames.assert_called_once_with(frames=message.to_frames())
+
+
+def test_communicator_read_message(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
+    response = Message("handler", "rec", conversation_id=cid)
+    pipe_handler_pipe.buffer.add_conversation_id(cid)
+    pipe_handler_pipe.buffer.add_response_message(response)
+    # act
+    read = communicator.read_message(cid)
+    assert read == response
+
+
+def test_communicator_ask_message(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
+    message = Message("rec", "handler", conversation_id=cid)
+    response = Message("handler", "rec", conversation_id=cid)
+    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe.buffer.add_conversation_id(cid)
+    pipe_handler_pipe.buffer.add_response_message(response)
+    # act
+    read = communicator.ask_message(message)
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    assert read == response
+    pipe_handler_pipe._send_frames.assert_called_once_with(frames=message.to_frames())
+    assert cid in pipe_handler_pipe.buffer._cids
+
+
+def test_communicator_subscribe(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
+    pipe_handler_pipe.subscribe_single = MagicMock()  # type: ignore[method-assign]
+    # act
+    communicator.subscribe("topic")
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    pipe_handler_pipe.subscribe_single.assert_called_once_with(topic=b"topic")
+
+
+def test_communicator_unsubscribe(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
+    pipe_handler_pipe.unsubscribe_single = MagicMock()  # type: ignore[method-assign]
+    # act
+    communicator.unsubscribe("topic")
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    pipe_handler_pipe.unsubscribe_single.assert_called_once_with(topic=b"topic")
+
+
+def test_communicator_unsubscribe_all(pipe_handler_pipe: PipeHandler,
+                                      communicator: CommunicatorPipe):
+    pipe_handler_pipe.unsubscribe_all = MagicMock()  # type: ignore[method-assign]
+    # act
+    communicator.unsubscribe_all()
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    pipe_handler_pipe.unsubscribe_all.assert_called_once()
+
+
+def test_communicator_rename(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
+    pipe_handler_pipe.sign_in = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe.sign_out = MagicMock()  # type: ignore[method-assign]
+    # act
+    communicator.name = "new name"
+    pipe_handler_pipe.handle_pipe_message()
+    # assert
+    pipe_handler_pipe.sign_out.assert_called_once()
+    assert pipe_handler_pipe.name == "new name"
+    assert communicator.name == "new name"
+    pipe_handler_pipe.sign_in.assert_called_once()
+
+
+# deprecated pipe methods
 def test_pipe_send_message(pipe_handler_pipe: PipeHandler):
     message = Message("rec", "send")
     pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]

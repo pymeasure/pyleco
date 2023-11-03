@@ -105,7 +105,7 @@ class DataLogger(ExtendedMessageHandler):
     trigger_timeout: float
     trigger_variable: str
     value_repeating: bool = False
-    valuing: Callable[[list], Any] = average
+    valuing: Callable[[list], Any]
 
     last_config: dict[str, Any]  # configuration for the next start
 
@@ -118,6 +118,7 @@ class DataLogger(ExtendedMessageHandler):
         self.lists = {}
         self.publisher = DataPublisher(full_name=name)
         self.last_save_name = None
+        self.valuing = average
         # TODO add auto_save functionality?
 
     def register_rpc_methods(self) -> None:
@@ -181,28 +182,24 @@ class DataLogger(ExtendedMessageHandler):
                                               datetime.timezone.utc)
             time = (now - today).total_seconds()
             self.tmp['time'].append(time)
-        if self.value_repeating:
-            for variable, datalist in self.lists.items():
-                if self.tmp[variable]:
-                    value = self.valuing(self.tmp[variable])
-                else:
-                    try:
-                        value = self.lists[variable][-1]
-                    except IndexError:  # No last value present.
-                        value = nan
-                datalist.append(value)
-                datapoint[variable] = value
-        else:
-            for variable, datalist in self.lists.items():
-                if self.tmp[variable]:
-                    value = self.valuing(self.tmp[variable])
-                else:
-                    value = nan
-                datalist.append(value)
-                datapoint[variable] = value
+        for variable, datalist in self.lists.items():
+            value = datapoint[variable] = self.calculate_single_data(variable, self.tmp[variable])
+            datalist.append(value)
         for key in self.tmp.keys():
             self.tmp[key].clear()
         return datapoint
+
+    def calculate_single_data(self, variable: str, tmp: list):
+        if tmp:
+            value = self.valuing(tmp)
+        elif self.value_repeating:
+            try:
+                value = self.lists[variable][-1]
+            except (KeyError, IndexError):  # No last value present.
+                value = nan
+        else:
+            value = nan
+        return value
 
     @staticmethod
     def last(data: list[Any]) -> Any:
