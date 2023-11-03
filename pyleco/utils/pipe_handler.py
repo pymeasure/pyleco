@@ -162,19 +162,6 @@ class CommunicatorPipe(CommunicatorProtocol):
             message.sender = self.full_name.encode()
         self._send_pipe_message(b"SND", *message.to_frames())
 
-    def subscribe(self, topic: bytes | str) -> None:
-        if isinstance(topic, str):
-            topic = topic.encode()
-        self._send_pipe_message(b"SUB", topic)
-
-    def unsubscribe(self, topic: bytes | str) -> None:
-        if isinstance(topic, str):
-            topic = topic.encode()
-        self._send_pipe_message(b"UNSUB", topic)
-
-    def unsubscribe_all(self) -> None:
-        self._send_pipe_message(b"UNSUBALL")
-
     def read_message(self, conversation_id: bytes, timeout: Optional[float] = None) -> Message:
         return self.buffer.retrieve_message(conversation_id=conversation_id,
                                             timeout=self.timeout if timeout is None else timeout,
@@ -193,6 +180,25 @@ class CommunicatorPipe(CommunicatorProtocol):
 
     def close(self) -> None:
         self.socket.close(1)
+
+    # Additional methods for the data protocol
+    def subscribe(self, topic: bytes | str) -> None:
+        if isinstance(topic, str):
+            topic = topic.encode()
+        self._send_pipe_message(b"SUB", topic)
+
+    def unsubscribe(self, topic: bytes | str) -> None:
+        if isinstance(topic, str):
+            topic = topic.encode()
+        self._send_pipe_message(b"UNSUB", topic)
+
+    def unsubscribe_all(self) -> None:
+        self._send_pipe_message(b"UNSUBALL")
+
+    # Utility methods
+    def register_rpc_method(self, method: Callable, **kwargs) -> None:
+        """Register a method with the message handler to make it available via RPC."""
+        self.parent.rpc.method(**kwargs)(method)
 
 
 class PipeHandler(ExtendedMessageHandler):
@@ -280,18 +286,19 @@ class PipeHandler(ExtendedMessageHandler):
         super().handle_commands(message)
 
     # Thread safe methods for access from other threads
-    def create_communicator(self, context: Optional[zmq.Context] = None) -> CommunicatorPipe:
+    def create_communicator(self, **kwargs) -> CommunicatorPipe:
         """Create a communicator wherever you want to access the pipe handler."""
         com = CommunicatorPipe(buffer=self.buffer, pipe_port=self.pipe_port,
-                               parent=self, context=context)
+                               parent=self,
+                               **kwargs)
         self._communicators[get_ident()] = com
         return com
 
-    def get_communicator(self, context: Optional[zmq.Context] = None) -> CommunicatorPipe:
+    def get_communicator(self, **kwargs) -> CommunicatorPipe:
         """Get the communicator for this thread, creating one if necessary."""
         com = self._communicators.get(get_ident())
         if com is None or com.socket.closed is True:
-            return self.create_communicator(context=context)
+            return self.create_communicator(**kwargs)
         else:
             return com
 

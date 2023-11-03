@@ -46,16 +46,22 @@ log.addHandler(logging.NullHandler())
 class Listener(CommunicatorProtocol):
     """Listening on published data and opening a configuration port, both in a separate thread.
 
-    It works on one side like a :class:`Communicator`, offering communication to the network,
-    and on the other side handles simultaneously incoming messages.
-    For that reason, the main part is in a separate thread.
+    On one side it handles incoming messages (in another thread).
+    On the other side, it offers the :meth:`get_communicator` method, which returns a
+    :class:`Communicator`, offering communication to the network.
 
     Call :meth:`.start_listen()` to actually listen.
+
+    ..code::
+
+        listener = Listener()
+        listener.start_listen()  # starts a message handler in another thread
+        communicator = listener.get_communicator()  # get a Communicator endpoint for this thread
+        response = communicator.ask_message(some_message_object)
 
     :param name: Name to listen under for control commands.
     :param int data_port: Port number for the data protocol.
     :param heartbeat_interval: Interval between two heartbeats in s.
-    :param context: zmq context.
     :param logger: Logger instance whose logs should be published. Defaults to "__main__".
     """
 
@@ -89,6 +95,7 @@ class Listener(CommunicatorProtocol):
         """Close everything."""
         self.stop_listen()
 
+    # deprecated methods, use a Communicator instance
     @property
     def name(self) -> str:
         return self.communicator.name
@@ -105,21 +112,6 @@ class Listener(CommunicatorProtocol):
     def full_name(self) -> str:
         return self.communicator.full_name
 
-    # Methods to control the Listener
-    def stop_listen(self) -> None:
-        """Stop the listener Thread."""
-        try:
-            if self.thread.is_alive():
-                log.debug("Stopping listener thread.")
-                self.stop_event.set()
-                self.thread.join()
-                self.communicator.close()
-                log.removeHandler(self.message_handler.logHandler)
-                if self.logger is not None:
-                    self.logger.removeHandler(self.message_handler.logHandler)
-        except AttributeError:
-            pass
-
     #   Control protocol
     def send(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
              data: Optional[Any] = None,
@@ -134,6 +126,7 @@ class Listener(CommunicatorProtocol):
 
     def reply(self, header: list, content: object) -> None:
         """Send a reply according to the original header frames and a content frame."""
+        # TODO keep? how?
         sender, conversation_id = header
         self.send(receiver=sender, conversation_id=conversation_id, data=content)
 
@@ -208,6 +201,7 @@ class Listener(CommunicatorProtocol):
     def sign_out(self) -> None:
         return  # already handled in the message_handler
 
+    # Methods to control the Listener
     def start_listen(self, data_host: Optional[str] = None, data_port: Optional[int] = None
                      ) -> None:
         """Start to listen in a thread.
@@ -233,9 +227,10 @@ class Listener(CommunicatorProtocol):
         for _ in range(10):
             sleep(0.05)
             try:
-                self.communicator: CommunicatorPipe = self.message_handler.get_communicator()
+                self.communicator: CommunicatorPipe = self.message_handler.get_communicator(
+                    timeout=self.timeout)  # TODO deprecated
                 log.addHandler(self.message_handler.logHandler)
-                self.rpc = self.message_handler.rpc
+                self.rpc = self.message_handler.rpc  # TODO deprecated, hide it.
                 if self.logger is not None:
                     self.logger.addHandler(self.message_handler.logHandler)
             except AttributeError:
@@ -243,8 +238,23 @@ class Listener(CommunicatorProtocol):
             else:
                 break
 
-    def get_communicator(self) -> CommunicatorPipe:
-        return self.message_handler.get_communicator()
+    def get_communicator(self, **kwargs) -> CommunicatorPipe:
+        kwargs.setdefault("timeout", self.timeout)
+        return self.message_handler.get_communicator(**kwargs)
+
+    def stop_listen(self) -> None:
+        """Stop the listener Thread."""
+        try:
+            if self.thread.is_alive():
+                log.debug("Stopping listener thread.")
+                self.stop_event.set()
+                self.thread.join()
+                self.communicator.close()
+                log.removeHandler(self.message_handler.logHandler)
+                if self.logger is not None:
+                    self.logger.removeHandler(self.message_handler.logHandler)
+        except AttributeError:
+            pass
 
     """
     Methods below are executed in the thread, DO NOT CALL DIRECTLY!
