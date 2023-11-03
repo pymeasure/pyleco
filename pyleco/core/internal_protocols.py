@@ -33,7 +33,7 @@ For example a Director might use these tools to direct an Actor.
 
 from typing import Any, Optional, Protocol
 
-from .message import Message
+from .message import Message, MessageTypes
 from .rpc_generator import RPCGenerator
 
 
@@ -81,3 +81,10 @@ class CommunicatorProtocol(Protocol):
         return self.ask_message(message=Message(
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs),
             timeout=timeout)
+
+    def ask_rpc(self, receiver: bytes | str, method: str, timeout: Optional[float] = None,
+                **kwargs) -> Any:
+        string = self.rpc_generator.build_request_str(method=method, **kwargs)
+        response = self.ask(receiver=receiver, data=string, message_type=MessageTypes.JSON,
+                            timeout=timeout)
+        return self.rpc_generator.get_result_from_response(response.payload[0])

@@ -173,7 +173,7 @@ class Communicator(CommunicatorProtocol):
             response = self.read_message(timeout=timeout)
             # skip pings as we either are still signed in or going to sign in again.
             if (response.header_elements.message_type == MessageTypes.JSON
-                    or b"jsonrpcXXX" in response.payload[0]) and isinstance(response.data, dict):
+                    or b"jsonrpc" in response.payload[0]) and isinstance(response.data, dict):
                 # TODO use MessageType instead of "jsonrpc"
                 if response.data.get("method") == "pong":
                     continue
@@ -206,24 +206,27 @@ class Communicator(CommunicatorProtocol):
                     raise ConnectionError(str(error))
         return response
 
-    def ask_rpc(self, receiver: bytes | str, method: str, **kwargs) -> Any:
+    def ask_rpc(self, receiver: bytes | str, method: str, timeout: Optional[float] = None,
+                **kwargs) -> Any:
         """Send a rpc call and return the result or raise an error."""
         send_json = self.rpc_generator.build_request_str(method=method, **kwargs)
-        response_json = self.ask_json(receiver=receiver, json_string=send_json)
+        response = self.ask(receiver=receiver, data=send_json, timeout=timeout,
+                            message_type=MessageTypes.JSON)
         try:
-            result = self.rpc_generator.get_result_from_response(response_json)
+            result = self.rpc_generator.get_result_from_response(response.payload[0])
         except JSONRPCError as exc:
             if exc.rpc_error.code == INVALID_SERVER_RESPONSE.code:
-                self.log.exception(f"Decoding failed for {response_json!r}.", exc_info=exc)
+                self.log.exception(f"Decoding failed for {response.payload[0]!r}.", exc_info=exc)
                 return
             else:
-                self.log.exception(f"Some error happened {response_json!r}.", exc_info=exc)
+                self.log.exception(f"Some error happened {response.payload[0]!r}.", exc_info=exc)
                 raise
         return result
 
-    def ask_json(self, receiver: bytes | str, json_string: str) -> bytes:
+    def ask_json(self, receiver: bytes | str, json_string: str, timeout: Optional[float] = None
+                 ) -> bytes:
         message = Message(receiver=receiver, data=json_string, message_type=MessageTypes.JSON)
-        response = self.ask_message(message=message)
+        response = self.ask_message(message=message, timeout=timeout)
         return response.payload[0]
 
     # Messages

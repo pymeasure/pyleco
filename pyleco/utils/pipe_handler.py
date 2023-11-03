@@ -23,14 +23,14 @@
 #
 
 from threading import get_ident, Condition
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 from warnings import warn
 
 import zmq
 
 from ..core import PROXY_SENDING_PORT
 from .extended_message_handler import ExtendedMessageHandler
-from ..core.message import Message
+from ..core.message import Message, MessageTypes
 from ..core.internal_protocols import CommunicatorProtocol
 
 
