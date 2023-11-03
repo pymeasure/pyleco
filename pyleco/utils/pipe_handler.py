@@ -144,7 +144,7 @@ class CommunicatorPipe(CommunicatorProtocol):
         self._send_pipe_message(b"REN", value)
 
     @property
-    def namespace(self) -> str | None:
+    def namespace(self) -> str | None:  # type: ignore[override]
         return self.parent.namespace
 
     @property
@@ -317,5 +317,5 @@ class PipeHandler(ExtendedMessageHandler):
     def pipe_unsubscribe_all(self) -> None:
         self.external_pipe.unsubscribe_all()
 
-    def pipe_rename_component(self, new_name: str | bytes) -> None:
+    def pipe_rename_component(self, new_name: str) -> None:
         self.external_pipe.name = new_name

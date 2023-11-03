@@ -32,7 +32,7 @@ import zmq
 from ..core import PROXY_SENDING_PORT, COORDINATOR_PORT
 from .extended_message_handler import ExtendedMessageHandler
 from .publisher import Publisher
-from .pipe_handler import PipeHandler
+from .pipe_handler import PipeHandler, CommunicatorPipe
 from ..core.message import Message, MessageTypes
 from ..core.serialization import generate_conversation_id
 from ..core.rpc_generator import RPCGenerator
@@ -232,7 +232,7 @@ class Listener(CommunicatorProtocol):
         for _ in range(10):
             sleep(0.05)
             try:
-                self.communicator = self.message_handler.get_communicator()
+                self.communicator: CommunicatorPipe = self.message_handler.get_communicator()
                 log.addHandler(self.message_handler.logHandler)
                 self.rpc = self.message_handler.rpc
                 if self.logger is not None:
@@ -241,6 +241,9 @@ class Listener(CommunicatorProtocol):
                 pass
             else:
                 break
+
+    def get_communicator(self) -> CommunicatorPipe:
+        return self.message_handler.get_communicator()
 
     """
     Methods below are executed in the thread, DO NOT CALL DIRECTLY!
