@@ -46,6 +46,7 @@ class CommunicatorProtocol(Protocol):
     name: str
     namespace: Optional[str] = None
     rpc_generator: RPCGenerator
+    timeout: float = 1
 
     def sign_in(self) -> None: ...  # pragma: no cover
 
@@ -63,13 +64,20 @@ class CommunicatorProtocol(Protocol):
 
     def send_message(self, message: Message) -> None: ...  # pragma: no cover
 
+    def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
+                     ) -> Message: ...  # pragma: no cover
+
+    def ask_message(self, message: Message, timeout: Optional[float] = None
+                    ) -> Message: ...  # pragma: no cover
+
+    def close(self) -> None: ...  # pragma: no cover
+
+    # Utilities
     def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
             data: Optional[Any] = None,
+            timeout: Optional[float] = None,
             **kwargs) -> Message:
         """Send a message based on kwargs and retrieve the response."""
         return self.ask_message(message=Message(
-            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs))
-
-    def ask_message(self, message: Message) -> Message: ...  # pragma: no cover
-
-    def close(self) -> None: ...  # pragma: no cover
+            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs),
+            timeout=timeout)

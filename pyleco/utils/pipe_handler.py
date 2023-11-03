@@ -124,6 +124,7 @@ class CommunicatorPipe(CommunicatorProtocol):
                  pipe_port: int,
                  buffer: MessageBuffer,
                  context: Optional[zmq.Context] = None,
+                 timeout: float = 1,
                  **kwargs):
         super().__init__(**kwargs)
         self.parent = parent
@@ -132,7 +133,9 @@ class CommunicatorPipe(CommunicatorProtocol):
         self.socket.connect(f"inproc://listenerPipe:{pipe_port}")
         self.rpc_generator = parent.rpc_generator
         self.buffer = buffer
+        self.timeout = timeout
 
+    # CommunicatorProtocol
     @property
     def name(self) -> str:
         return self.parent.name
@@ -172,10 +175,12 @@ class CommunicatorPipe(CommunicatorProtocol):
     def unsubscribe_all(self) -> None:
         self._send_pipe_message(b"UNSUBALL")
 
-    def read_message(self, conversation_id: bytes, **kwargs) -> Message:
-        return self.buffer.retrieve_message(conversation_id=conversation_id, **kwargs)
+    def read_message(self, conversation_id: bytes, timeout: Optional[float] = None) -> Message:
+        return self.buffer.retrieve_message(conversation_id=conversation_id,
+                                            timeout=self.timeout if timeout is None else timeout,
+                                            )
 
-    def ask_message(self, message: Message, timeout: float = 1) -> Message:
+    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
         self.buffer.add_conversation_id(message.conversation_id)
         self.send_message(message=message)
         return self.read_message(conversation_id=message.conversation_id, timeout=timeout)

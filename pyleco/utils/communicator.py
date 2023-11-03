@@ -53,7 +53,7 @@ class Communicator(CommunicatorProtocol):
     :param str host: Hostname
     :param int port: Port to connect to.
     :param str name: Name to send messages as.
-    :param int timeout: Timeout in ms.
+    :param int timeout: Timeout in s.
     :param bool auto_open: Open automatically a connection upon instantiation.
     :param str protocol: Protocol name to use.
     :param bool standalone: Whether to bind to the port in standalone mode.
@@ -64,7 +64,7 @@ class Communicator(CommunicatorProtocol):
         name: str,
         host: str = "localhost",
         port: Optional[int] = COORDINATOR_PORT,
-        timeout: int = 100,
+        timeout: float = 0.1,
         auto_open: bool = True,
         protocol: str = "tcp",
         standalone: bool = False,
@@ -127,7 +127,7 @@ class Communicator(CommunicatorProtocol):
 
     def retry_read(self, timeout: Optional[int] = None) -> list[bytes] | None:
         """Retry reading."""
-        if self._reading and self.connection.poll(timeout or self.timeout):
+        if self._reading and self.poll(timeout=timeout):
             return self._reading()
         else:
             return None
@@ -143,26 +143,34 @@ class Communicator(CommunicatorProtocol):
         frames = message.to_frames()
         self.connection.send_multipart(frames)
 
-    def read_raw(self, timeout: Optional[int] = None) -> list[bytes]:
-        if self.connection.poll(timeout or self.timeout):
+    def read_raw(self, timeout: Optional[float] = None) -> list[bytes]:
+        if self.poll(timeout=timeout):
             return self.connection.recv_multipart()
         else:
             self._reading = self.connection.recv_multipart
             raise TimeoutError("Reading timed out.")
 
-    def poll(self) -> int:
+    def poll(self, timeout: Optional[float] = None) -> int:
         """Check how many messages arrived."""
-        return self.connection.poll()
+        if timeout is None:
+            timeout = self.timeout
+        return self.connection.poll(timeout=timeout * 1000)  # in ms
+
+    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None,
+                     ) -> Message:
+        # TODO add filtering for conversation_id (with the MessageBuffer?)
+        return Message.from_frames(*self.read_raw(timeout=timeout))
 
     def read(self) -> Message:
+        # deprecated
         return Message.from_frames(*self.read_raw())
 
-    def ask_raw(self, message: Message) -> Message:
+    def ask_raw(self, message: Message, timeout: Optional[float] = None) -> Message:
         """Send and read the answer, signing in if necessary."""
         self.send_message(message=message)
         cid = message.conversation_id
         while True:
-            response = self.read()
+            response = self.read_message(timeout=timeout)
             # skip pings as we either are still signed in or going to sign in again.
             if (response.header_elements.message_type == MessageTypes.JSON
                     or b"jsonrpcXXX" in response.payload[0]) and isinstance(response.data, dict):
@@ -184,9 +192,9 @@ class Communicator(CommunicatorProtocol):
             else:
                 self.log.warning(f"Message with different conversation id received: {response}.")
 
-    def ask_message(self, message: Message) -> Message:
+    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
         """Send a message and retrieve the response."""
-        response = self.ask_raw(message=message)
+        response = self.ask_raw(message=message, timeout=timeout)
         if response.sender_elements.name == b"COORDINATOR":
             try:
                 error = response.data.get("error")  # type: ignore

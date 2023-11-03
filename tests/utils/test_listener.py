@@ -42,15 +42,10 @@ msg_list = ("r", "s", cid, b"", None)
 other = Message(b"r", b"s", conversation_id=b"conversation_id9", message_id=b"mid")
 
 
-class ExtendedFakeCommunicator(FakeCommunicator):
-    def read_message(self, conversation_id: bytes = b"") -> Message:
-        return self._r.pop(0)
-
-
 @pytest.fixture
 def listener() -> Listener:
     listener = Listener(name="test")  # type: ignore
-    listener.communicator = ExtendedFakeCommunicator(name="N.Pipe")  # type: ignore
+    listener.communicator = FakeCommunicator(name="N.Pipe")  # type: ignore
     return listener
 
 

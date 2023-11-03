@@ -141,7 +141,7 @@ class Listener(CommunicatorProtocol):
                     timeout: float = 1) -> tuple[str, str, bytes, bytes, object]:
         """Read the answer of the original message with `conversation_id`."""
         # TODO deprecated?
-        msg = self.read_answer_as_message(conversation_id=conversation_id, timeout=timeout)
+        msg = self.read_message(conversation_id=conversation_id, timeout=timeout)
         return self._turn_message_to_list(msg=msg)
 
     @staticmethod
@@ -156,7 +156,10 @@ class Listener(CommunicatorProtocol):
 
     def read_answer_as_message(self, conversation_id: bytes, tries: int = 1,
                                timeout: float = 1) -> Message:
-        return self.communicator.read_message(conversation_id=conversation_id)
+        return self.read_message(conversation_id=conversation_id, timeout=timeout)
+
+    def read_message(self, conversation_id: bytes, timeout: Optional[float] = None) -> Message:
+        return self.communicator.read_message(conversation_id=conversation_id, timeout=timeout)
 
     def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None, data=None,
             **kwargs) -> Message:

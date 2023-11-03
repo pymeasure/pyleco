@@ -171,6 +171,9 @@ class FakeCommunicator(CommunicatorProtocol):
             message.sender = self.name.encode()
         self._s.append(message)
 
-    def ask_message(self, message: Message) -> Message:
-        self.send_message(message)
+    def read_message(self, conversation_id: Optional[bytes] = None, timeout=None):
         return self._r.pop(0)
+
+    def ask_message(self, message: Message, timeout=None) -> Message:
+        self.send_message(message)
+        return self.read_message(timeout=timeout)
