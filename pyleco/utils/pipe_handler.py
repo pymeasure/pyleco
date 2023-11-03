@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from threading import Condition, Lock
+from threading import get_ident, Condition
 from typing import Callable, Optional
 from warnings import warn
 
@@ -31,6 +31,7 @@ import zmq
 from ..core import PROXY_SENDING_PORT
 from .extended_message_handler import ExtendedMessageHandler
 from ..core.message import Message
+from ..core.internal_protocols import CommunicatorProtocol
 
 
 class MessageBuffer:
@@ -94,7 +95,7 @@ class MessageBuffer:
         Try to read up to `tries` messages, waiting each time up to `timeout`.
 
         :param conversation_id: Conversation_id of the message to retrieve.
-        :param tries: How many messages or timeouts should be read.
+        :param tries: *Deprecated* How many messages or timeouts should be read.
         :param timeout: Timeout in seconds for a single trial.
         """
         if tries is not None:
@@ -112,40 +113,117 @@ class MessageBuffer:
         return len(self._buffer)
 
 
+class CommunicatorPipe(CommunicatorProtocol):
+    """A pipe endpoint satisfying the communicator protocol.
+
+    You can create this endpoint in any thread you like and use it there.
+    """
+
+    def __init__(self,
+                 parent: ExtendedMessageHandler,
+                 pipe_port: int,
+                 buffer: MessageBuffer,
+                 context: Optional[zmq.Context] = None,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.parent = parent
+        context = context or zmq.Context.instance()
+        self.socket: zmq.Socket = context.socket(zmq.PAIR)
+        self.socket.connect(f"inproc://listenerPipe:{pipe_port}")
+        self.rpc_generator = parent.rpc_generator
+        self.buffer = buffer
+
+    @property
+    def name(self) -> str:
+        return self.parent.name
+
+    @name.setter
+    def name(self, value: str | bytes) -> None:
+        if isinstance(value, str):
+            value = value.encode()
+        self._send_pipe_message(b"REN", value)
+
+    @property
+    def namespace(self) -> str | None:
+        return self.parent.namespace
+
+    @property
+    def full_name(self) -> str:
+        return self.parent.full_name
+
+    def _send_pipe_message(self, typ: bytes, *content: bytes) -> None:
+        self.socket.send_multipart((typ, *content))
+
+    def send_message(self, message: Message) -> None:
+        if not message.sender:
+            message.sender = self.full_name.encode()
+        self._send_pipe_message(b"SND", *message.to_frames())
+
+    def subscribe(self, topic: bytes | str) -> None:
+        if isinstance(topic, str):
+            topic = topic.encode()
+        self._send_pipe_message(b"SUB", topic)
+
+    def unsubscribe(self, topic: bytes | str) -> None:
+        if isinstance(topic, str):
+            topic = topic.encode()
+        self._send_pipe_message(b"UNSUB", topic)
+
+    def unsubscribe_all(self) -> None:
+        self._send_pipe_message(b"UNSUBALL")
+
+    def read_message(self, conversation_id: bytes, **kwargs) -> Message:
+        return self.buffer.retrieve_message(conversation_id=conversation_id, **kwargs)
+
+    def ask_message(self, message: Message, timeout: float = 1) -> Message:
+        self.buffer.add_conversation_id(message.conversation_id)
+        self.send_message(message=message)
+        return self.read_message(conversation_id=message.conversation_id, timeout=timeout)
+
+    def sign_in(self) -> None:
+        return  # to satisfy the protocol
+
+    def sign_out(self) -> None:
+        return  # to satisfy the protocol
+
+    def close(self) -> None:
+        self.socket.close(1)
+
+
 class PipeHandler(ExtendedMessageHandler):
     """A message handler which offers thread-safe methods for sending/reading messages.
 
-    Methods prefixed with `pipe_` are thread-safe.
+    This message handler offers the thread-safe :meth:`get_communicator` method to create a
+    communicator in a thread different to the handlers thread.
+    These communicator instances (in different threads) can communicate with the single message
+    handler savely.
+    The normal usage is to have the Pipehandler in some background thread listening ):meth:`listen`)
+    while the "active" threads have each a Communicator.
     """
+    _communicators: dict[int, CommunicatorPipe]
 
     def __init__(self, name: str, context: Optional[zmq.Context] = None, **kwargs) -> None:
         context = context or zmq.Context.instance()
         super().__init__(name=name, context=context, **kwargs)
-        self.internal_pipe: zmq.Socket = context.socket(zmq.PAIR)
+        self.internal_pipe: zmq.Socket = context.socket(zmq.PULL)
         self.pipe_port = self.internal_pipe.bind_to_random_port("inproc://listenerPipe",
                                                                 min_port=12345)
         self.buffer = MessageBuffer()
-
-    class Pipe:
-        """Pipe endpoint with lock."""
-
-        def __init__(self, socket: zmq.Socket, **kwargs) -> None:
-            super().__init__(**kwargs)
-            self.socket = socket
-            self.lock = Lock()
-
-        def send_multipart(self, frames: list[bytes] | tuple[bytes, ...]) -> None:
-            """Send a multipart message with frames (list type) ensuring lock."""
-            self.lock.acquire()
-            self.socket.send_multipart(frames)
-            self.lock.release()
-
-        def close(self, linger: int | None = 0) -> None:
-            self.socket.close(linger=linger)
+        self._communicators = {}
+        self.name_changing_methods: list[Callable[[str], None]] = []
 
     def close(self) -> None:
         self.internal_pipe.close(1)
         super().close()
+
+    def set_full_name(self, full_name: str) -> None:
+        super().set_full_name(full_name=full_name)
+        for method in self.name_changing_methods:
+            try:
+                method(full_name)
+            except Exception as exc:
+                self.log.exception("Setting the name with a registered method failed.",
+                                   exc_info=exc)
 
     def _listen_setup(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
                       **kwargs) -> zmq.Poller:
@@ -197,44 +275,47 @@ class PipeHandler(ExtendedMessageHandler):
         super().handle_commands(message)
 
     # Thread safe methods for access from other threads
+    def create_communicator(self, context: Optional[zmq.Context] = None) -> CommunicatorPipe:
+        """Create a communicator wherever you want to access the pipe handler."""
+        com = CommunicatorPipe(buffer=self.buffer, pipe_port=self.pipe_port,
+                               parent=self, context=context)
+        self._communicators[get_ident()] = com
+        return com
+
+    def get_communicator(self, context: Optional[zmq.Context] = None) -> CommunicatorPipe:
+        """Get the communicator for this thread, creating one if necessary."""
+        com = self._communicators.get(get_ident())
+        if com is None or com.socket.closed is True:
+            return self.create_communicator(context=context)
+        else:
+            return com
+
+    # TODO the methods below are deprecated, use the CommunicatorPipe instead
     def pipe_setup(self, context: Optional[zmq.Context] = None) -> None:
         """Create the pipe in the external thread."""
-        context = context or zmq.Context.instance()
-        external_pipe_socket: zmq.Socket = context.socket(zmq.PAIR)
-        external_pipe_socket.connect(f"inproc://listenerPipe:{self.pipe_port}")
-        self.external_pipe = self.Pipe(socket=external_pipe_socket)
+        self.external_pipe = self.get_communicator(context=context)
 
     def pipe_close(self) -> None:
         """Close the pipe."""
-        self.external_pipe.close(1)
+        self.external_pipe.close()
 
     def pipe_send_message(self, message: Message):
-        if not message.sender:
-            message.sender = self.full_name.encode()
-        self.external_pipe.send_multipart((b"SND", *message.to_frames()))
+        self.external_pipe.send_message(message=message)
 
     def pipe_read_message(self, conversation_id: bytes, timeout: float = 1) -> Message:
         return self.buffer.retrieve_message(conversation_id=conversation_id, timeout=timeout)
 
-    def pipe_ask(self, message: Message, timeout: float = 1) -> Message:
-        self.buffer.add_conversation_id(message.conversation_id)
-        self.pipe_send_message(message=message)
-        return self.pipe_read_message(conversation_id=message.conversation_id, timeout=timeout)
+    def pipe_ask(self, message: Message, timeout: float = 1, tries: int = 1) -> Message:
+        return self.external_pipe.ask_message(message=message)
 
     def pipe_subscribe(self, topic: str | bytes) -> None:
-        if isinstance(topic, str):
-            topic = topic.encode()
-        self.external_pipe.send_multipart((b"SUB", topic))
+        self.external_pipe.subscribe(topic)
 
     def pipe_unsubscribe(self, topic: str | bytes) -> None:
-        if isinstance(topic, str):
-            topic = topic.encode()
-        self.external_pipe.send_multipart((b"UNSUB", topic))
+        self.external_pipe.unsubscribe(topic)
 
     def pipe_unsubscribe_all(self) -> None:
-        self.external_pipe.send_multipart((b"UNSUBALL",))
+        self.external_pipe.unsubscribe_all()
 
     def pipe_rename_component(self, new_name: str | bytes) -> None:
-        if isinstance(new_name, str):
-            new_name = new_name.encode()
-        self.external_pipe.send_multipart((b"REN", new_name))
+        self.external_pipe.name = new_name

@@ -30,7 +30,7 @@ import zmq
 from pyleco.core.message import Message
 from pyleco.test import FakeContext
 
-from pyleco.utils.pipe_handler import MessageBuffer, PipeHandler
+from pyleco.utils.pipe_handler import MessageBuffer, PipeHandler, CommunicatorPipe
 
 cid = b"conversation_id;"  # conversation_id
 header = b"".join((cid, b"mid", b"\x00"))
@@ -149,7 +149,7 @@ def pipe_handler():
 def pipe_handler_pipe():
     """With a working pipe!"""
     pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
-    pipe_handler.internal_pipe = zmq.Context.instance().socket(zmq.PAIR)
+    pipe_handler.internal_pipe = zmq.Context.instance().socket(zmq.PULL)
     pipe_handler.pipe_port = pipe_handler.internal_pipe.bind_to_random_port(
         "inproc://listenerPipe", min_port=12345)
     pipe_handler.pipe_setup()
@@ -176,21 +176,26 @@ class Test_handle_commands:
         pipe_handler.finish_handle_commands.assert_called_once_with(message)
 
 
-class Test_pipe_setup:
+class Test_get_communicator:
     @pytest.fixture
     def pipe_handler_setup(self):
         pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
-        pipe_handler.pipe_setup(context=FakeContext())  # type: ignore
+        communicator = pipe_handler.get_communicator(context=FakeContext())  # type: ignore
+        pipe_handler.external_pipe = communicator
         return pipe_handler
 
     def test_external_pipe_type(self, pipe_handler_setup: PipeHandler):
-        assert isinstance(pipe_handler_setup.external_pipe, PipeHandler.Pipe)
+        assert isinstance(pipe_handler_setup.external_pipe, CommunicatorPipe)
 
     def test_pipe_ports_match(self, pipe_handler_setup: PipeHandler):
         port_number = pipe_handler_setup.pipe_port
         assert port_number == 5  # due to FakeSocket
         assert pipe_handler_setup.internal_pipe.addr == "inproc://listenerPipe"
         assert pipe_handler_setup.external_pipe.socket.addr == "inproc://listenerPipe:5"
+
+    def test_second_call_returns_same_communicator(self, pipe_handler_setup: PipeHandler):
+        com2 = pipe_handler_setup.get_communicator()
+        assert com2 == pipe_handler_setup.external_pipe
 
 
 def test_pipe_send_message(pipe_handler_pipe: PipeHandler):
@@ -272,4 +277,13 @@ def test_pipe_rename(pipe_handler_pipe: PipeHandler):
     # assert
     pipe_handler_pipe.sign_out.assert_called_once()
     assert pipe_handler_pipe.name == "new name"
+    assert pipe_handler_pipe.external_pipe.name == "new name"
     pipe_handler_pipe.sign_in.assert_called_once()
+
+
+def test_add_name_change_method(pipe_handler: PipeHandler):
+    method = MagicMock()
+    pipe_handler.name_changing_methods.append(method)
+    pipe_handler.set_full_name("new full name")
+    # assert
+    method.assert_called_once_with("new full name")
