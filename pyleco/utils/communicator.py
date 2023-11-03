@@ -88,7 +88,7 @@ class Communicator(CommunicatorProtocol):
     def open(self, context: Optional[zmq.Context] = None) -> None:
         """Open the connection."""
         context = context or zmq.Context.instance()
-        self.connection = context.socket(zmq.DEALER)
+        self.connection: zmq.Socket = context.socket(zmq.DEALER)
         protocol, standalone = self._conn_details
         if standalone:
             self.connection.bind(f"{protocol}://*:{self.port}")

@@ -91,19 +91,19 @@ class Listener(CommunicatorProtocol):
 
     @property
     def name(self) -> str:
-        return self.message_handler.name
+        return self.communicator.name
 
     @name.setter
     def name(self, value: str) -> None:
-        self.message_handler.name = value
+        self.communicator.name = value
 
     @property
     def namespace(self) -> str | None:  # type: ignore[override]  # only the handler sets namespace.
-        return self.message_handler.namespace
+        return self.communicator.namespace
 
     @property
     def full_name(self) -> str:
-        return self.message_handler.full_name
+        return self.communicator.full_name
 
     # Methods to control the Listener
     def stop_listen(self) -> None:
@@ -113,7 +113,7 @@ class Listener(CommunicatorProtocol):
                 log.debug("Stopping listener thread.")
                 self.stop_event.set()
                 self.thread.join()
-                self.message_handler.pipe_close()
+                self.communicator.close()
                 log.removeHandler(self.message_handler.logHandler)
                 if self.logger is not None:
                     self.logger.removeHandler(self.message_handler.logHandler)
@@ -130,19 +130,18 @@ class Listener(CommunicatorProtocol):
         self.send_message(message)
 
     def send_message(self, message: Message) -> None:
-        self.message_handler.pipe_send_message(message)
+        self.communicator.send_message(message=message)
 
     def reply(self, header: list, content: object) -> None:
         """Send a reply according to the original header frames and a content frame."""
         sender, conversation_id = header
         self.send(receiver=sender, conversation_id=conversation_id, data=content)
 
-    def read_answer(self, conversation_id: bytes, tries: int = 10,
-                    timeout: float = 0.1) -> tuple[str, str, bytes, bytes, object]:
+    def read_answer(self, conversation_id: bytes, tries: int = 1,
+                    timeout: float = 1) -> tuple[str, str, bytes, bytes, object]:
         """Read the answer of the original message with `conversation_id`."""
         # TODO deprecated?
-        msg = self.read_answer_as_message(conversation_id=conversation_id, tries=tries,
-                                          timeout=timeout)
+        msg = self.read_answer_as_message(conversation_id=conversation_id, timeout=timeout)
         return self._turn_message_to_list(msg=msg)
 
     @staticmethod
@@ -155,10 +154,9 @@ class Listener(CommunicatorProtocol):
         return (msg.receiver.decode(), msg.sender.decode(), msg.conversation_id, b"",
                 msg.data)
 
-    def read_answer_as_message(self, conversation_id: bytes, tries: int = 10,
-                               timeout: float = 0.1) -> Message:
-        return self.message_handler.pipe_read_message(conversation_id=conversation_id, tries=tries,
-                                                      timeout=timeout)
+    def read_answer_as_message(self, conversation_id: bytes, tries: int = 1,
+                               timeout: float = 1) -> Message:
+        return self.communicator.read_message(conversation_id=conversation_id)
 
     def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None, data=None,
             **kwargs) -> Message:
@@ -170,7 +168,7 @@ class Listener(CommunicatorProtocol):
         return self.ask_message(message=message)
 
     def ask_message(self, message: Message) -> Message:
-        return self.message_handler.pipe_ask(message=message, tries=10, timeout=self.timeout / 10)
+        return self.communicator.ask_message(message=message)
 
     def ask_rpc(self, receiver: bytes | str, method: str, **kwargs):
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
@@ -182,26 +180,26 @@ class Listener(CommunicatorProtocol):
         """Subscribe to a topic."""
         if isinstance(topics, (list, tuple)):
             for topic in topics:
-                self.message_handler.pipe_subscribe(topic)
+                self.communicator.subscribe(topic)
         else:
-            self.message_handler.pipe_subscribe(topics)
+            self.communicator.subscribe(topics)
 
     def unsubscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
         """Unsubscribe from a topic."""
         if isinstance(topics, (list, tuple)):
             for topic in topics:
-                self.message_handler.unsubscribe(topic)
+                self.communicator.unsubscribe(topic)
         else:
-            self.message_handler.unsubscribe(topics)
+            self.communicator.unsubscribe(topics)
 
     def unsubscribe_all(self) -> None:
         """Unsubscribe from all subscriptions."""
-        self.message_handler.pipe_unsubscribe_all()
+        self.communicator.unsubscribe_all()
 
     # Generic
     def rename(self, new_name: str) -> None:
         """Rename the listener to `new_name`."""
-        self.message_handler.pipe_rename_component(new_name=new_name)
+        self.communicator.name = new_name
 
     def sign_in(self) -> None:
         return  # already handled in the message_handler
@@ -234,7 +232,7 @@ class Listener(CommunicatorProtocol):
         for _ in range(10):
             sleep(0.05)
             try:
-                self.message_handler.pipe_setup()
+                self.communicator = self.message_handler.get_communicator()
                 log.addHandler(self.message_handler.logHandler)
                 self.rpc = self.message_handler.rpc
                 if self.logger is not None:
