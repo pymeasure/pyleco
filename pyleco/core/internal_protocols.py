@@ -52,16 +52,6 @@ class CommunicatorProtocol(Protocol):
 
     def sign_out(self) -> None: ...  # pragma: no cover
 
-    def send(self,
-             receiver: bytes | str,
-             conversation_id: Optional[bytes] = None,
-             data: Optional[Any] = None,
-             **kwargs) -> None:
-        """Send a message based on kwargs."""
-        self.send_message(message=Message(
-            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
-        ))
-
     def send_message(self, message: Message) -> None: ...  # pragma: no cover
 
     def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
@@ -73,6 +63,16 @@ class CommunicatorProtocol(Protocol):
     def close(self) -> None: ...  # pragma: no cover
 
     # Utilities
+    def send(self,
+             receiver: bytes | str,
+             conversation_id: Optional[bytes] = None,
+             data: Optional[Any] = None,
+             **kwargs) -> None:
+        """Send a message based on kwargs."""
+        self.send_message(message=Message(
+            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
+        ))
+
     def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
             data: Optional[Any] = None,
             timeout: Optional[float] = None,
