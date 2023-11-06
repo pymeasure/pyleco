@@ -34,6 +34,8 @@ from pyleco.core.message import Message, MessageTypes
 from pyleco.utils.listener import Listener
 from pyleco.utils.communicator import Communicator
 
+# Test the Coordinator and its Director in a live test
+from pyleco.directors.coordinator_director import CoordinatorDirector
 from pyleco.coordinators.coordinator import Coordinator
 
 
@@ -89,19 +91,19 @@ def leco():
 
 @pytest.mark.skipif(testlevel < 0, reason="reduce load")
 def test_startup(leco: Listener):
-    components = leco.ask_rpc(b"COORDINATOR", "send_local_components")
-    assert components == ["Controller"]
-    nodes = leco.ask_rpc(b"COORDINATOR", "send_nodes")
-    assert nodes == {"N1": f"{hostname}:{PORT}"}
+    with CoordinatorDirector(communicator=leco) as d:
+        assert d.get_local_components() == ["Controller"]
+        assert d.get_nodes() == {"N1": f"{hostname}:{PORT}"}
 
 
 @pytest.mark.skipif(testlevel < 1, reason="reduce load")
 def test_connect_N1_to_N2(leco: Listener):
-    response = leco.ask_rpc("COORDINATOR", method="add_nodes", nodes={"N2": f"localhost:{PORT2}"})
-    assert response is None
-    sleep(0.5)  # time for coordinators to talk
-    nodes = leco.ask_rpc(receiver="COORDINATOR", method="send_nodes")
-    assert nodes == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}
+    with CoordinatorDirector(communicator=leco) as d:
+        d.add_nodes({"N2": f"localhost:{PORT2}"})
+        sleep(0.5)  # time for coordinators to talk
+        # assert that the N1.COORDINATOR knows about N2
+        assert d.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}
+    # assert that the listener can contact N2.COORDINATOR
     assert leco.ask_rpc(receiver="N2.COORDINATOR", method="pong") is None
 
 
@@ -124,13 +126,8 @@ def test_Component_to_Component_via_2_Coordinators(leco: Listener):
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
 def test_Component_lists_propgate_through_Coordinators(leco: Listener):
     """Test that Component lists are propagated from one Coordinator to another."""
-    with Communicator(name="whatever", port=PORT2) as c:
-        response = c.ask("N2.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "id": 1, "method": "send_global_components", "jsonrpc": "2.0"})
-        assert response == Message(
-            b'N2.whatever', b'N2.COORDINATOR', data={
-                "id": 1, "result": {"N1": ["Controller"], "N2": ["whatever"]}, "jsonrpc": "2.0"},
-            header=response.header)
+    with CoordinatorDirector(actor="N2.COORDINATOR", name="whatever", port=PORT2) as d:
+        assert d.get_global_components() == {"N1": ["Controller"], "N2": ["whatever"]}
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
@@ -146,23 +143,20 @@ def test_sign_in_rejected_for_duplicate_name(leco: Listener):
 
 @pytest.mark.skipif(testlevel < 3, reason="reduce load")
 def test_connect_N3_to_N2(leco: Listener):
-    c = Communicator(name="whatever", port=PORT3)
-    c.sign_in()
-    c.ask_rpc(b"COORDINATOR", "add_nodes", nodes={"N2": f"localhost:{PORT2}"})
+    with CoordinatorDirector(name="whatever", port=PORT3) as d1:
+        d1.add_nodes({"N2": f"localhost:{PORT2}"})
 
     sleep(0.5)  # time for coordinators to talk
-    nodes = leco.ask_rpc(receiver="COORDINATOR", method="send_nodes")
-    assert nodes == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}",
-                     "N3": f"{hostname}:{PORT3}"}
+    with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d2:
+        assert d2.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}",
+                                  "N3": f"{hostname}:{PORT3}"}
 
 
 @pytest.mark.skipif(testlevel < 4, reason="reduce load")
 def test_shutdown_N3(leco: Listener):
-    c = Communicator(name="whatever", port=PORT3)
-    c.sign_in()
-    c.ask(receiver="N3.COORDINATOR", data={"id": 3, "method": "shut_down", "jsonrpc": "2.0"},
-          message_type=MessageTypes.JSON)
+    with CoordinatorDirector(actor="N3.COORDINATOR", name="whatever", port=PORT3) as d1:
+        d1.shut_down_actor()
 
     sleep(0.5)  # time for coordinators to talk
-    nodes = leco.ask_rpc(receiver="COORDINATOR", method="send_nodes")
-    assert nodes == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}
+    with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d2:
+        assert d2.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}

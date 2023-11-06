@@ -49,6 +49,6 @@ class CoordinatorDirector(Director):
         """Get all known nodes."""
         return self.call_method_rpc(method="send_nodes")
 
-    def set_directory(self, coordinators: dict[str, str]) -> None:
+    def add_nodes(self, coordinators: dict[str, str]) -> None:
         """Tell the Coordinator about other coordinators (dict)."""
-        return self.call_method_rpc(method="set_nodes", nodes=coordinators)
+        return self.call_method_rpc(method="add_nodes", nodes=coordinators)
