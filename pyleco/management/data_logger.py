@@ -209,6 +209,7 @@ class DataLogger(ExtendedMessageHandler):
         except TypeError:
             return data
         except IndexError:
+            # empty list
             return nan
 
     # Control
