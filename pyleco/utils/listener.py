@@ -25,7 +25,7 @@
 import logging
 from threading import Thread, Event
 from time import sleep
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import zmq
 
@@ -35,14 +35,14 @@ from .publisher import Publisher
 from .pipe_handler import PipeHandler, CommunicatorPipe
 from ..core.message import Message
 from ..core.rpc_generator import RPCGenerator
-from ..core.internal_protocols import CommunicatorProtocol
+from ..core.internal_protocols import CommunicatorProtocol, SubscriberProtocol
 
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
-class Listener(CommunicatorProtocol):
+class Listener(CommunicatorProtocol, SubscriberProtocol):
     """Listening on published data and opening a configuration port, both in a separate thread.
 
     On one side it handles incoming messages (in another thread).
@@ -111,7 +111,7 @@ class Listener(CommunicatorProtocol):
     def full_name(self) -> str:
         return self.communicator.full_name
 
-    #   Control protocol
+    #   Control protocol (deprecated)
     def send(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
              data: Optional[Any] = None,
              **kwargs) -> None:
@@ -162,28 +162,18 @@ class Listener(CommunicatorProtocol):
         return self.communicator.ask_rpc(receiver=receiver, method=method, timeout=timeout,
                                          **kwargs)
 
-    #   Data protocol
-    def subscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
-        """Subscribe to a topic."""
-        if isinstance(topics, (list, tuple)):
-            for topic in topics:
-                self.communicator.subscribe(topic)
-        else:
-            self.communicator.subscribe(topics)
+    #   Data protocol (deprecated)
+    def subscribe_single(self, topic: bytes) -> None:
+        self.communicator.subscribe_single(topic)
 
-    def unsubscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
-        """Unsubscribe from a topic."""
-        if isinstance(topics, (list, tuple)):
-            for topic in topics:
-                self.communicator.unsubscribe(topic)
-        else:
-            self.communicator.unsubscribe(topics)
+    def unsubscribe_single(self, topic: bytes) -> None:
+        self.communicator.unsubscribe_single(topic)
 
     def unsubscribe_all(self) -> None:
         """Unsubscribe from all subscriptions."""
         self.communicator.unsubscribe_all()
 
-    # Generic
+    # Generic (deprecated)
     def rename(self, new_name: str) -> None:
         """Rename the listener to `new_name`."""
         self.communicator.name = new_name
@@ -193,6 +183,8 @@ class Listener(CommunicatorProtocol):
 
     def sign_out(self) -> None:
         return  # already handled in the message_handler
+
+    # End of deprecated methods
 
     # Methods to control the Listener
     def start_listen(self, data_host: Optional[str] = None, data_port: Optional[int] = None

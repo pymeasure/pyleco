@@ -31,7 +31,7 @@ import zmq
 from ..core import PROXY_SENDING_PORT
 from .extended_message_handler import ExtendedMessageHandler
 from ..core.message import Message
-from ..core.internal_protocols import CommunicatorProtocol
+from ..core.internal_protocols import CommunicatorProtocol, SubscriberProtocol
 
 
 class MessageBuffer:
@@ -113,7 +113,7 @@ class MessageBuffer:
         return len(self._buffer)
 
 
-class CommunicatorPipe(CommunicatorProtocol):
+class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
     """A pipe endpoint satisfying the communicator protocol.
 
     You can create this endpoint in any thread you like and use it there.
@@ -185,14 +185,10 @@ class CommunicatorPipe(CommunicatorProtocol):
         self.socket.close(1)
 
     # Additional methods for the data protocol
-    def subscribe(self, topic: bytes | str) -> None:
-        if isinstance(topic, str):
-            topic = topic.encode()
+    def subscribe_single(self, topic: bytes) -> None:
         self._send_pipe_message(b"SUB", topic)
 
-    def unsubscribe(self, topic: bytes | str) -> None:
-        if isinstance(topic, str):
-            topic = topic.encode()
+    def unsubscribe_single(self, topic: bytes) -> None:
         self._send_pipe_message(b"UNSUB", topic)
 
     def unsubscribe_all(self) -> None:
@@ -324,10 +320,14 @@ class PipeHandler(ExtendedMessageHandler):
         return self.external_pipe.ask_message(message=message)
 
     def pipe_subscribe(self, topic: str | bytes) -> None:
-        self.external_pipe.subscribe(topic)
+        if isinstance(topic, str):
+            topic = topic.encode()
+        self.external_pipe.subscribe_single(topic)
 
     def pipe_unsubscribe(self, topic: str | bytes) -> None:
-        self.external_pipe.unsubscribe(topic)
+        if isinstance(topic, str):
+            topic = topic.encode()
+        self.external_pipe.unsubscribe_single(topic)
 
     def pipe_unsubscribe_all(self) -> None:
         self.external_pipe.unsubscribe_all()

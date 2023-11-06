@@ -250,7 +250,7 @@ def test_communicator_ask_message(pipe_handler_pipe: PipeHandler, communicator: 
 def test_communicator_subscribe(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
     pipe_handler_pipe.subscribe_single = MagicMock()  # type: ignore[method-assign]
     # act
-    communicator.subscribe("topic")
+    communicator.subscribe_single(b"topic")
     pipe_handler_pipe.handle_pipe_message()
     # assert
     pipe_handler_pipe.subscribe_single.assert_called_once_with(topic=b"topic")
@@ -259,7 +259,7 @@ def test_communicator_subscribe(pipe_handler_pipe: PipeHandler, communicator: Co
 def test_communicator_unsubscribe(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
     pipe_handler_pipe.unsubscribe_single = MagicMock()  # type: ignore[method-assign]
     # act
-    communicator.unsubscribe("topic")
+    communicator.unsubscribe_single(b"topic")
     pipe_handler_pipe.handle_pipe_message()
     # assert
     pipe_handler_pipe.unsubscribe_single.assert_called_once_with(topic=b"topic")

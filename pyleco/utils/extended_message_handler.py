@@ -24,16 +24,16 @@
 
 import json
 import pickle
-from typing import Union
 
 import zmq
 
 from .message_handler import MessageHandler
 from ..core import PROXY_SENDING_PORT
 from ..core.data_message import DataMessage
+from ..core.internal_protocols import SubscriberProtocol
 
 
-class ExtendedMessageHandler(MessageHandler):
+class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
     """Message handler, which handles also data protocol messages."""
 
     def __init__(self, name: str, context: None | zmq.Context = None, **kwargs) -> None:
@@ -119,17 +119,7 @@ class ExtendedMessageHandler(MessageHandler):
         # TODO deprecated
         raise NotImplementedError
 
-    def subscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
-        """Subscribe to a topic."""
-        if isinstance(topics, (list, tuple)):
-            for topic in topics:
-                self.subscribe_single(topic)
-        else:
-            self.subscribe_single(topics)
-
-    def subscribe_single(self, topic: bytes | str) -> None:
-        if isinstance(topic, str):
-            topic = topic.encode()
+    def subscribe_single(self, topic: bytes) -> None:
         if topic not in self._subscriptions:
             self.log.debug(f"Subscribing to {topic!r}.")
             self.subscriber.subscribe(topic)
@@ -137,17 +127,7 @@ class ExtendedMessageHandler(MessageHandler):
         else:
             self.log.info(f"Already subscribed to {topic!r}.")
 
-    def unsubscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
-        """Unsubscribe from a topic."""
-        if isinstance(topics, (list, tuple)):
-            for topic in topics:
-                self.unsubscribe_single(topic)
-        else:
-            self.unsubscribe_single(topics)
-
-    def unsubscribe_single(self, topic: bytes | str) -> None:
-        if isinstance(topic, str):
-            topic = topic.encode()
+    def unsubscribe_single(self, topic: bytes) -> None:
         self.log.debug(f"Unsubscribing from {topic!r}.")
         self.subscriber.unsubscribe(topic)
         if topic in self._subscriptions:

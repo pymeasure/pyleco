@@ -53,13 +53,10 @@ def test_read_subscription_message_calls_handle(handler: ExtendedMessageHandler)
     handler.handle_subscription_message.assert_called_once_with(message)  # type: ignore
 
 
-@pytest.mark.parametrize("topic", (b"bytes_topic", "topic"))
-def test_subscribe_single(handler: ExtendedMessageHandler, topic):
-    handler.subscribe_single(topic)
-    if isinstance(topic, str):
-        topic = topic.encode()
-    assert handler.subscriber._subscriptions == [topic]  # type: ignore
-    assert handler._subscriptions == [topic]
+def test_subscribe_single(handler: ExtendedMessageHandler):
+    handler.subscribe_single(b"topic")
+    assert handler.subscriber._subscriptions == [b"topic"]  # type: ignore
+    assert handler._subscriptions == [b"topic"]
 
 
 @pytest.mark.parametrize("topics, result", (
