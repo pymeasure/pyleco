@@ -39,16 +39,16 @@ class CoordinatorDirector(Director):
 
     def get_local_components(self) -> list[str]:
         """Get the directory."""
-        return self.call_method_rpc(method="send_local_components")
+        return self.ask_rpc(method="send_local_components")
 
     def get_global_components(self) -> dict[str, list[str]]:
         """Get the directory."""
-        return self.call_method_rpc(method="send_global_components")
+        return self.ask_rpc(method="send_global_components")
 
     def get_nodes(self) -> dict[str, str]:
         """Get all known nodes."""
-        return self.call_method_rpc(method="send_nodes")
+        return self.ask_rpc(method="send_nodes")
 
     def add_nodes(self, coordinators: dict[str, str]) -> None:
         """Tell the Coordinator about other coordinators (dict)."""
-        return self.call_method_rpc(method="add_nodes", nodes=coordinators)
+        return self.ask_rpc(method="add_nodes", nodes=coordinators)

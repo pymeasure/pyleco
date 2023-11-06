@@ -40,6 +40,8 @@ def fake_generate_conversation_id():
 def director(monkeypatch):
     monkeypatch.setattr("pyleco.directors.director.generate_conversation_id",
                         fake_generate_conversation_id)
+    monkeypatch.setattr("pyleco.core.serialization.generate_conversation_id",
+                        fake_generate_conversation_id)
     return Director(actor="actor", communicator=FakeCommunicator(name="director"))
 
 

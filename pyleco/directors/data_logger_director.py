@@ -48,28 +48,28 @@ class DataLoggerDirector(Director):
                          valuing_mode: ValuingModes = ValuingModes.LAST,
                          repeating: bool = False,
                          ) -> None:
-        self.call_method_rpc(method="start_collecting",
-                             trigger=trigger,
-                             subscriptions=subscriptions,
-                             valuing_mode=valuing_mode,
-                             repeating=repeating,
-                             )
+        self.ask_rpc(method="start_collecting",
+                     trigger=trigger,
+                     subscriptions=subscriptions,
+                     valuing_mode=valuing_mode,
+                     repeating=repeating,
+                     )
 
     def get_last_datapoint(self) -> dict[str, Any]:
         """Read the last datapoint."""
-        return self.call_method_rpc("get_last_datapoint")
+        return self.ask_rpc("get_last_datapoint")
 
     def saveData(self) -> str:
         """Save the data and return the name of the file."""
         try:
             tmo = self.communicator.timeout  # type:ignore[attr-defined]
             self.communicator.timeout = 1000  # type:ignore[attr-defined]
-            name = self.call_method_rpc("saveData")
+            name = self.ask_rpc("saveData")
             self.communicator.timeout = tmo  # type:ignore[attr-defined]
         except AttributeError:
-            name = self.call_method_rpc("saveData")
+            name = self.ask_rpc("saveData")
         return name
 
     def stop_collecting(self) -> None:
         """Stop the data acquisition."""
-        self.call_method_rpc(method="stop_collecting")
+        self.ask_rpc(method="stop_collecting")

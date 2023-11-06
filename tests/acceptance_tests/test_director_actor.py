@@ -124,12 +124,12 @@ def test_call_action_arg_and_kwarg(director: Director):
 
 
 def test_method_via_rpc(director: Director):
-    assert director.call_method_rpc(method="triple", factor=5) == 15
+    assert director.ask_rpc(method="triple", factor=5) == 15
 
 
 def test_method_via_rpc2(director: Director):
-    assert director.call_method_rpc(method="triple", factor=2, factor2=5) == 30
+    assert director.ask_rpc(method="triple", factor=2, factor2=5) == 30
 
 
 def test_device_method_via_rpc(director: Director):
-    assert director.call_method_rpc(method="device.triple", factor=5) == 15
+    assert director.ask_rpc(method="device.triple", factor=5) == 15
