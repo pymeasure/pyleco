@@ -48,8 +48,8 @@ class QtListener(Listener):
     :param logger: Logger instance whose logs should be published. Defaults to "__main__".
     """
 
-    def __init__(self, name: str, **kwargs) -> None:
-        super().__init__(name=name, **kwargs)
+    def __init__(self, name: str, host: str = "localhost", **kwargs) -> None:
+        super().__init__(name=name, host=host, **kwargs)
         self.signals = self.ListenerSignals()
 
     local_methods = ["pong", "set_log_level"]
