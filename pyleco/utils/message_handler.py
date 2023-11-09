@@ -104,11 +104,15 @@ class MessageHandler(ExtendedComponentProtocol):
 
         super().__init__(**kwargs)  # for cooperation
 
+    def register_rpc_method(self, method: Callable, **kwargs) -> None:
+        """Register a method to be available via rpc calls."""
+        self.rpc.method(**kwargs)(method)
+
     def register_rpc_methods(self) -> None:
-        """Publish methods for RPC."""
-        self.rpc.method()(self.shut_down)
-        self.rpc.method()(self.set_log_level)
-        self.rpc.method()(self.pong)
+        """Register methods for RPC."""
+        self.register_rpc_method(self.shut_down)
+        self.register_rpc_method(self.set_log_level)
+        self.register_rpc_method(self.pong)
 
     def __enter__(self):
         return self

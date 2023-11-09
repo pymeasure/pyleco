@@ -90,21 +90,21 @@ class Actor(MessageHandler, Generic[Device]):
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
-        self.rpc.method()(self.get_parameters)
-        self.rpc.method()(self.set_parameters)
-        self.rpc.method()(self.call_action)
-        self.rpc.method()(self.start_polling)
-        self.rpc.method()(self.stop_polling)
-        self.rpc.method()(self.get_polling_interval)
-        self.rpc.method()(self.set_polling_interval)
-        self.rpc.method()(self.connect)
-        self.rpc.method()(self.disconnect)
-        # TODO decide how to call the actor and how to call the device?
+        self.register_rpc_method(self.get_parameters)
+        self.register_rpc_method(self.set_parameters)
+        self.register_rpc_method(self.call_action)
+        self.register_rpc_method(self.start_polling)
+        self.register_rpc_method(self.stop_polling)
+        self.register_rpc_method(self.get_polling_interval)
+        self.register_rpc_method(self.set_polling_interval)
+        self.register_rpc_method(self.connect)
+        self.register_rpc_method(self.disconnect)
 
     def register_device_method(self, method: Callable) -> None:
         """Make a device method available via RPC. The method name is prefixed with `device.`."""
+        # TODO TBD how to call a device method?
         name = method.__name__
-        self.rpc.method(name="device." + name)(method)
+        self.register_rpc_method(method=method, name="device." + name)
 
     def __del__(self) -> None:
         self.disconnect()

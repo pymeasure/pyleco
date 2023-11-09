@@ -43,9 +43,9 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
-        self.rpc.method()(self.subscribe)
-        self.rpc.method()(self.unsubscribe)
-        self.rpc.method()(self.unsubscribe_all)
+        self.register_rpc_method(self.subscribe)
+        self.register_rpc_method(self.unsubscribe)
+        self.register_rpc_method(self.unsubscribe_all)
 
     def _listen_setup(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
                       **kwargs) -> zmq.Poller:

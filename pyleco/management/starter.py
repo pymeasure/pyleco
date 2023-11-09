@@ -132,13 +132,13 @@ class Starter(MessageHandler):
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
-        self.rpc.method()(self.start_tasks)
-        self.rpc.method()(self.stop_tasks)
-        self.rpc.method()(self.restart_tasks)
-        self.rpc.method()(self.install_tasks)
-        self.rpc.method()(self.list_tasks)
-        self.rpc.method()(self.status_tasks)
-        self.rpc.method()(self.uninstall_tasks)
+        self.register_rpc_method(self.start_tasks)
+        self.register_rpc_method(self.stop_tasks)
+        self.register_rpc_method(self.restart_tasks)
+        self.register_rpc_method(self.install_tasks)
+        self.register_rpc_method(self.list_tasks)
+        self.register_rpc_method(self.status_tasks)
+        self.register_rpc_method(self.uninstall_tasks)
 
     def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
         """Listen for zmq communication until `stop_event` is set.

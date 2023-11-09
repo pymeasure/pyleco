@@ -123,19 +123,19 @@ class DataLogger(ExtendedMessageHandler):
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
-        self.rpc.method()(self.set_valuing_mode)  # offer during a measurement?
-        self.rpc.method()(self.start_collecting)
-        self.rpc.method()(self.save_data)
-        self.rpc.method()(self.stop_collecting)
-        self.rpc.method()(self.get_last_datapoint)
-        self.rpc.method()(self.get_list_length)
-        self.rpc.method()(self.get_last_save_name)
-        self.rpc.method()(self.get_configuration)
-        self.rpc.method()(self.set_configuration)  # keep that style of setting values?
+        self.register_rpc_method(self.set_valuing_mode)  # offer during a measurement?
+        self.register_rpc_method(self.start_collecting)
+        self.register_rpc_method(self.save_data)
+        self.register_rpc_method(self.stop_collecting)
+        self.register_rpc_method(self.get_last_datapoint)
+        self.register_rpc_method(self.get_list_length)
+        self.register_rpc_method(self.get_last_save_name)
+        self.register_rpc_method(self.get_configuration)
+        self.register_rpc_method(self.set_configuration)  # keep that style of setting values?
         # deprecated, for backwards compatibility
-        self.rpc.method(name="saveData")(self.save_data)
-        self.rpc.method(name="getConfiguration")(self.get_configuration)
-        self.rpc.method(name="setConfiguration")(self.set_configuration)
+        self.register_rpc_method(method=self.save_data, name="saveData")
+        self.register_rpc_method(self.get_configuration, name="getConfiguration")
+        self.register_rpc_method(self.set_configuration, name="setConfiguration")
 
     def shut_down(self) -> None:
         self.stop_collecting()

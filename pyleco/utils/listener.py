@@ -228,6 +228,13 @@ class Listener(CommunicatorProtocol, SubscriberProtocol):
         kwargs.setdefault("timeout", self.timeout)
         return self.message_handler.get_communicator(**kwargs)
 
+    def register_rpc_method(self, method: Callable, **kwargs) -> None:
+        """Register a method for calling with the current message handler.
+
+        If you restart the listening, you have to register the method anew.
+        """
+        self.message_handler.register_rpc_method(method=method, **kwargs)
+
     def stop_listen(self) -> None:
         """Stop the listener Thread."""
         try:
