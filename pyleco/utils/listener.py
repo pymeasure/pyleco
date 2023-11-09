@@ -224,6 +224,7 @@ class Listener(CommunicatorProtocol, SubscriberProtocol):
                 break
 
     def get_communicator(self, **kwargs) -> CommunicatorPipe:
+        """Get the communicator for this thread, creating one if necessary."""
         kwargs.setdefault("timeout", self.timeout)
         return self.message_handler.get_communicator(**kwargs)
 

@@ -259,6 +259,27 @@ def test_listen_loop_element(handler: MessageHandler):
     assert socks == {}
 
 
+class Test_listen_close:
+    @pytest.fixture
+    def handler_lc(self, handler: MessageHandler):
+        handler._listen_close(0)
+        return handler
+
+    def test_sign_out_sent(self, handler_lc: MessageHandler):
+        sent = Message.from_frames(*handler_lc.socket._s[-1])  # type: ignore
+        assert handler_lc.socket._s == [Message("COORDINATOR", "N1.handler",
+                                                conversation_id=sent.conversation_id,
+                                                message_type=MessageTypes.JSON,
+                                                data={
+                                                    "id": 1, "method": "sign_out", "jsonrpc": "2.0",
+                                                    },
+                                                ).to_frames()]
+
+    def test_warning_log_written(self, handler_lc: MessageHandler,
+                                 caplog: pytest.LogCaptureFixture):
+        assert caplog.get_records("setup")[-1].message == "Waiting for sign out response timed out."
+
+
 def test_set_log_level(handler: MessageHandler):
     handler.set_log_level(LogLevels.ERROR)
     assert handler.root_logger.level == 40  # logging.ERROR

@@ -63,9 +63,9 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
             del socks[self.subscriber]
         return socks
 
-    def _listen_close(self) -> None:
+    def _listen_close(self, waiting_time: int | None = None) -> None:
         self.subscriber.close(1)
-        super()._listen_close()
+        super()._listen_close(waiting_time=waiting_time)
 
     def read_subscription_message(self) -> None:
         """Read a message from the data protocol."""

@@ -188,7 +188,7 @@ class MessageHandler(ExtendedComponentProtocol):
         except Exception:
             raise
         # Close
-        self._listen_close()
+        self._listen_close(waiting_time=waiting_time)
 
     def _listen_setup(self) -> zmq.Poller:
         """Setup for listening.
@@ -220,11 +220,14 @@ class MessageHandler(ExtendedComponentProtocol):
             self.next_beat = now + heartbeat_interval
         return socks
 
-    def _listen_close(self) -> None:
+    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
         """Close the listening loop."""
         self.log.info(f"Stop listen as '{self.name}'.")
         self.sign_out()
-        self.handle_message()
+        if self.socket.poll(timeout=waiting_time):
+            self.handle_message()
+        else:
+            self.log.warning("Waiting for sign out response timed out.")
 
     def handle_message(self) -> None:
         """Interpret incoming message.
