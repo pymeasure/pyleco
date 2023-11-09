@@ -24,22 +24,9 @@
 
 import pytest
 
-from pyleco.core import VERSION_B
-
 from pyleco.test import FakeCommunicator
-from pyleco.core.message import Message, MessageTypes
-from pyleco.core.internal_protocols import CommunicatorProtocol
 
 from pyleco.utils.listener import Listener
-
-
-cid = b"conversation_id;"  # conversation_id
-header = b"".join((cid, b"mid", MessageTypes.JSON.to_bytes(length=1, byteorder="big")))
-# the result
-msg = Message(b"r", b"s", conversation_id=cid, message_id=b"mid")
-msg_list = ("r", "s", cid, b"", None)
-# some different message
-other = Message(b"r", b"s", conversation_id=b"conversation_id9", message_id=b"mid")
 
 
 @pytest.fixture
@@ -49,38 +36,5 @@ def listener() -> Listener:
     return listener
 
 
-def static_test_listener_is_communicator():
-    def testing(listener: CommunicatorProtocol):
-        pass
-    testing(Listener(name="listener"))
-
-
-def test_send(listener: Listener):
-    listener.send(receiver="N2.CB", conversation_id=cid, message_id=b"mid", data=[["TEST"]],
-                  message_type=MessageTypes.JSON)
-    assert listener.communicator._s == [  # type: ignore
-        Message.from_frames(VERSION_B, b"N2.CB", b"N.Pipe", header, b'[["TEST"]]')]
-
-
-@pytest.mark.parametrize("buffer", ([msg], [msg, other]))
-def test_read_answer_success(listener: Listener, buffer):
-    listener.communicator._r = buffer  # type: ignore
-    assert listener.read_answer(cid) == msg_list
-
-
-@pytest.mark.parametrize("buffer", ([msg], [msg, other]))
-def test_read_answer_as_message_success(listener: Listener, buffer):
-    listener.communicator._r = buffer  # type: ignore
-    assert listener.read_answer_as_message(cid) == msg
-
-
-def test_ask_rpc(listener: Listener):
-    response = Message("test", "receiver", conversation_id=cid, message_type=MessageTypes.JSON,
-                       data={'jsonrpc': "2.0", "result": None, "id": 1})
-    listener.communicator._r = [response]  # type: ignore
-    listener.ask_rpc("receiver", method="test_method")
-    sent_message = listener.communicator._s[0]  # type: ignore
-    assert sent_message == Message(b"receiver", b"N.Pipe",
-                                   conversation_id=sent_message.conversation_id,
-                                   message_type=MessageTypes.JSON,
-                                   data={'jsonrpc': "2.0", "method": "test_method", "id": 1})
+def test_communicator_name_is_returned(listener: Listener):
+    assert listener.name == "N.Pipe"

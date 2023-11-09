@@ -80,7 +80,7 @@ def leco():
     listener = Listener(name="Controller", port=PORT)
     listener.start_listen()
     sleep(1)
-    yield listener
+    yield listener.get_communicator()
     log.info("Tearing down")
     for thread in threads:
         thread.join(0.5)
@@ -90,14 +90,14 @@ def leco():
 
 
 @pytest.mark.skipif(testlevel < 0, reason="reduce load")
-def test_startup(leco: Listener):
+def test_startup(leco: Communicator):
     with CoordinatorDirector(communicator=leco) as d:
         assert d.get_local_components() == ["Controller"]
         assert d.get_nodes() == {"N1": f"{hostname}:{PORT}"}
 
 
 @pytest.mark.skipif(testlevel < 1, reason="reduce load")
-def test_connect_N1_to_N2(leco: Listener):
+def test_connect_N1_to_N2(leco: Communicator):
     with CoordinatorDirector(communicator=leco) as d:
         d.add_nodes({"N2": f"localhost:{PORT2}"})
         sleep(0.5)  # time for coordinators to talk
@@ -108,13 +108,13 @@ def test_connect_N1_to_N2(leco: Listener):
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
-def test_Component_to_Component_via_1_Coordinator(leco: Listener):
+def test_Component_to_Component_via_1_Coordinator(leco: Communicator):
     with Communicator(name="whatever", port=PORT) as c:
         assert c.ask_rpc("N1.Controller", method="pong") is None
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
-def test_Component_to_Component_via_2_Coordinators(leco: Listener):
+def test_Component_to_Component_via_2_Coordinators(leco: Communicator):
     with Communicator(name="whatever", port=PORT2) as c:
         response = c.ask("N1.Controller", data={"id": 1, "method": "pong", "jsonrpc": "2.0"},
                          message_type=MessageTypes.JSON)
@@ -124,25 +124,25 @@ def test_Component_to_Component_via_2_Coordinators(leco: Listener):
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
-def test_Component_lists_propgate_through_Coordinators(leco: Listener):
+def test_Component_lists_propgate_through_Coordinators(leco: Communicator):
     """Test that Component lists are propagated from one Coordinator to another."""
     with CoordinatorDirector(actor="N2.COORDINATOR", name="whatever", port=PORT2) as d:
         assert d.get_global_components() == {"N1": ["Controller"], "N2": ["whatever"]}
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
-def test_Component_to_second_coordinator(leco: Listener):
+def test_Component_to_second_coordinator(leco: Communicator):
     assert leco.ask_rpc("N2.COORDINATOR", method="pong") is None
 
 
-def test_sign_in_rejected_for_duplicate_name(leco: Listener):
+def test_sign_in_rejected_for_duplicate_name(leco: Communicator):
     with pytest.raises(ConnectionRefusedError, match=DUPLICATE_NAME.message):
         with Communicator(name="Controller", port=PORT):
             pass
 
 
 @pytest.mark.skipif(testlevel < 3, reason="reduce load")
-def test_connect_N3_to_N2(leco: Listener):
+def test_connect_N3_to_N2(leco: Communicator):
     with CoordinatorDirector(name="whatever", port=PORT3) as d1:
         d1.add_nodes({"N2": f"localhost:{PORT2}"})
 
@@ -153,7 +153,7 @@ def test_connect_N3_to_N2(leco: Listener):
 
 
 @pytest.mark.skipif(testlevel < 4, reason="reduce load")
-def test_shutdown_N3(leco: Listener):
+def test_shutdown_N3(leco: Communicator):
     with CoordinatorDirector(actor="N3.COORDINATOR", name="whatever", port=PORT3) as d1:
         d1.shut_down_actor()
 
