@@ -119,13 +119,14 @@ class Listener:
             try:
                 self.communicator: CommunicatorPipe = self.message_handler.get_communicator(
                     timeout=self.timeout)
-                log.addHandler(self.message_handler.logHandler)
-                if self.logger is not None:
-                    self.logger.addHandler(self.message_handler.logHandler)
             except AttributeError:
                 pass
             else:
-                break
+                log.addHandler(self.message_handler.logHandler)
+                if self.logger is not None:
+                    self.logger.addHandler(self.message_handler.logHandler)
+                return
+        raise TimeoutError("PipeHandler has not started after 0.5 s.")
 
     def get_communicator(self, **kwargs) -> CommunicatorPipe:
         """Get the communicator for this thread, creating one if necessary."""
@@ -159,6 +160,8 @@ class Listener:
 
     def _listen(self, name: str, stop_event: Event, coordinator_host: str, coordinator_port: int,
                 data_host: str, data_port: int) -> None:
+        print(f"starting with {data_port}")
         self.message_handler = PipeHandler(name, host=coordinator_host, port=coordinator_port,
                                            data_host=data_host, data_port=data_port)
+        print("started")
         self.message_handler.listen(stop_event=stop_event)
