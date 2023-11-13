@@ -150,7 +150,7 @@ class Director:
             parameters = (parameters,)
         response = self.ask_rpc(method="get_parameters", parameters=parameters, actor=actor)
         if not isinstance(response, dict):
-            raise ConnectionError("{response} returned, but dict expected.")
+            raise ConnectionError(f"{response} returned, but dict expected.")
         return response
 
     def set_parameters(self, parameters: dict[str, Any],
