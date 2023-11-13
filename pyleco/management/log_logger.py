@@ -71,8 +71,10 @@ class LogLogger(ExtendedMessageHandler):
 
     log_entries: dict[str, list[list[str]]]
 
-    def __init__(self, name: str = "LogLoggerN", directory: str = ".", **kwargs) -> None:
-        super().__init__(name=name, **kwargs)
+    def __init__(self, name: str = "LogLoggerN", directory: str = ".",
+                 data_port: int = LOG_SENDING_PORT,
+                 **kwargs) -> None:
+        super().__init__(name=name, data_port=data_port, **kwargs)
         self.directory = directory
         self.reset_data_storage()
 
@@ -97,9 +99,8 @@ class LogLogger(ExtendedMessageHandler):
         self.stop_collecting()
 
     def _listen_setup(self, subscriptions: Optional[list[str] | tuple[str, ...]] = None,  # type: ignore  # noqa
-                      data_port: int = LOG_SENDING_PORT,
                       **kwargs):
-        poller = super()._listen_setup(data_port=data_port, **kwargs)
+        poller = super()._listen_setup(**kwargs)
         self.start_collecting(subscriptions=subscriptions)
         return poller
 

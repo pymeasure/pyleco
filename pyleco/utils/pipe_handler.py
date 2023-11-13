@@ -27,7 +27,6 @@ from typing import Callable, Optional
 
 import zmq
 
-from ..core import PROXY_SENDING_PORT
 from .extended_message_handler import ExtendedMessageHandler
 from ..core.message import Message
 from ..core.internal_protocols import CommunicatorProtocol, SubscriberProtocol
@@ -234,9 +233,8 @@ class PipeHandler(ExtendedMessageHandler):
                 self.log.exception("Setting the name with a registered method failed.",
                                    exc_info=exc)
 
-    def _listen_setup(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
-                      **kwargs) -> zmq.Poller:
-        poller = super()._listen_setup(host=host, data_port=data_port, **kwargs)
+    def _listen_setup(self, **kwargs) -> zmq.Poller:
+        poller = super()._listen_setup(**kwargs)
         poller.register(self.internal_pipe, zmq.POLLIN)
         return poller
 

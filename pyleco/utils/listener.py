@@ -98,15 +98,8 @@ class Listener:
             pass
 
     # Methods to control the Listener
-    def start_listen(self,
-                     coordinator_host: Optional[str] = None, coordinator_port: Optional[int] = None,
-                     data_host: Optional[str] = None, data_port: Optional[int] = None
-                     ) -> None:
-        """Start to listen in a thread.
-
-        :param str host: Host name to listen to.
-        :param int dataPort: Port for the subscription.
-        """
+    def start_listen(self) -> None:
+        """Start to listen in a thread."""
         self.stop_listen()
         self.stop_event = Event()
         self.thread = Thread(
@@ -114,10 +107,10 @@ class Listener:
             args=(
                 self.name,
                 self.stop_event,
-                coordinator_host or self.coordinator_address[0],
-                coordinator_port or self.coordinator_address[1],
-                data_host or self.data_address[0],
-                data_port or self.data_address[1],
+                self.coordinator_address[0],
+                self.coordinator_address[1],
+                self.data_address[0],
+                self.data_address[1],
             ))
         self.thread.daemon = True
         self.thread.start()
@@ -166,5 +159,6 @@ class Listener:
 
     def _listen(self, name: str, stop_event: Event, coordinator_host: str, coordinator_port: int,
                 data_host: str, data_port: int) -> None:
-        self.message_handler = PipeHandler(name, host=coordinator_host, port=coordinator_port)
-        self.message_handler.listen(stop_event=stop_event, host=data_host, data_port=data_port)
+        self.message_handler = PipeHandler(name, host=coordinator_host, port=coordinator_port,
+                                           data_host=data_host, data_port=data_port)
+        self.message_handler.listen(stop_event=stop_event)

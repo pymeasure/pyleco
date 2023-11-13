@@ -71,8 +71,8 @@ class QtListener(Listener):
         # new style
         self.signals.data_message.emit(message)
 
-    def start_listen(self, host: str | None = None, data_port: int | None = None) -> None:
-        super().start_listen(host, data_port)
+    def start_listen(self) -> None:
+        super().start_listen()
         self.message_handler.name_changing_methods.append(self.indicate_namespace_change)
         # as the method is added after init, call it once:
         self.indicate_namespace_change(self.message_handler.full_name)

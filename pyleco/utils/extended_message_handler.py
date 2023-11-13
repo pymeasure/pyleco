@@ -36,10 +36,18 @@ from ..core.internal_protocols import SubscriberProtocol
 class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
     """Message handler, which handles also data protocol messages."""
 
-    def __init__(self, name: str, context: None | zmq.Context = None, **kwargs) -> None:
-        super().__init__(name=name, context=context, **kwargs)
-        self.context = context or zmq.Context.instance()
+    def __init__(self, name: str, context: None | zmq.Context = None,
+                 host: str = "localhost",
+                 data_host: str | None = None, data_port: int = PROXY_SENDING_PORT,
+                 **kwargs) -> None:
+        if context is None:
+            context = zmq.Context.instance()
+        super().__init__(name=name, context=context, host=host, **kwargs)
         self._subscriptions: list[bytes] = []  # List of all subscriptions
+        self.subscriber: zmq.Socket = context.socket(zmq.SUB)
+        if data_host is None:
+            data_host = host
+        self.subscriber.connect(f"tcp://{data_host}:{data_port}")
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
@@ -47,11 +55,12 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         self.register_rpc_method(self.unsubscribe)
         self.register_rpc_method(self.unsubscribe_all)
 
-    def _listen_setup(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
-                      **kwargs) -> zmq.Poller:
+    def close(self) -> None:
+        self.subscriber.close(1)
+        return super().close()
+
+    def _listen_setup(self, **kwargs) -> zmq.Poller:
         poller = super()._listen_setup(**kwargs)
-        self.subscriber: zmq.Socket = self.context.socket(zmq.SUB)
-        self.subscriber.connect(f"tcp://{host}:{data_port}")
         poller.register(self.subscriber, zmq.POLLIN)
         return poller
 
@@ -62,10 +71,6 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
             self.read_subscription_message()
             del socks[self.subscriber]
         return socks
-
-    def _listen_close(self, waiting_time: int | None = None) -> None:
-        self.subscriber.close(1)
-        super()._listen_close(waiting_time=waiting_time)
 
     def read_subscription_message(self) -> None:
         """Read a message from the data protocol."""

@@ -64,22 +64,20 @@ class Republisher(ExtendedMessageHandler):
     """
 
     def __init__(self, name: str = "Republisher", handlings: Optional[dict] = None,
-                 *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+                 data_port: int = PROXY_SENDING_PORT,
+                 **kwargs):
+        super().__init__(name, data_port=data_port, **kwargs)
         self.publisher = Publisher()
         self.handlings = {} if handlings is None else handlings
 
-    def start_listen(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
-                     stop_event: Event | None = None,
-                     **kwargs) -> None:
+    def start_listen(self, stop_event: Event | None = None) -> None:
         if stop_event is None:
-            self.listen(host=host, data_port=data_port)
+            self.listen()
         else:
-            self.listen(host=host, data_port=data_port, stop_event=stop_event)
+            self.listen(stop_event=stop_event)
 
-    def _listen_setup(self, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
-                      **kwargs) -> zmq.Poller:
-        poller = super()._listen_setup(host, data_port, **kwargs)
+    def _listen_setup(self, **kwargs) -> zmq.Poller:
+        poller = super()._listen_setup(**kwargs)
         for key in self.handlings.keys():
             self.subscribe(key)
         return poller
