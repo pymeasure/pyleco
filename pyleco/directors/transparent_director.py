@@ -113,12 +113,12 @@ class TransparentDevice:
 class TransparentDirector(Director, Generic[Device]):
     """Director getting/setting all properties remotely.
 
-    It has an :attr:`device`. Whenever you get/set an attribute of `device`, the Director will call
-    the Actor and try to get/set the corresponding attribute of the Actor's device.
+    It has a :attr:`device` attribute. Whenever you get/set an attribute of `device`, the Director
+    will call the Actor and try to get/set the corresponding attribute of the Actor's device.
     If you want to add method calls, you might use the :class:`RemoteCall` Descriptor to add methods
-    to a subclass of :class:`TransparentDevice`.
+    to a subclass of :class:`TransparentDevice` and give that class to the `cls` parameter.
     For example :code:`method = RemoteCall()` in the class definition will make sure,
-    that :code:`method(*args, **kwargs)` will be executed remotely.
+    that :code:`device.method(*args, **kwargs)` will be executed remotely.
 
     :param cls: Subclass of :class:`TransparentDevice` to use as a device dummy.
     """
