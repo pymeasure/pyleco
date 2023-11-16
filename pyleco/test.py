@@ -59,6 +59,8 @@ class FakeSocket:
         self._s: list[list[bytes]] = []
         self._r: list[list[bytes]] = []
         if socket_type == 2:  # zmq.SUB
+            # empirical data shots, that you have to unsubscribe as many times as you have
+            # subscribed, therefore a list is best
             self._subscriptions: list[bytes] = []
 
     def bind(self, addr: str) -> None:
@@ -91,7 +93,6 @@ class FakeSocket:
 
     def send_multipart(self, msg_parts: Sequence, flags: int = 0, copy: bool = True,
                        track: bool = False, **kwargs) -> None:
-        # print(parts)
         for i, part in enumerate(msg_parts):
             if not isinstance(part, bytes):
                 # Similar to real error message.
@@ -100,7 +101,7 @@ class FakeSocket:
 
     def subscribe(self, topic: str | bytes) -> None:
         if self.socket_type != 2:
-            raise ValueError("Invalid argument")  # it is a ZMQError
+            raise ValueError("Invalid argument")  # type is a ZMQError
         else:
             if isinstance(topic, str):
                 topic = topic.encode()
@@ -108,16 +109,14 @@ class FakeSocket:
 
     def unsubscribe(self, topic: str | bytes) -> None:
         if self.socket_type != 2:
-            raise ValueError("Invalid argument")  # it is a ZMQError
+            raise ValueError("Invalid argument")  # type is a ZMQError
         else:
             if isinstance(topic, str):
                 topic = topic.encode()
             try:
-                index = self._subscriptions.index(topic)
+                self._subscriptions.remove(topic)
             except ValueError:
-                pass  # not found
-            else:
-                del self._subscriptions[index]
+                pass  # not present
 
     def close(self, linger: Optional[int] = None) -> None:
         self.addr = None
@@ -143,8 +142,10 @@ class FakePoller:
         self._sockets.append(socket)
 
     def unregister(self, socket: FakeSocket) -> None:
-        if socket in self._sockets:
-            del self._sockets[self._sockets.index(socket)]
+        try:
+            self._sockets.remove(socket)
+        except ValueError:
+            pass  # already removed
 
 
 class FakeCommunicator(CommunicatorProtocol):

@@ -70,7 +70,7 @@ class MessageBuffer:
         with self._buffer_lock:
             if message.conversation_id in self._cids:
                 self._buffer.append(message)
-                del self._cids[self._cids.index(message.conversation_id)]
+                self._cids.remove(message.conversation_id)
                 self._buffer_lock.notify_all()
                 return True
             else:

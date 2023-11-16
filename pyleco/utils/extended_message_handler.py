@@ -127,8 +127,8 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
     def subscribe_single(self, topic: bytes) -> None:
         if topic not in self._subscriptions:
             self.log.debug(f"Subscribing to {topic!r}.")
-            self.subscriber.subscribe(topic)
             self._subscriptions.append(topic)
+            self.subscriber.subscribe(topic)
         else:
             self.log.info(f"Already subscribed to {topic!r}.")
 
@@ -136,7 +136,7 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         self.log.debug(f"Unsubscribing from {topic!r}.")
         self.subscriber.unsubscribe(topic)
         if topic in self._subscriptions:
-            del self._subscriptions[self._subscriptions.index(topic)]
+            self._subscriptions.remove(topic)
 
     def unsubscribe_all(self) -> None:
         """Unsubscribe from all subscriptions."""
