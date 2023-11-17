@@ -59,7 +59,7 @@ class QtListener(Listener):
         dataReady = Signal(dict)
         message = Signal(Message)
         data_message = Signal(DataMessage)
-        namespace_changed = Signal(str)
+        name_changed = Signal(str)
 
     def handle_subscription_data(self, data: dict) -> None:
         """Handle incoming subscription data."""
@@ -73,9 +73,9 @@ class QtListener(Listener):
 
     def start_listen(self) -> None:
         super().start_listen()
-        self.message_handler.name_changing_methods.append(self.indicate_namespace_change)
+        self.message_handler.name_changing_methods.append(self.signals.name_changed.emit)
         # as the method is added after init, call it once:
-        self.indicate_namespace_change(self.message_handler.full_name)
+        self.signals.name_changed.emit(self.message_handler.full_name)
         self.message_handler.handle_subscription_data = self.handle_subscription_data  # type:ignore
         self.message_handler.finish_handle_commands = self.finish_handle_commands  # type: ignore
         self.message_handler.handle_subscription_message = self.handle_subscription_message  # type: ignore  # noqa
@@ -91,8 +91,3 @@ class QtListener(Listener):
             super(PipeHandler, self.message_handler).handle_commands(message)
         else:
             self.signals.message.emit(message)
-
-    def indicate_namespace_change(self, full_name: str) -> None:
-        """Send a signal for a changed namespace."""
-        namespace = full_name.split(".")[0] if "." in full_name else ""
-        self.signals.namespace_changed.emit(namespace)
