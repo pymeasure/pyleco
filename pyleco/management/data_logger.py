@@ -33,7 +33,7 @@ except ImportError:
         pass
 import json
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Iterable
 
 try:
     import numpy as np  # type: ignore[import-not-found]
@@ -45,12 +45,12 @@ else:
 
 if __name__ == "__main__":
     from pyleco.utils.timers import RepeatingTimer
-    from pyleco.utils.extended_message_handler import ExtendedMessageHandler
+    from pyleco.utils.extended_message_handler import ExtendedMessageHandler, DataMessage
     from pyleco.utils.parser import parser
     from pyleco.utils.data_publisher import DataPublisher
 else:
     from ..utils.timers import RepeatingTimer
-    from ..utils.extended_message_handler import ExtendedMessageHandler
+    from ..utils.extended_message_handler import ExtendedMessageHandler, DataMessage
     from ..utils.parser import parser
     from ..utils.data_publisher import DataPublisher
 
@@ -156,7 +156,17 @@ class DataLogger(ExtendedMessageHandler):
         self.publisher.full_name = full_name
 
     # Data management
-    def handle_subscription_data(self, data: dict) -> None:
+    def handle_subscription_message(self, data_message: DataMessage) -> None:
+        sender = data_message.topic.decode()
+        try:
+            content: dict[str, Any] = data_message.data  # type: ignore
+            modified_dict = {".".join((sender, k)): v for k, v in content.items()}
+        except Exception:
+            log.exception("Could not decode message {data_message}.")
+        else:
+            self.handle_subscription_data(modified_dict)
+
+    def handle_subscription_data(self, data: dict[str, Any]) -> None:
         """Store `data` dict in `tmp`"""
         for key, value in data.items():
             try:
@@ -214,39 +224,57 @@ class DataLogger(ExtendedMessageHandler):
 
     # Control
     def start_collecting(self, *,
-                         subscriptions: Optional[list[str]] = None,
+                         variables: Optional[Iterable[str]] = None,
                          trigger: Optional[str | float] = None,
                          valuing_mode: Optional[ValuingModes] = None,
                          value_repeating: Optional[bool] = None,
                          ) -> None:
         """Start collecting data."""
         for key, value in zip(
-            ("subscriptions", "trigger", "valuing_mode", "value_repeating"),
-            (subscriptions, trigger, valuing_mode, value_repeating)
+            ("variables", "trigger", "valuing_mode", "value_repeating"),
+            (variables, trigger, valuing_mode, value_repeating)
         ):
             if value is not None:
                 self.last_config[key] = value
         self._start(**self.last_config)
 
     def _start(self, *,
-               subscriptions: list[str],
+               variables: Iterable[str],
                trigger: str | float = 1,
                valuing_mode: ValuingModes = ValuingModes.LAST,
                value_repeating: bool = False,
                ) -> None:
         self.stop_collecting()
         log.info(f"Start collecting data. Trigger: {trigger}; "
-                 f"subscriptions: {subscriptions}")
+                 f"subscriptions: {variables}")
         self._set_trigger(trigger=trigger)
         self.value_repeating = value_repeating
         self.today = datetime.datetime.now(datetime.timezone.utc).date()
         self.set_valuing_mode(valuing_mode=valuing_mode)
+        self.setup_variables(variables)
 
+    def setup_variables(self, variables: Iterable[str]) -> None:
+        """Subscribe to the variables."""
         self.reset_data_storage()
-        for variable in subscriptions:
+        subscriptions: set[str] = set()
+        for variable in variables:
+            if "." in variable:
+                # this is the new style: topic is sender name, data is in content
+                parts = variable.split(".")
+                if len(parts) == 2:
+                    # assume to be in the same namespace
+                    parts.insert(0, self.namespace)  # type: ignore
+                    variable = ".".join(parts)
+                try:
+                    subscriptions.add(".".join(parts[:2]))
+                except TypeError:
+                    # if self.namespace is None
+                    log.error(f"Cannot subscribe to '{variable}' as the namespace is not known.")
+            else:
+                # old style: topic is variable name
+                subscriptions.add(variable)
             self.lists[variable] = []
             self.tmp[variable] = []
-
         self.subscribe(topics=subscriptions)
 
     def _set_trigger(self, trigger: str | float):
@@ -293,16 +321,17 @@ class DataLogger(ExtendedMessageHandler):
             meta = {}
         folder = self.directory
         # Pickle the header and lists.
-        name = datetime.datetime.now().strftime("%Y_%m_%dT%H_%M_%S") + suffix
+        file_name = datetime.datetime.now().strftime("%Y_%m_%dT%H_%M_%S") + suffix
         meta.update({
             'units': {parameter: f"{units:~P}" for parameter, units in self.units.items()},
             'today': self.today.isoformat(),
-            'name': name,
+            'file_name': file_name,
+            'logger_name': self.full_name,
             'configuration': self.get_configuration(),
             # 'user': self.user_data,  # user stored meta data
         })
         try:
-            with open(f"{folder}/{name}.json", 'w') as file:
+            with open(f"{folder}/{file_name}.json", 'w') as file:
                 json.dump(obj=(header, self.lists, meta), fp=file)
         except TypeError as exc:
             log.exception("Some type error during saving occurred.", exc_info=exc)
@@ -312,9 +341,9 @@ class DataLogger(ExtendedMessageHandler):
             raise
         else:
             # Indicate the name.
-            log.info(f"Saved data to '{folder}/{name}'.")
-            self.last_save_name = name
-            return name
+            log.info(f"Saved data to '{folder}/{file_name}'.")
+            self.last_save_name = file_name
+            return file_name
 
     def stop_collecting(self) -> None:
         """Stop the data acquisition."""
@@ -368,12 +397,12 @@ class DataLogger(ExtendedMessageHandler):
                 case 'valueRepeat', checked:
                     translated_dict["value_repeating"] = checked
                 case 'variables', value:
-                    translated_dict["subscriptions"] = value.split()
+                    translated_dict["variables"] = value.split()
                 case _:
                     pass
         # Start the logging.
         translated_dict.setdefault("trigger", 1)
-        translated_dict.setdefault("subscriptions", ["time"])
+        translated_dict.setdefault("variables", ["time"])
         translated_dict.setdefault("valuing_mode", ValuingModes.LAST)
         translated_dict.setdefault("value_repeating", False)
         self.start_collecting(**translated_dict)
