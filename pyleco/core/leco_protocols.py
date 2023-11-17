@@ -74,7 +74,8 @@ except ImportError:
 
     class StrEnum(str, Enum):  # type: ignore
         pass
-from typing import Any, Optional, Protocol, Union
+
+from typing import Any, Iterable, Optional, Protocol
 
 
 class ComponentProtocol(Protocol):
@@ -129,7 +130,7 @@ class CoordinatorProtocol(ComponentProtocol, Protocol):
 class ActorProtocol(ComponentProtocol, Protocol):
     """An Actor Component."""
 
-    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]: ...
+    def get_parameters(self, parameters: Iterable[str]) -> dict[str, Any]: ...
 
     def set_parameters(self, parameters: dict[str, Any]) -> None: ...
 

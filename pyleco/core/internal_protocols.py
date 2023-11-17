@@ -31,7 +31,7 @@ Any Component could use these tools in order to send and read messsages.
 For example a Director might use these tools to direct an Actor.
 """
 
-from typing import Any, Optional, Protocol, Union
+from typing import Any, Optional, Protocol, Iterable, Union
 
 from .message import Message, MessageTypes
 from .rpc_generator import RPCGenerator
@@ -97,7 +97,7 @@ class SubscriberProtocol(Protocol):
 
     def unsubscribe_single(self, topic: bytes) -> None: ...  # pragma: no cover
 
-    def subscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
+    def subscribe(self, topics: Union[str, Iterable[str]]) -> None:
         """Subscribe to a topic or list of topics."""
         if isinstance(topics, str):
             self.subscribe_single(topics.encode())
@@ -105,7 +105,7 @@ class SubscriberProtocol(Protocol):
             for topic in topics:
                 self.subscribe_single(topic.encode())
 
-    def unsubscribe(self, topics: Union[str, list[str], tuple[str, ...]]) -> None:
+    def unsubscribe(self, topics: Union[str, Iterable[str]]) -> None:
         """Unsubscribe to a topic or list of topics."""
         if isinstance(topics, str):
             self.unsubscribe_single(topics.encode())

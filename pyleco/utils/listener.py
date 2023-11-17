@@ -29,7 +29,6 @@ from typing import Callable, Optional
 
 from ..core import PROXY_SENDING_PORT, COORDINATOR_PORT
 from .pipe_handler import PipeHandler, CommunicatorPipe
-from .republisher import Republisher  # for dependencies  # noqa
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())

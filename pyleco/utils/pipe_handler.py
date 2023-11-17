@@ -218,7 +218,7 @@ class PipeHandler(ExtendedMessageHandler):
                                                                 min_port=12345)
         self.buffer = MessageBuffer()
         self._communicators = {}
-        self.name_changing_methods: list[Callable[[str], None]] = []
+        self.name_changing_methods = []
 
     def close(self) -> None:
         self.internal_pipe.close(1)
@@ -266,7 +266,7 @@ class PipeHandler(ExtendedMessageHandler):
                 self.log.debug(f"Received unknown '{msg}'.")
 
     # Control protocol
-    def _send_frames(self, frames: list[bytes]):
+    def _send_frames(self, frames: list[bytes]) -> None:
         """Send frames over the connection."""
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
