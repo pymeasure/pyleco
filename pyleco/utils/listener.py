@@ -159,8 +159,6 @@ class Listener:
 
     def _listen(self, name: str, stop_event: Event, coordinator_host: str, coordinator_port: int,
                 data_host: str, data_port: int) -> None:
-        print(f"starting with {data_port}")
         self.message_handler = PipeHandler(name, host=coordinator_host, port=coordinator_port,
                                            data_host=data_host, data_port=data_port)
-        print("started")
         self.message_handler.listen(stop_event=stop_event)
