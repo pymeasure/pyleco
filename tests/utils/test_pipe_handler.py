@@ -157,6 +157,7 @@ def pipe_handler_pipe():
 
 @pytest.fixture
 def communicator(pipe_handler_pipe: PipeHandler):
+    """Communicator of `pipe_handler_pipe`."""
     return pipe_handler_pipe.get_communicator()
 
 
@@ -291,3 +292,9 @@ def test_add_name_change_method(pipe_handler: PipeHandler):
     pipe_handler.set_full_name("new full name")
     # assert
     method.assert_called_once_with("new full name")
+
+
+def test_handle_local_method(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
+    cid = communicator._send_handler(method="pong")
+    pipe_handler_pipe.handle_pipe_message()
+    assert communicator._read_handler(cid) is None

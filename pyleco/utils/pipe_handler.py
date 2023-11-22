@@ -23,13 +23,14 @@
 #
 
 from threading import get_ident, Condition
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import zmq
 
 from .extended_message_handler import ExtendedMessageHandler
-from ..core.message import Message
+from ..core.message import Message, MessageTypes
 from ..core.internal_protocols import CommunicatorProtocol, SubscriberProtocol
+from ..core.serialization import generate_conversation_id
 
 
 class MessageBuffer:
@@ -189,6 +190,24 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
     def unsubscribe_all(self) -> None:
         self._send_pipe_message(b"UNSUBALL")
 
+    # methods for local access
+    def _send_handler(self, method: str, **kwargs) -> bytes:
+        cid = generate_conversation_id()
+        message_string = self.rpc_generator.build_request_str(method=method, **kwargs)
+        self.buffer.add_conversation_id(cid)
+        self._send_pipe_message(b"LOC", cid, message_string.encode())
+        return cid
+
+    def _read_handler(self, cid: bytes, timeout: float = 1) -> Any:
+        response_message = self.read_message(conversation_id=cid, timeout=timeout)
+        result = self.rpc_generator.get_result_from_response(response_message.payload[0])
+        return result
+
+    def ask_handler(self, method: str, timeout: float = 1, **kwargs) -> Any:
+        """Ask the associated message handler."""
+        cid = self._send_handler(method=method, timeout=timeout, **kwargs)
+        return self._read_handler(cid, timeout=timeout)
+
     # Utility methods
     def register_rpc_method(self, method: Callable, **kwargs) -> None:
         """Register a method with the message handler to make it available via RPC."""
@@ -256,12 +275,14 @@ class PipeHandler(ExtendedMessageHandler):
                 self.unsubscribe_single(topic=topic)
             case [b"UNSUBALL"]:  # noqa: 211
                 self.unsubscribe_all()
-            case [b"SND", *message]:  # noqa: 211
-                self._send_frames(frames=message)
+            case [b"SND", *message_frames]:  # noqa: 211
+                self._send_frames(frames=message_frames)
             case [b"REN", new_name]:  # noqa: 211
                 self.sign_out()
                 self.name = new_name.decode()
                 self.sign_in()
+            case [b"LOC", cid, rpc]:  # noqa: 211
+                self.handle_local_request(cid, rpc)
             case msg:
                 self.log.debug(f"Received unknown '{msg}'.")
 
@@ -280,6 +301,13 @@ class PipeHandler(ExtendedMessageHandler):
     def finish_handle_commands(self, message: Message) -> None:
         """Handle commands not requested via ask."""
         super().handle_commands(message)
+
+    # Local messages
+    def handle_local_request(self, conversation_id: bytes, rpc: bytes) -> None:
+        result = self.rpc.process_request(data=rpc)
+        self.buffer.add_response_message(Message("comm", sender="ego", data=result,
+                                                 message_type=MessageTypes.JSON,
+                                                 conversation_id=conversation_id))
 
     # Thread safe methods for access from other threads
     def create_communicator(self, **kwargs) -> CommunicatorPipe:
