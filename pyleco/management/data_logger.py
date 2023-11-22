@@ -174,14 +174,15 @@ class DataLogger(ExtendedMessageHandler):
             except KeyError:
                 log.error(f"Got value for {key}, but no list present.")
         if self.trigger_type == TriggerTypes.VARIABLE and self.trigger_variable in data.keys():
-            self.make_data_point()
+            self.make_datapoint()
 
-    def make_data_point(self) -> None:
+    def make_datapoint(self) -> dict[str, Any]:
         """Store a datapoint."""
         datapoint = self.calculate_data()
         self.last_datapoint = datapoint
         if self.namespace is not None:
             self.publisher.send_data(data=self.last_datapoint)
+        return datapoint
 
     def calculate_data(self) -> dict[str, Any]:
         """Calculate data for a data point and return the data point."""
@@ -294,7 +295,7 @@ class DataLogger(ExtendedMessageHandler):
     def set_timeout_trigger(self, timeout: float) -> None:
         self.trigger_type = TriggerTypes.TIMER
         self.trigger_timeout = timeout
-        self.timer = RepeatingTimer(timeout, self.make_data_point)
+        self.timer = RepeatingTimer(timeout, self.make_datapoint)
         self.timer.start()
 
     def set_variable_trigger(self, variable: str) -> None:
@@ -365,10 +366,10 @@ class DataLogger(ExtendedMessageHandler):
             config['triggerTimer'] = int(self.trigger_timeout * 1000)  # deprecated
             config['trigger_timeout'] = self.trigger_timeout
         elif self.trigger_type == TriggerTypes.VARIABLE:
-            config['triggerVariable'] = self.trigger_variable
+            config['triggerVariable'] = self.trigger_variable  # deprecated
             config['trigger_variable'] = self.trigger_variable
         # Value
-        config['value'] = "last" if self.valuing == self.last else "mean"
+        config['valuing_mode'] = "last" if self.valuing == self.last else "mean"
         config['valueRepeat'] = self.value_repeating  # deprecated
         config['value_repeating'] = self.value_repeating
         # Header and Variables.

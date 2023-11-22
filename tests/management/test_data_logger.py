@@ -118,9 +118,9 @@ def test_handle_subscription_data_without_trigger(data_logger: DataLogger):
 
 
 def test_handle_subscription_data_triggers(data_logger: DataLogger):
-    data_logger.make_data_point = MagicMock()  # type: ignore[method-assign]
+    data_logger.make_datapoint = MagicMock()  # type: ignore[method-assign]
     data_logger.handle_subscription_data({"test": 5})
-    data_logger.make_data_point.assert_called_once()
+    data_logger.make_datapoint.assert_called_once()
 
 
 def test_set_publisher_name(data_logger: DataLogger):
@@ -133,7 +133,7 @@ class Test_make_data_point:
     @pytest.fixture
     def data_logger_mdp(self, data_logger: DataLogger):
         del data_logger.lists['time']  # for better comparison
-        data_logger.make_data_point()
+        data_logger.make_datapoint()
         return data_logger
 
     def test_last_data_point(self, data_logger_mdp: DataLogger):
@@ -149,7 +149,7 @@ class Test_make_data_point:
 
         data_logger.namespace = "N1"
         # act
-        data_logger.make_data_point()
+        data_logger.make_datapoint()
         # assert
         data_logger.publisher.send_data.assert_called_once_with(data={"test": nan, "2": 1.5,
                                                                       "N1.sender.var": nan})
