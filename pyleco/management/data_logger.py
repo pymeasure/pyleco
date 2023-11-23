@@ -324,7 +324,7 @@ class DataLogger(ExtendedMessageHandler):
         # Pickle the header and lists.
         file_name = datetime.datetime.now().strftime("%Y_%m_%dT%H_%M_%S") + suffix
         meta.update({
-            'units': {parameter: f"{units:~P}" for parameter, units in self.units.items()},
+            'units': self.units,
             'today': self.today.isoformat(),
             'file_name': file_name,
             'logger_name': self.full_name,
