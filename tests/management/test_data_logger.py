@@ -22,14 +22,17 @@
 # THE SOFTWARE.
 #
 
+import json
 from math import isnan
+from pathlib import Path
+import re
 from unittest.mock import MagicMock
 
 import pytest
 
 from pyleco.core.data_message import DataMessage
 from pyleco.test import FakeContext
-from pyleco.management.data_logger import DataLogger, nan, ValuingModes
+from pyleco.management.data_logger import DataLogger, nan, ValuingModes, TriggerTypes
 
 
 @pytest.fixture
@@ -45,6 +48,14 @@ def data_logger() -> DataLogger:
         )
     dl.tmp["2"] = [1, 2]
     return dl
+
+
+def test_listen_close_stops_collecting(data_logger: DataLogger):
+    data_logger.stop_collecting = MagicMock()  # type: ignore[method-assign]
+    # act
+    data_logger._listen_close()
+    # assert
+    data_logger.stop_collecting.assert_called_once()
 
 
 def test_setup_listen_does_not_start_collecting_without_start_data(data_logger: DataLogger):
@@ -110,6 +121,14 @@ def test_handle_subscription_message_adds_data_to_lists(data_logger: DataLogger)
     assert data_logger.tmp["N1.sender.var"] == [5.6]
 
 
+def test_handle_subscription_message_handles_broken_message(data_logger: DataLogger,
+                                                            caplog: pytest.LogCaptureFixture):
+    message = DataMessage(topic="N1.sender", data="not a dict")
+    data_logger.handle_subscription_message(message)
+    assert len(caplog.messages) == 1
+    assert caplog.messages[0].startswith("Could not decode message")
+
+
 def test_handle_subscription_data_without_trigger(data_logger: DataLogger):
     data_logger.trigger_variable = "not present"
     data_logger.handle_subscription_data({"test": 5})
@@ -123,10 +142,37 @@ def test_handle_subscription_data_triggers(data_logger: DataLogger):
     data_logger.make_datapoint.assert_called_once()
 
 
+def test_handle_subscription_data_without_list(data_logger: DataLogger,
+                                               caplog: pytest.LogCaptureFixture):
+    data_logger.handle_subscription_data({'not_present': 42})
+    assert caplog.messages == ["Got value for 'not_present', but no list present."]
+
+
 def test_set_publisher_name(data_logger: DataLogger):
     data_logger.set_full_name("N1.cA")
     assert data_logger.publisher.full_name == "N1.cA"
     assert data_logger.full_name == "N1.cA"
+
+
+class Test_set_timeout_trigger:
+    @pytest.fixture
+    def data_logger_stt(self, data_logger: DataLogger):
+        data_logger.set_timeout_trigger(1000)
+        yield data_logger
+        data_logger.timer.cancel()
+
+    def test_trigger_type(self, data_logger_stt: DataLogger):
+        assert data_logger_stt.trigger_type == TriggerTypes.TIMER
+
+    def test_trigger_timeout(self, data_logger_stt: DataLogger):
+        assert data_logger_stt.trigger_timeout == 1000
+
+    def test_timer_interval(self, data_logger_stt: DataLogger):
+        assert data_logger_stt.timer.interval == 1000
+
+    def test_timer_started(self, data_logger_stt: DataLogger):
+        with pytest.raises(RuntimeError):  # can start a timer at most once
+            data_logger_stt.timer.start()
 
 
 class Test_make_data_point:
@@ -214,3 +260,41 @@ class Test_last:
 
     def test_empty_list_returns_nan(self, data_logger: DataLogger):
         assert isnan(data_logger.last([]))
+
+
+class Test_save_data:
+    @pytest.fixture
+    def data_logger_sd(self, data_logger: DataLogger, tmp_path_factory: pytest.TempPathFactory):
+        path = tmp_path_factory.mktemp("save")
+        data_logger.directory = str(path)
+        self.file_name = data_logger.save_data()
+        self.today = data_logger.today
+        return data_logger
+
+    def test_filename(self, data_logger_sd: DataLogger):
+        result = re.match(r"20\d\d_\d\d_\d\dT\d\d_\d\d_\d\d", data_logger_sd.last_save_name)
+        assert result is not None
+
+    @pytest.fixture
+    def saved_file(self, data_logger_sd: DataLogger):
+        path = Path(data_logger_sd.directory) / data_logger_sd.last_save_name
+        return path.with_suffix(".json").read_text()
+
+    @pytest.mark.xfail(True, reason="Not yet date recognition implemented.")
+    def test_output(self, saved_file: str):
+        # TODO make date comparison work.
+        assert saved_file == """["", {"time": [], "test": [], "2": [], "N1.sender.var": []}, {"units": {}, "today": "2023-11-27", "file_name": "2023_11_27T15_07_06", "logger_name": "DataLoggerN", "configuration": {"trigger": "variable", "triggerVariable": "test", "trigger_variable": "test", "valuing_mode": "mean", "valueRepeat": false, "value_repeating": false, "variables": "time test 2 N1.sender.var"}}]"""  # noqa
+
+    def test_json_content(self, saved_file: str):
+        today_string = self.today.isoformat()
+        assert json.loads(saved_file) == [
+            "",
+            {"time": [], "test": [], "2": [], "N1.sender.var": []},
+            {"units": {}, "today": today_string, "file_name": self.file_name,
+             "logger_name": "DataLoggerN",
+             "configuration": {"trigger": "variable", "triggerVariable": "test",
+                               "trigger_variable": "test", "valuing_mode": "mean",
+                               "valueRepeat": False, "value_repeating": False,
+                               "variables": "time test 2 N1.sender.var"},
+             },
+            ]

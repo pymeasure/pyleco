@@ -95,11 +95,11 @@ class DataLogger(ExtendedMessageHandler):
     """
 
     # TODO names
-    tmp: dict[str, list[Any]]  # contains all values since last datapoint
-    lists: dict[str, list[Any]]  # contains datapoints.
+    tmp: dict[str, list[Any]] = {}  # contains all values since last datapoint
+    lists: dict[str, list[Any]] = {}  # contains datapoints.
     # units: dict[str, Quantity]
-    last_datapoint: dict[str, Any]
-    last_save_name: Optional[str]
+    last_datapoint: dict[str, Any] = {}
+    last_save_name: str = ""
 
     trigger_type: TriggerTypes = TriggerTypes.NONE
     trigger_timeout: float
@@ -113,11 +113,8 @@ class DataLogger(ExtendedMessageHandler):
         super().__init__(name=name, **kwargs)
         self.directory = directory
         self.units: dict = {}  # TODO later
-        self.last_datapoint = {}
         self.last_config = {}
-        self.lists = {}
         self.publisher = DataPublisher(full_name=name)
-        self.last_save_name = None
         self.valuing = average
         # TODO add auto_save functionality?
 
@@ -137,10 +134,6 @@ class DataLogger(ExtendedMessageHandler):
         self.register_rpc_method(self.get_configuration, name="getConfiguration")
         self.register_rpc_method(self.set_configuration, name="setConfiguration")
 
-    def shut_down(self) -> None:
-        self.stop_collecting()
-        super().shut_down()
-
     def __del__(self) -> None:
         self.stop_collecting()
 
@@ -150,6 +143,10 @@ class DataLogger(ExtendedMessageHandler):
         if start_data is not None:
             self.start_collecting(**start_data)
         return poller
+
+    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
+        self.stop_collecting()
+        super()._listen_close(waiting_time=waiting_time)
 
     def set_full_name(self, full_name: str) -> None:
         super().set_full_name(full_name=full_name)
@@ -162,7 +159,7 @@ class DataLogger(ExtendedMessageHandler):
             content: dict[str, Any] = data_message.data  # type: ignore
             modified_dict = {".".join((sender, k)): v for k, v in content.items()}
         except Exception:
-            log.exception("Could not decode message {data_message}.")
+            log.exception(f"Could not decode message {data_message}.")
         else:
             self.handle_subscription_data(modified_dict)
 
@@ -172,7 +169,7 @@ class DataLogger(ExtendedMessageHandler):
             try:
                 self.tmp[key].append(value)
             except KeyError:
-                log.error(f"Got value for {key}, but no list present.")
+                log.error(f"Got value for '{key}', but no list present.")
         if self.trigger_type == TriggerTypes.VARIABLE and self.trigger_variable in data.keys():
             self.make_datapoint()
 
