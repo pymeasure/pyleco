@@ -25,7 +25,7 @@
 import datetime
 try:
     from enum import StrEnum  # type: ignore
-except ImportError:
+except ImportError:  # pragma: no cover
     # For python<3.11
     from enum import Enum
 
@@ -43,15 +43,15 @@ except ModuleNotFoundError:
 else:
     average = np.average  # type: ignore
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     from pyleco.utils.timers import RepeatingTimer
     from pyleco.utils.extended_message_handler import ExtendedMessageHandler, DataMessage
-    from pyleco.utils.parser import parser
+    from pyleco.utils.parser import parser, parse_command_line_parameters
     from pyleco.utils.data_publisher import DataPublisher
 else:
     from ..utils.timers import RepeatingTimer
     from ..utils.extended_message_handler import ExtendedMessageHandler, DataMessage
-    from ..utils.parser import parser
+    from ..utils.parser import parser, parse_command_line_parameters
     from ..utils.data_publisher import DataPublisher
 
 
@@ -422,23 +422,23 @@ class DataLogger(ExtendedMessageHandler):
         return length
 
 
-if __name__ == "__main__":
+def main():
+    """Start a datalogger at script execution."""
     parser.description = "Log data."
     parser.add_argument("-d", "--directory",
                         help="set the directory to save the data to")
-    kwargs = vars(parser.parse_args())
-    verbosity = logging.INFO + (kwargs.pop("quiet") - kwargs.pop("verbose")) * 10
 
     gLog = logging.getLogger()  # print all log entries!
+    kwargs = parse_command_line_parameters(parser=parser, parser_description="Log data.",
+                                           logger=gLog)
     if not gLog.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(StrFormatter)
         gLog.addHandler(handler)
-    gLog.setLevel(verbosity)
-
-    for key, value in list(kwargs.items()):
-        if value is None:
-            del kwargs[key]
 
     datalogger = DataLogger(log=gLog, **kwargs)
     datalogger.listen()
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

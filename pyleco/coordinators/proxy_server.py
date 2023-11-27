@@ -131,7 +131,7 @@ def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
     return context
 
 
-if __name__ == "__main__":
+def main():
     from pyleco.utils.parser import ArgumentParser, parse_command_line_parameters
     parser = ArgumentParser(prog="Proxy server")
     parser.add_argument("-s", "--sub", help="set the host name to subscribe to",
@@ -175,3 +175,7 @@ if __name__ == "__main__":
             if reader in socks:
                 received = reader.recv_multipart()
                 log.debug(f"Message brokered: {received}")
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

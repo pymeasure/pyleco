@@ -31,12 +31,12 @@ from typing import Any, Optional
 
 if __name__ == "__main__":
     from pyleco.utils.extended_message_handler import ExtendedMessageHandler, DataMessage
-    from pyleco.utils.parser import parser
+    from pyleco.utils.parser import parser, parse_command_line_parameters
     from pyleco.core import LOG_SENDING_PORT
     from pyleco.utils.zmq_log_handler import ZmqLogHandler
 else:
     from ..utils.extended_message_handler import ExtendedMessageHandler, DataMessage
-    from ..utils.parser import parser
+    from ..utils.parser import parser, parse_command_line_parameters
     from ..core import LOG_SENDING_PORT
     from ..utils.zmq_log_handler import ZmqLogHandler
 
@@ -197,23 +197,21 @@ class LogLogger(ExtendedMessageHandler):
         return return_dict
 
 
-if __name__ == "__main__":
-    parser.description = "Log data."
+def main():
     parser.add_argument("-d", "--directory",
                         help="set the directory to save the data to")
-    kwargs = vars(parser.parse_args())
-    verbosity = logging.INFO + (kwargs.pop("quiet") - kwargs.pop("verbose")) * 10
-
     gLog = logging.getLogger()  # print all log entries!
     if not gLog.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(StrFormatter)
         gLog.addHandler(handler)
-    gLog.setLevel(verbosity)
-
-    for key, value in list(kwargs.items()):
-        if value is None:
-            del kwargs[key]
+    kwargs = parse_command_line_parameters(parser=parser,
+                                           parser_description="Log log entries.",
+                                           logger=gLog)
 
     datalogger = LogLogger(log=gLog, **kwargs)
     datalogger.listen()
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

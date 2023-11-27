@@ -43,14 +43,14 @@ import sys
 import threading
 from typing import Any, Optional, Union
 
-try:
+if __name__ != "__main__":
     from ..utils.message_handler import MessageHandler
     from ..utils.events import Event, SimpleEvent
-    from ..utils.parser import parser
-except ImportError:
+    from ..utils.parser import parser, parse_command_line_parameters
+else:
     from pyleco.utils.message_handler import MessageHandler
     from pyleco.utils.events import Event, SimpleEvent
-    from pyleco.utils.parser import parser
+    from pyleco.utils.parser import parser, parse_command_line_parameters
 
 
 log = logging.getLogger("starter")
@@ -287,25 +287,24 @@ class Starter(MessageHandler):
                 self.start_task(task)
 
 
-if __name__ == "__main__":
-    parser.description = "Start tasks as required."
+def main():
     parser.add_argument("tasks", nargs="*",
                         help="Tasks to execute at startup.")
     parser.add_argument("-d", "--directory",
                         help="set the directory to search for tasks, do not add a trailing slash")
-    kwargs = vars(parser.parse_args())
-    verbosity = logging.INFO + (kwargs.pop("quiet") - kwargs.pop("verbose")) * 10
 
     gLog = logging.getLogger()  # print all log entries!
     if not gLog.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(StrFormatter)
         gLog.addHandler(handler)
-    gLog.setLevel(verbosity)
-
-    for key, value in list(kwargs.items()):
-        if value is None:
-            del kwargs[key]
+    kwargs = parse_command_line_parameters(parser=parser,
+                                           parser_description="Start tasks as required.",
+                                           logger=gLog)
 
     starter = Starter(log=gLog, **kwargs)
     starter.listen()
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

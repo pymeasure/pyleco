@@ -30,7 +30,7 @@ from jsonrpcobjects.objects import ErrorResponse, Request, ParamsRequest
 from openrpc import RPCServer
 import zmq
 
-try:
+if __name__ != "__main__":
     from ..core import COORDINATOR_PORT
     from ..utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
     from ..core.message import Message, MessageTypes
@@ -40,7 +40,7 @@ try:
     from ..utils.zmq_log_handler import ZmqLogHandler
     from ..utils.events import Event, SimpleEvent
     from ..utils.log_levels import PythonLogLevels
-except ImportError:  # pragma: no cover
+else:  # pragma: no cover
     from pyleco.core import COORDINATOR_PORT
     from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
     from pyleco.core.message import Message, MessageTypes
@@ -462,7 +462,7 @@ class Coordinator:
                 ])
 
 
-if __name__ == "__main__":  # pragma: no cover
+def main():
     # Absolute imports if the file is executed.
     from pyleco.utils.parser import parser, parse_command_line_parameters  # noqa: F811
 
@@ -485,3 +485,7 @@ if __name__ == "__main__":  # pragma: no cover
         handler = ZmqLogHandler(full_name=c.fname.decode())
         gLog.addHandler(handler)
         c.routing(coordinators=coordinators)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()
