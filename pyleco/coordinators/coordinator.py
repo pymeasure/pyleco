@@ -462,7 +462,7 @@ class Coordinator:
                 ])
 
 
-def main():
+def main() -> None:
     # Absolute imports if the file is executed.
     from pyleco.utils.parser import parser, parse_command_line_parameters  # noqa: F811
 

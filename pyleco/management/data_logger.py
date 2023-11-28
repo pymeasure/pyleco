@@ -38,7 +38,7 @@ from typing import Any, Callable, Optional, Iterable
 try:
     import numpy as np  # type: ignore[import-not-found]
 except ModuleNotFoundError:
-    def average(values: list[float | int] | tuple[float | int, ...]):
+    def average(values: list[float | int] | tuple[float | int, ...]) -> float:
         return sum(values) / len(values)
 else:
     average = np.average  # type: ignore
@@ -101,26 +101,25 @@ class DataLogger(ExtendedMessageHandler):
     last_datapoint: dict[str, Any] = {}
     last_save_name: str = ""
 
+    # configuration variables
     trigger_type: TriggerTypes = TriggerTypes.NONE
-    trigger_timeout: float
-    trigger_variable: str
+    _last_trigger_type: TriggerTypes = TriggerTypes.NONE
+    trigger_timeout: float = 1
+    trigger_variable: str = ""
     value_repeating: bool = False
     valuing: Callable[[list], Any]
-
-    last_config: dict[str, Any]  # configuration for the next start
 
     def __init__(self, name: str = "DataLoggerN", directory: str = ".", **kwargs) -> None:
         super().__init__(name=name, **kwargs)
         self.directory = directory
         self.units: dict = {}  # TODO later
-        self.last_config = {}
         self.publisher = DataPublisher(full_name=name)
         self.valuing = average
         # TODO add auto_save functionality?
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
-        self.register_rpc_method(self.set_valuing_mode)  # offer during a measurement?
+        self.register_rpc_method(self.set_valuing_mode)  # TODO offer during a measurement?
         self.register_rpc_method(self.start_collecting)
         self.register_rpc_method(self.save_data)
         self.register_rpc_method(self.stop_collecting)
@@ -128,11 +127,6 @@ class DataLogger(ExtendedMessageHandler):
         self.register_rpc_method(self.get_list_length)
         self.register_rpc_method(self.get_last_save_name)
         self.register_rpc_method(self.get_configuration)
-        self.register_rpc_method(self.set_configuration)  # keep that style of setting values?
-        # deprecated, for backwards compatibility
-        self.register_rpc_method(method=self.save_data, name="saveData")
-        self.register_rpc_method(self.get_configuration, name="getConfiguration")
-        self.register_rpc_method(self.set_configuration, name="setConfiguration")
 
     def __del__(self) -> None:
         self.stop_collecting()
@@ -222,34 +216,30 @@ class DataLogger(ExtendedMessageHandler):
 
     # Control
     def start_collecting(self, *,
-                         variables: Optional[Iterable[str]] = None,
-                         trigger: Optional[str | float] = None,
+                         variables: Optional[list[str]] = None,
+                         trigger_type: Optional[TriggerTypes] = None,
+                         trigger_timeout: Optional[float] = None,
+                         trigger_variable: Optional[str] = None,
                          valuing_mode: Optional[ValuingModes] = None,
                          value_repeating: Optional[bool] = None,
                          ) -> None:
-        """Start collecting data."""
-        for key, value in zip(
-            ("variables", "trigger", "valuing_mode", "value_repeating"),
-            (variables, trigger, valuing_mode, value_repeating)
-        ):
-            if value is not None:
-                self.last_config[key] = value
-        self._start(**self.last_config)
+        """Start collecting data.
 
-    def _start(self, *,
-               variables: Iterable[str],
-               trigger: str | float = 1,
-               valuing_mode: ValuingModes = ValuingModes.LAST,
-               value_repeating: bool = False,
-               ) -> None:
+        If you do not give a specific parameter, the value of the last measurement is used again.
+        """
         self.stop_collecting()
-        log.info(f"Start collecting data. Trigger: {trigger}; "
-                 f"subscriptions: {variables}")
-        self._set_trigger(trigger=trigger)
-        self.value_repeating = value_repeating
+        log.info(f"Start collecting data. Trigger: {trigger_type}, {trigger_timeout}, "
+                 f"{trigger_variable}; subscriptions: {variables}")
+        self.trigger_type = trigger_type or self._last_trigger_type
+        self._last_trigger_type = self.trigger_type
+        self.trigger_variable = self.trigger_variable if trigger_variable is None else trigger_variable  # noqa
+        self.trigger_timeout = self.trigger_timeout if trigger_timeout is None else trigger_timeout
+        if trigger_type == TriggerTypes.TIMER:
+            self.start_timer_trigger()
+        self.value_repeating = self.value_repeating if value_repeating is None else value_repeating
         self.today = datetime.datetime.now(datetime.timezone.utc).date()
         self.set_valuing_mode(valuing_mode=valuing_mode)
-        self.setup_variables(variables)
+        self.setup_variables(self.lists.keys() if variables is None else variables)
 
     def setup_variables(self, variables: Iterable[str]) -> None:
         """Subscribe to the variables."""
@@ -261,13 +251,12 @@ class DataLogger(ExtendedMessageHandler):
                 parts = variable.split(".")
                 if len(parts) == 2:
                     # assume to be in the same namespace
-                    parts.insert(0, self.namespace)  # type: ignore
+                    if self.namespace is None:
+                        log.error(f"Cannot subscribe to '{variable}' as the namespace is not known.")  # noqa
+                        continue
+                    parts.insert(0, self.namespace)
                     variable = ".".join(parts)
-                try:
-                    subscriptions.add(".".join(parts[:2]))
-                except TypeError:
-                    # if self.namespace is None
-                    log.error(f"Cannot subscribe to '{variable}' as the namespace is not known.")
+                subscriptions.add(".".join(parts[:2]))
             else:
                 # old style: topic is variable name
                 subscriptions.add(variable)
@@ -275,35 +264,23 @@ class DataLogger(ExtendedMessageHandler):
             self.tmp[variable] = []
         self.subscribe(topics=subscriptions)
 
-    def _set_trigger(self, trigger: str | float):
-        if isinstance(trigger, (float, int)):
-            self.set_timeout_trigger(timeout=trigger)
-        elif isinstance(trigger, str):
-            self.set_variable_trigger(variable=trigger)
-        else:
-            self.trigger_type = TriggerTypes.NONE
-
     def reset_data_storage(self) -> None:
         """Reset the data storage."""
         self.tmp = {}
         self.lists = {}
         self.last_datapoint = {}
 
-    def set_timeout_trigger(self, timeout: float) -> None:
-        self.trigger_type = TriggerTypes.TIMER
-        self.trigger_timeout = timeout
-        self.timer = RepeatingTimer(timeout, self.make_datapoint)
+    def start_timer_trigger(self) -> None:
+        self.timer = RepeatingTimer(self.trigger_timeout, self.make_datapoint)
         self.timer.start()
 
-    def set_variable_trigger(self, variable: str) -> None:
-        self.trigger_type = TriggerTypes.VARIABLE
-        self.trigger_variable = variable
-
-    def set_valuing_mode(self, valuing_mode: ValuingModes) -> None:
+    def set_valuing_mode(self, valuing_mode: Optional[ValuingModes]) -> None:
         if valuing_mode == ValuingModes.LAST:
             self.valuing = self.last
         elif valuing_mode == ValuingModes.AVERAGE:
             self.valuing = average
+        elif valuing_mode is None:
+            pass  # already setup
 
     def save_data(self, meta: None | dict = None, suffix: str = "", header: str = "") -> str:
         """Save the data.
@@ -358,52 +335,18 @@ class DataLogger(ExtendedMessageHandler):
         """Get the currently used configuration as a dictionary."""
         config: dict[str, Any] = {}
         # Trigger
-        config['trigger'] = self.trigger_type.value
-        if self.trigger_type == TriggerTypes.TIMER:
-            config['triggerTimer'] = int(self.trigger_timeout * 1000)  # deprecated
-            config['trigger_timeout'] = self.trigger_timeout
-        elif self.trigger_type == TriggerTypes.VARIABLE:
-            config['triggerVariable'] = self.trigger_variable  # deprecated
-            config['trigger_variable'] = self.trigger_variable
+        config['trigger_type'] = self.trigger_type.value
+        config['trigger_timeout'] = self.trigger_timeout
+        config['trigger_variable'] = self.trigger_variable
         # Value
-        config['valuing_mode'] = "last" if self.valuing == self.last else "mean"
-        config['valueRepeat'] = self.value_repeating  # deprecated
+        vm = ValuingModes.LAST if self.valuing == self.last else ValuingModes.AVERAGE
+        config['valuing_mode'] = vm.value
         config['value_repeating'] = self.value_repeating
         # Header and Variables.
-        config['variables'] = " ".join(self.lists.keys())
+        config['variables'] = list(self.lists.keys())
         # config['unitsText'] = self.leUnits.text()
         # config['autoSave'] = self.actionAutoSave.isChecked()
         return config
-
-    def set_configuration(self, configuration: dict[str, Any]) -> None:
-        """Set logging configuration according to the dict `configuration`."""
-        if configuration.get('start', False) is False:
-            return  # set properties only at start of new measurement.
-        translated_dict = self.last_config
-        if configuration.get("trigger") == "timer":
-            translated_dict["trigger"] = configuration.get(
-                "trigger_timeout") or configuration.get("triggerTimer")
-        elif configuration.get("trigger") == "variable":
-            translated_dict["trigger"] = configuration.get(
-                "trigger_variable") or configuration.get("triggerVariable")
-        for key, value in configuration.items():
-            match key, value:  # noqa
-                case 'value', 'last':
-                    translated_dict["valuing_mode"] = ValuingModes.LAST
-                case 'value', "mean":
-                    translated_dict["valuing_mode"] = ValuingModes.AVERAGE
-                case 'valueRepeat', checked:
-                    translated_dict["value_repeating"] = checked
-                case 'variables', value:
-                    translated_dict["variables"] = value.split()
-                case _:
-                    pass
-        # Start the logging.
-        translated_dict.setdefault("trigger", 1)
-        translated_dict.setdefault("variables", ["time"])
-        translated_dict.setdefault("valuing_mode", ValuingModes.LAST)
-        translated_dict.setdefault("value_repeating", False)
-        self.start_collecting(**translated_dict)
 
     def get_last_datapoint(self) -> dict[str, Any]:
         """Read the last datapoint."""
@@ -419,7 +362,7 @@ class DataLogger(ExtendedMessageHandler):
         return length
 
 
-def main():
+def main() -> None:
     """Start a datalogger at script execution."""
     parser.description = "Log data."
     parser.add_argument("-d", "--directory",

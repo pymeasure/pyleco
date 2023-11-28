@@ -287,7 +287,7 @@ class Starter(MessageHandler):
                 self.start_task(task)
 
 
-def main():
+def main() -> None:
     parser.add_argument("tasks", nargs="*",
                         help="Tasks to execute at startup.")
     parser.add_argument("-d", "--directory",

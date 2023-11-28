@@ -42,12 +42,50 @@ def data_logger() -> DataLogger:
     dl.subscriber.unsubscribe = MagicMock()  # type: ignore[method-assign]
     dl.start_collecting(
         variables=["time", "test", "2", "N1.sender.var"],
-        trigger="test",
+        trigger_type=TriggerTypes.VARIABLE,
+        trigger_variable="test",
+        trigger_timeout=10,
         valuing_mode=ValuingModes.AVERAGE,
         value_repeating=False,
         )
     dl.tmp["2"] = [1, 2]
     return dl
+
+
+class Test_start_collecting:
+    @pytest.fixture(params=[False, True])
+    def data_logger_sc(self, data_logger: DataLogger, request):
+        if request.param:
+            # do it once without restarting and once with restarting
+            data_logger.start_collecting()
+        return data_logger
+
+    def test_trigger_type(self, data_logger_sc: DataLogger):
+        assert data_logger_sc.trigger_type == TriggerTypes.VARIABLE
+
+    def test_trigger_variable(self, data_logger_sc: DataLogger):
+        assert data_logger_sc.trigger_variable == "test"
+
+    def test_trigger_timeout(self, data_logger_sc: DataLogger):
+        assert data_logger_sc.trigger_timeout == 10
+
+    def test_value_repeating(self, data_logger_sc: DataLogger):
+        assert data_logger_sc.value_repeating is False
+
+    def test_variables(self, data_logger_sc: DataLogger):
+        for key in ["time", "test", "2", "N1.sender.var"]:
+            assert key in data_logger_sc.lists.keys()
+
+
+def test_start_collecting_starts_timer(data_logger: DataLogger):
+    # arrange
+    data_logger.trigger_timeout = 1000
+    # act
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER)
+    # assert
+    assert data_logger.timer.interval == 1000
+    # cleanup
+    data_logger.timer.cancel()
 
 
 def test_listen_close_stops_collecting(data_logger: DataLogger):
@@ -107,6 +145,20 @@ class Test_setup_variables:
         assert var in data_logger_stv.lists
 
 
+def test_subscribe_without_having_logged_in(data_logger: DataLogger,
+                                            caplog: pytest.LogCaptureFixture):
+    """Test that proper logging happens if the data_logger did not sign in (yet) but should
+    subscribe to some remote object."""
+    data_logger.namespace = None
+    data_logger.setup_variables(["Component.Variable"])
+    assert caplog.messages == ["Cannot subscribe to 'Component.Variable' as the namespace is not known."]  # noqa
+
+
+def test_set_valuing_mode_last(data_logger: DataLogger):
+    data_logger.set_valuing_mode(ValuingModes.LAST)
+    assert data_logger.last == data_logger.valuing
+
+
 def test_handle_subscription_message_calls_handle_data(data_logger: DataLogger):
     data_logger.handle_subscription_data = MagicMock()  # type: ignore[method-assign]
     message = DataMessage(topic="N1.sender", data={'var': 5, 'test': 7.3})
@@ -154,18 +206,13 @@ def test_set_publisher_name(data_logger: DataLogger):
     assert data_logger.full_name == "N1.cA"
 
 
-class Test_set_timeout_trigger:
+class Test_start_timer_trigger:
     @pytest.fixture
     def data_logger_stt(self, data_logger: DataLogger):
-        data_logger.set_timeout_trigger(1000)
+        data_logger.trigger_timeout = 1000
+        data_logger.start_timer_trigger()
         yield data_logger
         data_logger.timer.cancel()
-
-    def test_trigger_type(self, data_logger_stt: DataLogger):
-        assert data_logger_stt.trigger_type == TriggerTypes.TIMER
-
-    def test_trigger_timeout(self, data_logger_stt: DataLogger):
-        assert data_logger_stt.trigger_timeout == 1000
 
     def test_timer_interval(self, data_logger_stt: DataLogger):
         assert data_logger_stt.timer.interval == 1000
@@ -292,9 +339,36 @@ class Test_save_data:
             {"time": [], "test": [], "2": [], "N1.sender.var": []},
             {"units": {}, "today": today_string, "file_name": self.file_name,
              "logger_name": "DataLoggerN",
-             "configuration": {"trigger": "variable", "triggerVariable": "test",
-                               "trigger_variable": "test", "valuing_mode": "mean",
-                               "valueRepeat": False, "value_repeating": False,
-                               "variables": "time test 2 N1.sender.var"},
+             "configuration": {"trigger_type": "variable", "trigger_timeout": 10,
+                               "trigger_variable": "test", "valuing_mode": "average",
+                               "value_repeating": False,
+                               "variables": ["time", "test", "2", "N1.sender.var"]},
              },
             ]
+
+
+def test_get_configuration(data_logger: DataLogger):
+    config = data_logger.get_configuration()
+    assert config == {
+        "trigger_type": TriggerTypes.VARIABLE,
+        "trigger_variable": "test",
+        "trigger_timeout": 10,
+        "valuing_mode": "average",
+        "value_repeating": False,
+        "variables": ["time", "test", "2", "N1.sender.var"],
+        }
+
+
+def test_get_last_datapoint(data_logger: DataLogger):
+    data_logger.last_datapoint = {"key": "value"}
+    assert data_logger.get_last_datapoint() == data_logger.last_datapoint
+
+
+def test_get_last_save_name(data_logger: DataLogger):
+    data_logger.last_save_name = "abcef"
+    assert data_logger.get_last_save_name() == data_logger.last_save_name
+
+
+def test_get_list_length(data_logger: DataLogger):
+    data_logger.lists = {"abc": [0, 1, 2, 3, 4]}
+    assert data_logger.get_list_length() == 5
