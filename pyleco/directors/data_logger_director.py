@@ -23,10 +23,10 @@
 #
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from .director import Director
-from ..management.data_logger import ValuingModes
+from ..management.data_logger import ValuingModes, TriggerTypes
 
 
 log = logging.getLogger(__name__)
@@ -43,16 +43,20 @@ class DataLoggerDirector(Director):
         super().__init__(actor=actor, **kwargs)
 
     def start_collecting(self, *,
-                         subscriptions: list[str],
-                         trigger: str | int = 1,
-                         valuing_mode: ValuingModes = ValuingModes.LAST,
-                         repeating: bool = False,
+                         variables: Optional[list[str]] = None,
+                         trigger_type: Optional[TriggerTypes] = None,
+                         trigger_timeout: Optional[float] = None,
+                         trigger_variable: Optional[str] = None,
+                         valuing_mode: Optional[ValuingModes] = None,
+                         value_repeating: Optional[bool] = None,
                          ) -> None:
         self.ask_rpc(method="start_collecting",
-                     trigger=trigger,
-                     subscriptions=subscriptions,
+                     trigger_type=trigger_type,
+                     trigger_timeout=trigger_timeout,
+                     trigger_variable=trigger_variable,
+                     variables=variables,
                      valuing_mode=valuing_mode,
-                     repeating=repeating,
+                     value_repeating=value_repeating,
                      )
 
     def get_last_datapoint(self) -> dict[str, Any]:
@@ -60,15 +64,20 @@ class DataLoggerDirector(Director):
         return self.ask_rpc("get_last_datapoint")
 
     def saveData(self) -> str:
+        return self.save_data()
+
+    def save_data(self) -> str:
         """Save the data and return the name of the file."""
-        try:
-            tmo = self.communicator.timeout  # type:ignore[attr-defined]
-            self.communicator.timeout = 1000  # type:ignore[attr-defined]
-            name = self.ask_rpc("saveData")
-            self.communicator.timeout = tmo  # type:ignore[attr-defined]
-        except AttributeError:
-            name = self.ask_rpc("saveData")
+        # increase the timeout as saving might take longer than usual requests
+        tmo = self.communicator.timeout
+        self.communicator.timeout = 1000
+        name = self.ask_rpc("save_data")
+        self.communicator.timeout = tmo
         return name
+
+    def save_data_async(self) -> bytes:
+        """Save the data asynchroneously."""
+        return self.ask_rpc_async("save_data")
 
     def stop_collecting(self) -> None:
         """Stop the data acquisition."""

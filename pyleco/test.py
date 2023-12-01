@@ -178,3 +178,35 @@ class FakeCommunicator(CommunicatorProtocol):
     def ask_message(self, message: Message, timeout=None) -> Message:
         self.send_message(message)
         return self.read_message(timeout=timeout)
+
+
+class FakeDirector:
+    """Supplements a regular director to create a fake one for testing.
+
+    ..code::
+
+        class FakeSomeDirector(FakeDirector, SomeDirector):
+            pass
+
+        @pytest.fixture
+        def some_director():
+            return FakeSomeDirector(remote_class=SomeActor)
+    """
+
+    return_value: Any
+    kwargs: dict[str, Any]
+
+    def __init__(self, remote_class, **kwargs):
+        kwargs.setdefault("communicator", FakeCommunicator("communicator"))
+        super().__init__(**kwargs)
+        self.remote_class = remote_class
+
+    def ask_rpc(self, method: str, actor: bytes | str | None = None, **kwargs) -> Any:
+        assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
+        self.kwargs = kwargs
+        return self.return_value
+
+    def ask_rpc_async(self, method: str, actor: bytes | str | None = None, **kwargs) -> bytes:
+        assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
+        self.kwargs = kwargs
+        return b"conversation_id;"
