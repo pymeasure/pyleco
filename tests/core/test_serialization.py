@@ -31,6 +31,7 @@ from pyleco.core import serialization
 class Test_create_header_frame:
     @pytest.mark.parametrize("kwargs, header", (
         ({"conversation_id": b"\x00" * 16, }, bytes([0] * 20)),
+        ({"conversation_id": b"\x00" * 16, "message_type": b"5"}, bytes([0] * 19) + b"5")
     ))
     def test_create_header_frame(self, kwargs, header):
         assert serialization.create_header_frame(**kwargs) == header

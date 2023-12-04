@@ -131,7 +131,7 @@ def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
     return context
 
 
-def main():
+def main() -> None:
     from pyleco.utils.parser import ArgumentParser, parse_command_line_parameters
     parser = ArgumentParser(prog="Proxy server")
     parser.add_argument("-s", "--sub", help="set the host name to subscribe to",
