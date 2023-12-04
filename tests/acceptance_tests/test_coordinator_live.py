@@ -43,6 +43,8 @@ from pyleco.coordinators.coordinator import Coordinator
 PORT = 60001
 PORT2 = PORT + 1
 PORT3 = PORT + 2
+TALKING_TIME = 0.5  # s
+TIMEOUT = 2  # s
 
 
 hostname = gethostname()
@@ -53,7 +55,6 @@ testlevel = 30
 def start_coordinator(namespace: str, port: int, coordinators=None, stop_event=None, **kwargs):
     with Coordinator(namespace=namespace, port=port, **kwargs) as coordinator:
         coordinator.routing(coordinators=coordinators, stop_event=stop_event)
-        print("stopping!")
 
 
 @pytest.fixture(scope="module")
@@ -77,16 +78,16 @@ def leco():
     for thread in threads:
         thread.daemon = True
         thread.start()
-    listener = Listener(name="Controller", port=PORT)
+    listener = Listener(name="Controller", port=PORT, timeout=TIMEOUT)
     listener.start_listen()
-    sleep(1)
+    sleep(TALKING_TIME)  # time for setup
     yield listener.get_communicator()
     log.info("Tearing down")
-    for thread in threads:
-        thread.join(0.5)
     listener.stop_listen()
     for event in stop_events:
         event.set()
+    for thread in threads:
+        thread.join(0.5)
 
 
 @pytest.mark.skipif(testlevel < 0, reason="reduce load")
@@ -100,7 +101,7 @@ def test_startup(leco: Communicator):
 def test_connect_N1_to_N2(leco: Communicator):
     with CoordinatorDirector(communicator=leco) as d:
         d.add_nodes({"N2": f"localhost:{PORT2}"})
-        sleep(0.5)  # time for coordinators to talk
+        sleep(TALKING_TIME)  # time for coordinators to talk
         # assert that the N1.COORDINATOR knows about N2
         assert d.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}
     # assert that the listener can contact N2.COORDINATOR
@@ -146,7 +147,7 @@ def test_connect_N3_to_N2(leco: Communicator):
     with CoordinatorDirector(name="whatever", port=PORT3) as d1:
         d1.add_nodes({"N2": f"localhost:{PORT2}"})
 
-    sleep(0.5)  # time for coordinators to talk
+    sleep(TALKING_TIME)  # time for coordinators to talk
     with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d2:
         assert d2.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}",
                                   "N3": f"{hostname}:{PORT3}"}
@@ -157,6 +158,6 @@ def test_shutdown_N3(leco: Communicator):
     with CoordinatorDirector(actor="N3.COORDINATOR", name="whatever", port=PORT3) as d1:
         d1.shut_down_actor()
 
-    sleep(0.5)  # time for coordinators to talk
+    sleep(TALKING_TIME)  # time for coordinators to talk
     with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d2:
         assert d2.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}
