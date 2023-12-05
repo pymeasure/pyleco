@@ -20,6 +20,9 @@ For now, as PyLECO is not yet a PyPI / conda package, you have to clone this rep
 Eventually it will be published as `pyleco` package on PyPI.
 Execute `pip install` in this folder for installation.
 
+If you did not clone the repository, you have to set the environment variable `SETUPTOOLS_SCM_PRETEND_VERSION`.
+For example under windows, you have to run `set SETUPTOOLS_SCM_PRETEND_VERSION=0.0.1.dev` in the console before installing pyleco.
+
 It is recommended to install the package editable, though.
 That way, a file import will redirect to the files in this directory, however they will be at import time.
 That allows to update PyLECO by just pulling the latest master branch, or to develop for PyLECO.
