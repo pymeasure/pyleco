@@ -45,11 +45,9 @@ from typing import Any, Optional, Union
 
 if __name__ != "__main__":
     from ..utils.message_handler import MessageHandler
-    from ..utils.events import Event, SimpleEvent
     from ..utils.parser import parser, parse_command_line_parameters
 else:
     from pyleco.utils.message_handler import MessageHandler
-    from pyleco.utils.events import Event, SimpleEvent
     from pyleco.utils.parser import parser, parse_command_line_parameters
 
 
@@ -140,12 +138,13 @@ class Starter(MessageHandler):
         self.register_rpc_method(self.status_tasks)
         self.register_rpc_method(self.uninstall_tasks)
 
-    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
-        """Listen for zmq communication until `stop_event` is set.
+    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
+        """Close the listening loop."""
+        super()._listen_close(waiting_time=waiting_time)
+        self.stop_all_tasks()
+        log.info("Starter stopped.")
 
-        :param waiting_time: Time to wait for a readout signal in ms.
-        """
-        super().listen(stop_event=stop_event, waiting_time=waiting_time, **kwargs)
+    def stop_all_tasks(self) -> None:
         keys = list(self.threads.keys())
         for name in keys:
             # set all stop signals
@@ -161,7 +160,6 @@ class Starter(MessageHandler):
                 del self.threads[name]
             except Exception as exc:
                 log.exception(f"Deleting task {name} failed", exc_info=exc)
-        log.info("Starter stopped.")
 
     def heartbeat(self) -> None:
         """Check installed tasks at heartbeating."""
@@ -254,6 +252,7 @@ class Starter(MessageHandler):
             if self.threads[key].is_alive():
                 self.started_tasks[key] |= Status.RUNNING
             else:
+                self.started_tasks[key] = self.started_tasks.get(key, 0) & ~Status.RUNNING
                 del self.threads[key]
         ret_data.update(self.started_tasks)  # type: ignore
         return ret_data
