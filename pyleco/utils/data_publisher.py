@@ -67,6 +67,15 @@ class DataPublisher:
         super().__init__(**kwargs)
 
     def __del__(self) -> None:
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+        self.close()
+
+    def close(self) -> None:
         self.socket.close(1)
 
     def __call__(self, data: Any) -> None:

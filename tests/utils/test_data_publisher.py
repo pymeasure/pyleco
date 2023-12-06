@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+import pickle
 import pytest
 
 from pyleco.utils.data_publisher import DataPublisher, DataMessage
@@ -44,7 +45,22 @@ def test_connection():
     assert publisher.socket.addr == "tcp://localhost:12345"
 
 
+def test_context_manager_closes_connection():
+    with DataPublisher("", context=FakeContext()) as p:  # type: ignore
+        pass
+    assert p.socket.closed is True
+
+
 def test_send_message(publisher: DataPublisher):
     message = DataMessage.from_frames(b"topic", b"header", b"data")
     publisher.send_message(message=message)
     assert publisher.socket._s == [message.to_frames()]
+
+
+def test_send_legacy(publisher: DataPublisher):
+    value = 5.67
+    publisher.send_legacy({'key': value})
+    message = DataMessage.from_frames(*publisher.socket._s[0])  # type: ignore
+    assert message.topic == b"key"
+    assert message.payload[0] == pickle.dumps(value)
+    assert message.message_type == 234
