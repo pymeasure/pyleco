@@ -133,4 +133,4 @@ class Test_check_installed_tasks:
 
     def test_start_installed_but_not_running_task(self, starter_cit: Starter):
         """Test, that only the installed (and not running) task is started."""
-        starter_cit.start_task.assert_called_once_with("INR")
+        starter_cit.start_task.assert_called_once_with("INR")  # type: ignore[attr-defined]
