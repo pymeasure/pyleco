@@ -23,7 +23,7 @@
 #
 
 from json import JSONDecodeError
-from typing import Any
+from typing import Any, Optional, Union
 
 from .serialization import deserialize_data, generate_conversation_id, serialize_data, MessageTypes
 
@@ -36,11 +36,11 @@ class DataMessage:
     payload: list[bytes]
 
     def __init__(self,
-                 topic: bytes | str,
-                 header: bytes | None = None,
-                 data: bytes | str | Any | None = None,
-                 conversation_id: bytes | None = None,
-                 message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
+                 topic: Union[bytes, str],
+                 header: Optional[bytes] = None,
+                 data: Optional[Union[bytes, str, Any]] = None,
+                 conversation_id: Optional[bytes] = None,
+                 message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
                  **kwargs) -> None:
         super().__init__(**kwargs)
         self.topic = topic.encode() if isinstance(topic, str) else topic

@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Union
 
 from .core.message import Message
 from .core.internal_protocols import CommunicatorProtocol
@@ -53,7 +53,7 @@ class FakeSocket:
         self.closed: bool = False
 
         # Added for testing purposes
-        self.addr: None | str = None
+        self.addr: Union[None, str] = None
         self.socket_type: int = socket_type
         # they contain a list of messages sent/received
         self._s: list[list[bytes]] = []
@@ -99,7 +99,7 @@ class FakeSocket:
                 raise TypeError(f"Frame {i} ({part}) does not support the buffer interface.")
         self._s.append(list(msg_parts))
 
-    def subscribe(self, topic: str | bytes) -> None:
+    def subscribe(self, topic: Union[str, bytes]) -> None:
         if self.socket_type != 2:
             raise ValueError("Invalid argument")  # type is a ZMQError
         else:
@@ -107,7 +107,7 @@ class FakeSocket:
                 topic = topic.encode()
             self._subscriptions.append(topic)
 
-    def unsubscribe(self, topic: str | bytes) -> None:
+    def unsubscribe(self, topic: Union[str, bytes]) -> None:
         if self.socket_type != 2:
             raise ValueError("Invalid argument")  # type is a ZMQError
         else:
@@ -128,7 +128,7 @@ class FakePoller:
     def __init__(self) -> None:
         self._sockets: list[FakeSocket] = []
 
-    def poll(self, timeout: int | None = None) -> list[tuple[FakeSocket, Any]]:
+    def poll(self, timeout: Optional[int] = None) -> list[tuple[FakeSocket, Any]]:
         """Returns a list of events (socket, event_mask)"""
         events = []
         for sock in self._sockets:
@@ -201,12 +201,13 @@ class FakeDirector:
         super().__init__(**kwargs)
         self.remote_class = remote_class
 
-    def ask_rpc(self, method: str, actor: bytes | str | None = None, **kwargs) -> Any:
+    def ask_rpc(self, method: str, actor: Optional[Union[bytes, str]] = None, **kwargs) -> Any:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
         self.kwargs = kwargs
         return self.return_value
 
-    def ask_rpc_async(self, method: str, actor: bytes | str | None = None, **kwargs) -> bytes:
+    def ask_rpc_async(self, method: str, actor: Optional[Union[bytes, str]] = None,
+                      **kwargs) -> bytes:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
         self.kwargs = kwargs
         return b"conversation_id;"

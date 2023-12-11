@@ -64,7 +64,7 @@ class CommunicatorProtocol(Protocol):
 
     # Utilities
     def send(self,
-             receiver: bytes | str,
+             receiver: Union[bytes, str],
              conversation_id: Optional[bytes] = None,
              data: Optional[Any] = None,
              **kwargs) -> None:
@@ -73,7 +73,7 @@ class CommunicatorProtocol(Protocol):
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
         ))
 
-    def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
+    def ask(self, receiver: Union[bytes, str], conversation_id: Optional[bytes] = None,
             data: Optional[Any] = None,
             timeout: Optional[float] = None,
             **kwargs) -> Message:
@@ -82,7 +82,7 @@ class CommunicatorProtocol(Protocol):
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs),
             timeout=timeout)
 
-    def ask_rpc(self, receiver: bytes | str, method: str, timeout: Optional[float] = None,
+    def ask_rpc(self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None,
                 **kwargs) -> Any:
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
         response = self.ask(receiver=receiver, data=string, message_type=MessageTypes.JSON,
