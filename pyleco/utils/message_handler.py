@@ -71,7 +71,6 @@ class MessageHandler(ExtendedComponentProtocol):
         self.name = name
         self.namespace: None | str = None
         self.full_name = name
-        context = context or zmq.Context.instance()
         self.rpc = RPCServer(title=name)
         self.rpc_generator = RPCGenerator()
         self.register_rpc_methods()
@@ -82,6 +81,13 @@ class MessageHandler(ExtendedComponentProtocol):
             "sign_out": self.handle_sign_out_response
         }
 
+        self.setup_logging(log=log)
+        self.setup_socket(host=host, port=port, protocol=protocol,
+                          context=context or zmq.Context.instance())
+
+        super().__init__(**kwargs)
+
+    def setup_logging(self, log):
         if log is None:
             log = logging.getLogger("__main__")
         # Add the ZmqLogHandler to the root logger, unless it has already a Handler.
@@ -95,14 +101,12 @@ class MessageHandler(ExtendedComponentProtocol):
             self.logHandler = ZmqLogHandler()
             log.addHandler(self.logHandler)
         self.root_logger = log
-        self.log = self.root_logger.getChild("MessageHandler")
+        self.log = self.root_logger.getChild("MessageHandler")  # for cooperation
 
-        # ZMQ setup
+    def setup_socket(self, host: str, port: int, protocol: str, context: zmq.Context) -> None:
         self.socket: zmq.Socket = context.socket(zmq.DEALER)
         self.log.info(f"MessageHandler connecting to {host}:{port}")
         self.socket.connect(f"{protocol}://{host}:{port}")
-
-        super().__init__(**kwargs)  # for cooperation
 
     def register_rpc_method(self, method: Callable, **kwargs) -> None:
         """Register a method to be available via rpc calls."""
@@ -152,7 +156,7 @@ class MessageHandler(ExtendedComponentProtocol):
                               conversation_id=conversation_id, **kwargs)
         except Exception as exc:
             self.log.exception(f"Composing message with data {data} failed.", exc_info=exc)
-            # TODO send an error message?
+            # TODO send an error message to the receiver?
         else:
             self._send_message(message)
 
@@ -165,7 +169,6 @@ class MessageHandler(ExtendedComponentProtocol):
         self._requests[cid] = method
         self._send_message(message)
 
-    # User commands, implements Communicator
     def send(self, receiver: bytes | str, data: Optional[Any] = None,
              conversation_id: Optional[bytes] = None, **kwargs) -> None:
         """Send a message to a receiver with serializable `data`."""
@@ -173,6 +176,9 @@ class MessageHandler(ExtendedComponentProtocol):
 
     def send_message(self, message: Message) -> None:
         self._send_message(message)
+
+    def read_message(self) -> Message:
+        return Message.from_frames(*self.socket.recv_multipart())
 
     # Continuous listening and message handling
     def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
@@ -189,10 +195,9 @@ class MessageHandler(ExtendedComponentProtocol):
                 self._listen_loop_element(poller=poller, waiting_time=waiting_time)
         except KeyboardInterrupt:
             pass  # User stops the loop
-        except Exception:
-            raise
-        # Close
-        self._listen_close(waiting_time=waiting_time)
+        finally:
+            # Close
+            self._listen_close(waiting_time=waiting_time)
 
     def _listen_setup(self) -> zmq.Poller:
         """Setup for listening.
@@ -238,7 +243,7 @@ class MessageHandler(ExtendedComponentProtocol):
 
         COORDINATOR messages are handled and then :meth:`handle_commands` does the rest.
         """
-        msg = Message.from_frames(*self.socket.recv_multipart())
+        msg = self.read_message()
         self.log.debug(f"Handling message {msg}")
         if not msg.payload:
             return  # no payload, that means just a heartbeat
@@ -297,11 +302,9 @@ class MessageHandler(ExtendedComponentProtocol):
 
     def handle_commands(self, msg: Message) -> None:
         """Handle the list of commands in the message."""
-        if msg.header_elements.message_type == MessageTypes.JSON or (
-                msg.payload and b'"jsonrpc":' in msg.payload[0]):
-            # TODO switch to Message Type recognition instead of jsonrpc
+        if msg.header_elements.message_type == MessageTypes.JSON:
             if b'"method":' in msg.payload[0]:
-                self.log.info(f"Handling commands of  {msg}.")
+                self.log.info(f"Handling commands of {msg}.")
                 reply = self.rpc.process_request(msg.payload[0])
                 response = Message(msg.sender, conversation_id=msg.conversation_id,
                                    message_type=MessageTypes.JSON, data=reply)
@@ -309,7 +312,7 @@ class MessageHandler(ExtendedComponentProtocol):
             else:
                 self.log.error(f"Unknown message from {msg.sender!r} received: {msg.payload[0]!r}")
         else:
-            self.log.warning(f"Unknown message from {msg.sender!r} received: '{msg.data}', {msg.payload!r}.")  # noqa: E501
+            self.log.warning(f"Message from {msg.sender!r} with unknown message type {msg.header_elements.message_type} received: '{msg.data}', {msg.payload!r}.")  # noqa: E501
 
     def set_log_level(self, level: str) -> None:
         """Set the log level."""

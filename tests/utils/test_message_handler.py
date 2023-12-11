@@ -113,6 +113,11 @@ def test_send(handler: MessageHandler):
                                   b'[["TEST"]]']]
 
 
+def test_send_message_raises_eror(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+    handler.send(receiver=b"5", header=b"header", conversation_id=b"12345")
+    assert caplog.messages[-1].startswith("Composing message with")
+
+
 def test_heartbeat(handler: MessageHandler, fake_cid_generation):
     handler.heartbeat()
     assert handler.socket._s == [[VERSION_B, b"COORDINATOR", b"N1.handler", header]]
@@ -127,7 +132,7 @@ def test_handle_message_ignores_heartbeats(handler: MessageHandler):
 
 
 @pytest.mark.parametrize("i, out", (
-    ([VERSION_B, b"N1.handler", b"N1.CB", b"conversation_id;mid;0",
+    ([VERSION_B, b"N1.handler", b"N1.CB", b"conversation_id;mid" + bytes((MessageTypes.JSON,)),
       serialize_data({"id": 5, "method": "shut_down", "jsonrpc": "2.0"})],
      [VERSION_B, b"N1.CB", b"N1.handler", b"conversation_id;\x00\x00\x00\x00",
       serialize_data({"id": 5, "result": None, "jsonrpc": "2.0"})]),
@@ -217,6 +222,22 @@ def test_handle_sign_out_response(handler: MessageHandler):
     assert handler.namespace is None
 
 
+def test_handle_sign_out_response_fail(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+    handler.namespace = "N3"
+    message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+        "jsonrpc": "2.0", "error": {"code": 12345}, "id": 1,
+    })
+    handler.handle_sign_out_response(message)
+    assert handler.namespace is not None
+    assert caplog.messages[-1].startswith("Signing out failed with")
+
+
+def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+    message = Message("handler", sender="sender", message_type=255)
+    handler.handle_commands(msg=message)
+    assert caplog.records[-1].message.startswith("Message from b'sender'")
+
+
 class Test_listen:
     @pytest.fixture
     def handler_l(self, handler: MessageHandler):
@@ -247,6 +268,13 @@ class Test_listen:
         # Act
         handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore
         assert handler_l.next_beat > 0
+
+    def test_KeyboardInterrupt_in_loop(self, handler: MessageHandler):
+        def raise_error(poller, waiting_time):
+            raise KeyboardInterrupt
+        handler._listen_loop_element = raise_error  # type: ignore
+        handler.listen()
+        # assert that no error is raised and that the test does not hang
 
 
 def test_listen_loop_element(handler: MessageHandler):
