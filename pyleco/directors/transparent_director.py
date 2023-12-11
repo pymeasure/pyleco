@@ -23,7 +23,7 @@
 #
 
 import logging
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar, Union
 
 from .director import Director
 
@@ -123,7 +123,7 @@ class TransparentDirector(Director, Generic[Device]):
     :param cls: Subclass of :class:`TransparentDevice` to use as a device dummy.
     """
 
-    def __init__(self, actor: bytes | str | None = None,
+    def __init__(self, actor: Optional[Union[bytes, str]] = None,
                  cls: type[Device] = TransparentDevice,  # type: ignore[assignment]
                  **kwargs):
         super().__init__(actor=actor, **kwargs)

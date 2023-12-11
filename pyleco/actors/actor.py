@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+from typing import Any, Callable, Generic, Optional, Sequence, TypeVar, Union
 
 import zmq
 
@@ -123,7 +123,7 @@ class Actor(MessageHandler, Generic[Device]):
         poller.register(self.pipeL, zmq.POLLIN)
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: int | None
+    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
                              ) -> dict[zmq.Socket, int]:
         """Check the socks for incoming messages and handle them.
 
@@ -236,7 +236,7 @@ class Actor(MessageHandler, Generic[Device]):
                 obj = getattr(obj, attr)
             setattr(obj, path[-1], value)
 
-    def call_action(self, action: str, args: Optional[list | tuple] = None,
+    def call_action(self, action: str, args: Optional[Sequence] = None,
                     kwargs: Optional[dict[str, Any]] = None) -> Any:
         """Call a device action with positional ``args`` and keyword arguments ``kwargs``."""
         if args is None:

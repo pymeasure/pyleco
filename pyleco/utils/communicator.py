@@ -24,7 +24,7 @@
 
 import logging
 from time import perf_counter
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 from jsonrpcobjects.errors import JSONRPCError
 import zmq
@@ -125,7 +125,7 @@ class Communicator(CommunicatorProtocol):
         """Called after the with clause has finished, does cleanup."""
         self.close()
 
-    def retry_read(self, timeout: Optional[int] = None) -> list[bytes] | None:
+    def retry_read(self, timeout: Optional[int] = None) -> Union[list[bytes], None]:
         """Retry reading."""
         if self._reading and self.poll(timeout=timeout):
             return self._reading()
@@ -206,7 +206,7 @@ class Communicator(CommunicatorProtocol):
                     raise ConnectionError(str(error))
         return response
 
-    def ask_rpc(self, receiver: bytes | str, method: str, timeout: Optional[float] = None,
+    def ask_rpc(self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None,
                 **kwargs) -> Any:
         """Send a rpc call and return the result or raise an error."""
         send_json = self.rpc_generator.build_request_str(method=method, **kwargs)
@@ -223,7 +223,8 @@ class Communicator(CommunicatorProtocol):
                 raise
         return result
 
-    def ask_json(self, receiver: bytes | str, json_string: str, timeout: Optional[float] = None
+    def ask_json(self, receiver: Union[bytes, str], json_string: str,
+                 timeout: Optional[float] = None
                  ) -> bytes:
         message = Message(receiver=receiver, data=json_string, message_type=MessageTypes.JSON)
         response = self.ask_message(message=message, timeout=timeout)
@@ -254,7 +255,7 @@ class Communicator(CommunicatorProtocol):
         except JSONRPCError:
             self.log.error("JSON decoding at sign out failed.")
 
-    def get_capabalities(self, receiver: bytes | str) -> dict:
+    def get_capabalities(self, receiver: Union[bytes, str]) -> dict:
         return self.ask_rpc(receiver=receiver, method="rpc.discover")
 
     def heartbeat(self) -> None:

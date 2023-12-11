@@ -26,7 +26,7 @@ import datetime
 import json
 import logging
 from logging.handlers import QueueHandler
-from typing import Any, Optional
+from typing import Any, Optional, Union, Sequence
 
 
 if __name__ == "__main__":
@@ -98,7 +98,7 @@ class LogLogger(ExtendedMessageHandler):
     def __del__(self) -> None:
         self.stop_collecting()
 
-    def _listen_setup(self, subscriptions: Optional[list[str] | tuple[str, ...]] = None,  # type: ignore  # noqa
+    def _listen_setup(self, subscriptions: Optional[Sequence[str]] = None,  # type: ignore  # noqa
                       **kwargs):
         poller = super()._listen_setup(**kwargs)
         self.start_collecting(subscriptions=subscriptions)
@@ -125,7 +125,7 @@ class LogLogger(ExtendedMessageHandler):
         li.append(log_entry)
 
     # Control
-    def start_collecting(self, subscriptions: Optional[list[str] | tuple[str, ...]] = None) -> None:
+    def start_collecting(self, subscriptions: Optional[Sequence[str]] = None) -> None:
         """Start collecting data."""
         if subscriptions is not None:
             self.subscribe(topics=subscriptions)
@@ -139,7 +139,7 @@ class LogLogger(ExtendedMessageHandler):
             ll = []
         self.log_entries = {'self': ll}
 
-    def save_data(self, meta: None | dict = None, suffix: str = "", header: str = "") -> str:
+    def save_data(self, meta: Optional[dict] = None, suffix: str = "", header: str = "") -> str:
         """Save the data.
 
         :param addr: Reply address for the filename.
@@ -183,12 +183,12 @@ class LogLogger(ExtendedMessageHandler):
         log.info("Stopping to collect data.")
         self.unsubscribe_all()
 
-    def get_last_save_name(self) -> str | None:
+    def get_last_save_name(self) -> Union[str, None]:
         """Return the name of the last save."""
         return self.last_save_name
 
-    def get_log_entries(self, emitters: list[str] | tuple[str, ...]
-                        ) -> dict[str, list[list[str]] | None]:
+    def get_log_entries(self, emitters: Sequence[str]
+                        ) -> dict[str, Union[list[list[str]], None]]:
         return_dict = {}
         for emitter in emitters:
             return_dict[emitter] = self.log_entries.get(emitter)

@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #
 
+from typing import Union, Sequence
+
 import datetime
 try:
     from enum import StrEnum  # type: ignore
@@ -38,7 +40,7 @@ from typing import Any, Callable, Optional, Iterable
 try:
     import numpy as np  # type: ignore[import-not-found]
 except ModuleNotFoundError:
-    def average(values: list[float | int] | tuple[float | int, ...]) -> float:
+    def average(values: Sequence[Union[float, int]]) -> float:
         return sum(values) / len(values)
 else:
     average = np.average  # type: ignore
@@ -282,7 +284,7 @@ class DataLogger(ExtendedMessageHandler):
         elif valuing_mode is None:
             pass  # already setup
 
-    def save_data(self, meta: None | dict = None, suffix: str = "", header: str = "") -> str:
+    def save_data(self, meta: Optional[dict] = None, suffix: str = "", header: str = "") -> str:
         """Save the data.
 
         :param addr: Reply address for the filename.
@@ -352,7 +354,7 @@ class DataLogger(ExtendedMessageHandler):
         """Read the last datapoint."""
         return self.last_datapoint
 
-    def get_last_save_name(self) -> str | None:
+    def get_last_save_name(self) -> Union[str, None]:
         """Return the name of the last save."""
         return self.last_save_name
 

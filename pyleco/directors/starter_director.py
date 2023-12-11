@@ -23,7 +23,7 @@
 #
 
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 from .director import Director
 
@@ -41,7 +41,8 @@ class StarterDirector(Director):
     def __init__(self, actor: str = "starter", **kwargs) -> None:
         super().__init__(actor=actor, **kwargs)
 
-    def start_tasks(self, names: list[str] | str, actor: Optional[bytes | str] = None) -> None:
+    def start_tasks(self, names: Union[list[str], str], actor: Optional[Union[bytes, str]] = None
+                    ) -> None:
         """Start the task or tasks.
 
         :param names: Single task name or list of task names to start.
@@ -51,7 +52,8 @@ class StarterDirector(Director):
             names = [names]
         self.ask_rpc(method="start_tasks", names=names, actor=actor)
 
-    def restart_tasks(self, names: list[str] | str, actor: Optional[bytes | str] = None) -> None:
+    def restart_tasks(self, names: Union[list[str], str], actor: Optional[Union[bytes, str]] = None
+                      ) -> None:
         """Restart the task or tasks.
 
         :param names: Single task name or list of task names to restart.
@@ -61,7 +63,8 @@ class StarterDirector(Director):
             names = [names]
         self.ask_rpc(method="restart_tasks", names=names, actor=actor)
 
-    def stop_tasks(self, names: list[str] | str, actor: Optional[bytes | str] = None) -> None:
+    def stop_tasks(self, names: Union[list[str], str], actor: Optional[Union[bytes, str]] = None
+                   ) -> None:
         """Stop the task or tasks.
 
         :param names: Single task name or list of task names to stop.
@@ -71,7 +74,8 @@ class StarterDirector(Director):
             names = [names]
         self.ask_rpc(method="stop_tasks", names=names, actor=actor)
 
-    def install_tasks(self, names: list[str] | str, actor: Optional[bytes | str] = None) -> None:
+    def install_tasks(self, names: Union[list[str], str], actor: Optional[Union[bytes, str]] = None
+                      ) -> None:
         """Install the tasks.
 
         :param names: Single task name or list of task names to install.
@@ -81,8 +85,8 @@ class StarterDirector(Director):
             names = [names]
         self.ask_rpc(method="install_tasks", names=names, actor=actor)
 
-    def status_tasks(self, names: Optional[list[str] | str] = None,
-                     actor: Optional[bytes | str] = None) -> dict[str, int]:
+    def status_tasks(self, names: Optional[Union[list[str], str]] = None,
+                     actor: Optional[Union[bytes, str]] = None) -> dict[str, int]:
         """Query the status of these tasks and all running ones.
 
         :param names: List of task names to ask for.
@@ -92,6 +96,6 @@ class StarterDirector(Director):
             names = [names]
         return self.ask_rpc(method="status_tasks", names=names, actor=actor)
 
-    def list_tasks(self, actor: Optional[bytes | str] = None) -> list[dict[str, str]]:
+    def list_tasks(self, actor: Optional[Union[bytes, str]] = None) -> list[dict[str, str]]:
         """List all available tasks with name and tooltip."""
         return self.ask_rpc(method="list_tasks", actor=actor)
