@@ -62,7 +62,7 @@ class Listener:
                  name: str,
                  host: str = "localhost",
                  port: int = COORDINATOR_PORT,
-                 data_host: str | None = None,
+                 data_host: Optional[str] = None,
                  data_port: int = PROXY_SENDING_PORT,
                  logger: Optional[logging.Logger] = None,
                  timeout: float = 1,

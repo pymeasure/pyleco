@@ -23,7 +23,7 @@
 #
 
 from threading import get_ident, Condition
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 import zmq
 
@@ -137,13 +137,13 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         return self.handler.name
 
     @name.setter
-    def name(self, value: str | bytes) -> None:
+    def name(self, value: Union[bytes, str]) -> None:
         if isinstance(value, str):
             value = value.encode()
         self._send_pipe_message(b"REN", value)
 
     @property
-    def namespace(self) -> str | None:  # type: ignore[override]
+    def namespace(self) -> Union[str, None]:  # type: ignore[override]
         return self.handler.namespace
 
     @property
@@ -257,7 +257,7 @@ class PipeHandler(ExtendedMessageHandler):
         poller.register(self.internal_pipe, zmq.POLLIN)
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: int | None
+    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
                              ) -> dict[zmq.Socket, int]:
         socks = super()._listen_loop_element(poller=poller, waiting_time=waiting_time)
         if self.internal_pipe in socks:
@@ -267,24 +267,23 @@ class PipeHandler(ExtendedMessageHandler):
 
     def handle_pipe_message(self) -> None:
         msg = self.internal_pipe.recv_multipart()
-        # HACK noqa due to spyder "match"
-        match msg:  # noqa
-            case [b"SUB", topic]:  # noqa: 211
-                self.subscribe_single(topic=topic)
-            case [b"UNSUB", topic]:  # noqa: 211
-                self.unsubscribe_single(topic=topic)
-            case [b"UNSUBALL"]:  # noqa: 211
-                self.unsubscribe_all()
-            case [b"SND", *message_frames]:  # noqa: 211
-                self._send_frames(frames=message_frames)
-            case [b"REN", new_name]:  # noqa: 211
-                self.sign_out()
-                self.name = new_name.decode()
-                self.sign_in()
-            case [b"LOC", cid, rpc]:  # noqa: 211
-                self.handle_local_request(cid, rpc)
-            case msg:
-                self.log.debug(f"Received unknown '{msg}'.")
+        cmd = msg[0]
+        if cmd == b"SUB":
+            self.subscribe_single(topic=msg[1])
+        elif cmd == b"UNSUB":
+            self.unsubscribe_single(topic=msg[1])
+        elif cmd == b"UNSUBALL":
+            self.unsubscribe_all()
+        elif cmd == b"SND":
+            self._send_frames(frames=msg[1:])
+        elif cmd == b"REN":
+            self.sign_out()
+            self.name = msg[1].decode()
+            self.sign_in()
+        elif cmd == b"LOC":
+            self.handle_local_request(conversation_id=msg[1], rpc=msg[2])
+        else:
+            self.log.debug(f"Received unknown '{msg}'.")
 
     # Control protocol
     def _send_frames(self, frames: list[bytes]) -> None:

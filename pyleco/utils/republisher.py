@@ -70,7 +70,7 @@ class Republisher(ExtendedMessageHandler):
         self.publisher = Publisher()
         self.handlings = {} if handlings is None else handlings
 
-    def start_listen(self, stop_event: Event | None = None) -> None:
+    def start_listen(self, stop_event: Optional[Event] = None) -> None:
         if stop_event is None:
             self.listen()
         else:

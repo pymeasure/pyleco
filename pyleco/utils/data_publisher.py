@@ -24,7 +24,7 @@
 
 import logging
 import pickle
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import zmq
 
@@ -87,9 +87,9 @@ class DataPublisher:
         self.socket.send_multipart(message.to_frames())
 
     def send_data(self, data: Any,
-                  topic: str | bytes | None = None,
-                  conversation_id: bytes | None = None,
-                  message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
+                  topic: Optional[Union[bytes, str]] = None,
+                  conversation_id: Optional[bytes] = None,
+                  message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
                   ) -> None:
         """Send the `data` via the data protocol."""
         message = DataMessage(topic=topic or self.full_name,

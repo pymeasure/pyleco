@@ -24,7 +24,7 @@
 
 import logging
 import time
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 from openrpc import RPCServer
 import zmq
@@ -61,7 +61,7 @@ class MessageHandler(ExtendedComponentProtocol):
     :param log: Logger instance whose logs should be published. Defaults to `getLogger("__main__")`.
     """
     name: str
-    namespace: None | str
+    namespace: Union[None, str]
 
     def __init__(self, name: str,
                  host: str = "localhost", port: int = COORDINATOR_PORT, protocol: str = "tcp",
@@ -69,7 +69,7 @@ class MessageHandler(ExtendedComponentProtocol):
                  context: Optional[zmq.Context] = None,
                  **kwargs):
         self.name = name
-        self.namespace: None | str = None
+        self.namespace: Optional[str] = None
         self.full_name = name
         self.rpc = RPCServer(title=name)
         self.rpc_generator = RPCGenerator()
@@ -148,7 +148,8 @@ class MessageHandler(ExtendedComponentProtocol):
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
 
-    def _send(self, receiver: bytes | str, sender: bytes | str = b"", data: Optional[Any] = None,
+    def _send(self, receiver: Union[bytes, str], sender: Union[bytes, str] = b"",
+              data: Optional[Any] = None,
               conversation_id: Optional[bytes] = None, **kwargs) -> None:
         """Compose and send a message to a `receiver` with serializable `data`."""
         try:
@@ -160,7 +161,7 @@ class MessageHandler(ExtendedComponentProtocol):
         else:
             self._send_message(message)
 
-    def _ask_rpc_async(self, receiver: bytes | str, method: str, **kwargs) -> None:
+    def _ask_rpc_async(self, receiver: Union[bytes, str], method: str, **kwargs) -> None:
         """Send a message and store the converation_id."""
         cid = generate_conversation_id()
         message = Message(receiver=receiver, conversation_id=cid,
@@ -169,7 +170,7 @@ class MessageHandler(ExtendedComponentProtocol):
         self._requests[cid] = method
         self._send_message(message)
 
-    def send(self, receiver: bytes | str, data: Optional[Any] = None,
+    def send(self, receiver: Union[bytes, str], data: Optional[Any] = None,
              conversation_id: Optional[bytes] = None, **kwargs) -> None:
         """Send a message to a receiver with serializable `data`."""
         self._send(receiver=receiver, data=data, conversation_id=conversation_id, **kwargs)
@@ -214,7 +215,7 @@ class MessageHandler(ExtendedComponentProtocol):
         self.next_beat = time.perf_counter() + heartbeat_interval
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: int | None
+    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
                              ) -> dict[zmq.Socket, int]:
         """Check the socks for incoming messages and handle them.
 

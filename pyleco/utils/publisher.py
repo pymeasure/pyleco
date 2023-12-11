@@ -75,7 +75,7 @@ class Publisher(DataPublisher):
 
     def __init__(self, host: str = "localhost", port: int = PROXY_RECEIVING_PORT,
                  log: Optional[logging.Logger] = None,
-                 standalone: bool | None = None,
+                 standalone: Optional[bool] = None,
                  context: Optional[zmq.Context] = None,
                  fullname: str = "",
                  **kwargs) -> None:

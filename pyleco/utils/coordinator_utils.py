@@ -26,7 +26,7 @@ from abc import abstractmethod
 from dataclasses import dataclass
 import logging
 from time import perf_counter
-from typing import Protocol, Optional
+from typing import Protocol, Optional, Union
 
 from jsonrpcobjects.objects import ErrorResponse, Request
 import zmq
@@ -46,7 +46,7 @@ class MultiSocket(Protocol):
     """Represents a socket with multiple connections."""
 
     @abstractmethod
-    def bind(self, host: str = "", port: int | str = 0) -> None: ...  # pragma: no cover
+    def bind(self, host: str = "", port: Union[int, str] = 0) -> None: ...  # pragma: no cover
 
     @abstractmethod
     def unbind(self) -> None: ...  # pragma: no cover
@@ -72,7 +72,7 @@ class ZmqMultiSocket(MultiSocket):
         self._sock: zmq.Socket = context.socket(zmq.ROUTER)
         super().__init__(*args, **kwargs)
 
-    def bind(self, host: str = "*", port: str | int = COORDINATOR_PORT) -> None:
+    def bind(self, host: str = "*", port: Union[str, int] = COORDINATOR_PORT) -> None:
         self._sock.bind(f"tcp://{host}:{port}")
 
     def unbind(self) -> None:
@@ -99,7 +99,7 @@ class FakeMultiSocket(MultiSocket):
         self._messages_sent: list[tuple[bytes, Message]] = []
         super().__init__(*args, **kwargs)
 
-    def bind(self, host: str = "*", port: int | str = 5) -> None:
+    def bind(self, host: str = "*", port: Union[int, str] = 5) -> None:
         pass
 
     def unbind(self) -> None:
@@ -193,7 +193,7 @@ class ZmqNode(Node):
 
 
 class FakeNode(Node):
-    def __init__(self, messages_read: None | list[Message] = None, *args, **kwargs) -> None:
+    def __init__(self, messages_read: Optional[list[Message]] = None, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._messages_sent: list[Message] = []
         self._messages_read: list[Message] = [] if messages_read is None else messages_read

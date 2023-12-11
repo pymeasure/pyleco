@@ -24,7 +24,7 @@
 
 import logging
 from socket import gethostname
-from typing import Optional
+from typing import Optional, Union
 
 from jsonrpcobjects.objects import ErrorResponse, Request, ParamsRequest
 from openrpc import RPCServer
@@ -78,7 +78,7 @@ class Coordinator:
 
     def __init__(
         self,
-        namespace: Optional[str | bytes] = None,
+        namespace: Optional[Union[bytes, str]] = None,
         host: Optional[str] = None,
         port: int = COORDINATOR_PORT,
         timeout: int = 50,
@@ -161,7 +161,7 @@ class Coordinator:
             log.info(f"Coordinator {self.fname!r} closed.")
             self.closed = True
 
-    def create_message(self, receiver: bytes, data: Optional[bytes | str | object] = None,
+    def create_message(self, receiver: bytes, data: Optional[Union[bytes, str, object]] = None,
                        **kwargs) -> Message:
         return Message(
             receiver=receiver,
@@ -185,8 +185,8 @@ class Coordinator:
         self,
         sender_identity: bytes,
         original_message: Message,
-        data: Optional[bytes | str | object] = None,
-        message_type: Optional[bytes | int | MessageTypes] = None,
+        data: Optional[Union[bytes, str, object]] = None,
+        message_type: Optional[Union[bytes, int, MessageTypes]] = None,
     ) -> None:
         response = self.create_message(
             receiver=original_message.sender,

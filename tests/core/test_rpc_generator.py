@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #
 
+from typing import Union
+
 import pytest
 
 from jsonrpcobjects.objects import ErrorResponse
@@ -66,7 +68,7 @@ def test_clear_ids(generator: RPCGenerator):
         ('{"id": 8, "result": [5, 8.9], "jsonrpc": "2.0"}', [5, 8.9]),
         ('{"id": 9, "result": "whatever", "jsonrpc": "2.0"}', "whatever"),
 ))
-def test_get_result_from_response(generator: RPCGenerator, response: bytes | str, result):
+def test_get_result_from_response(generator: RPCGenerator, response: Union[bytes, str], result):
     assert generator.get_result_from_response(response) == result
 
 
