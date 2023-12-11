@@ -278,7 +278,10 @@ class MessageHandler(ExtendedComponentProtocol):
         elif (error := message.data.get("error")):
             if error.get("code") == DUPLICATE_NAME.code:
                 self.log.warning("Sign in failed, the name is already used.")
-                return
+            else:
+                self.log.warning(f"Sign in failed, unknown error '{error}'.")
+        else:
+            self.log.warning("Sign in failed, unexpected message.")
 
     def handle_sign_out_response(self, message: Message) -> None:
         if isinstance(message.data, dict) and message.data.get("result", False) is None:

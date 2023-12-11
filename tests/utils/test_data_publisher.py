@@ -51,6 +51,14 @@ def test_context_manager_closes_connection():
     assert p.socket.closed is True
 
 
+def test_call_publisher_sends(publisher: DataPublisher):
+    publisher(b"data")
+    # assert
+    message = DataMessage.from_frames(*publisher.socket._s.pop())  # type: ignore
+    assert message.topic == publisher.full_name.encode()
+    assert message.payload[0] == b"data"
+
+
 def test_send_message(publisher: DataPublisher):
     message = DataMessage.from_frames(b"topic", b"header", b"data")
     publisher.send_message(message=message)

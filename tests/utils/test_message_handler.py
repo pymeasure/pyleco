@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -81,6 +82,16 @@ class TestProtocolImplemented:
         raise AssertionError(f"Method {method} is not available.")
 
 
+class Test_setup_logging:
+    def test(self, handler: MessageHandler):
+        logger = logging.getLogger("test")
+        logger.addHandler(logging.NullHandler())
+        handler.setup_logging(logger)
+        assert len(logger.handlers) == 2
+        assert handler.root_logger == logger
+        assert handler.log == logging.getLogger("test.MessageHandler")
+
+
 def test_context_manager():
     stored_handler = None
     with MessageHandler(name="handler", context=FakeContext()) as handler:  # type: ignore
@@ -110,6 +121,14 @@ def test_send(handler: MessageHandler):
     handler.send("N2.CB", conversation_id=cid, message_id=b"sen", data=[["TEST"]],
                  message_type=MessageTypes.JSON)
     assert handler.socket._s == [[VERSION_B, b"N2.CB", b"N1.handler", b"conversation_id;sen\x01",
+                                  b'[["TEST"]]']]
+
+
+def test_send_with_sender(handler: MessageHandler):
+    handler.send("N2.CB", sender="sender", conversation_id=cid, message_id=b"sen",
+                 data=[["TEST"]],
+                 message_type=MessageTypes.JSON)
+    assert handler.socket._s == [[VERSION_B, b"N2.CB", b"sender", b"conversation_id;sen\x01",
                                   b'[["TEST"]]']]
 
 
@@ -212,6 +231,26 @@ class Test_HandleSignInResponses:
         assert handler.namespace is None
         assert caplog.records[-1].msg == "Sign in failed, the name is already used."
 
+    def test_handle_unknown_error(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+        handler.namespace = None
+        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+            "jsonrpc": "2.0", "error": {'code': 123545, "message": "error_msg"}, "id": 5
+        })
+        handler.handle_sign_in_response(message=message)
+        assert handler.namespace is None
+        assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
+
+    def test_handle_invalid_message(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture
+                                    ):
+        """Handle a message without result or error."""
+        handler.namespace = None
+        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+            "jsonrpc": "2.0", "id": 5, "method": "some_method",
+        })
+        handler.handle_sign_in_response(message=message)
+        assert handler.namespace is None
+        assert caplog.records[-1].msg.startswith("Sign in failed, unexpected message.")
+
 
 def test_handle_sign_out_response(handler: MessageHandler):
     handler.namespace = "N3"
@@ -268,6 +307,12 @@ class Test_listen:
         # Act
         handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore
         assert handler_l.next_beat > 0
+
+    def test_loop_element_does_not_change_heartbeat_if_short(self, handler_l: MessageHandler):
+        handler_l.next_beat = float("inf")
+        # Act
+        handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore
+        assert handler_l.next_beat == float("inf")
 
     def test_KeyboardInterrupt_in_loop(self, handler: MessageHandler):
         def raise_error(poller, waiting_time):

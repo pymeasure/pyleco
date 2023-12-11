@@ -97,7 +97,7 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         """Handle a message read from the data protocol and handle it."""
         raise NotImplementedError
 
-    def handle_short_legacy_subscription_message(self, message: DataMessage) -> None:
+    def handle_short_legacy_subscription_message(self, message: DataMessage) -> None:  # pragma: no cover  # noqa
         """Handle an old style data protocol message (`{variable_name: value}`)."""
         # TODO deprecated
         topic = message.topic
