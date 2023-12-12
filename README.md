@@ -8,8 +8,8 @@ The [stable-development branch](https://github.com/pymeasure/pyleco/tree/stable-
 Follow that branch to have always working code (as far as possible), but following the ongoing development.
 
 Note: LECO is still under development, such that the code and API might change.
-[LECO_ASSUMPTIONS](LECO_ASSUMPTIONS.md) contains the assumptions used in this project, which are not yet defined by LECO.
-These things might change, if LECO defines them differently
+The LECO protocol branch [pyleco-stat](https://github.com/pymeasure/leco-protocol/tree/pyleco-state) contains the assumptions used in this project, which are not yet accepted into the LECO main branch.
+These things might change, if LECO defines them differently.
 
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bmoneke/7a8a7b874b62ed803eb56ca04830bede/raw/pyleco-coverage.json)
 
