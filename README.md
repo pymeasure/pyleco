@@ -11,7 +11,7 @@ Note: LECO is still under development, such that the code and API might change.
 The LECO protocol branch [pyleco-stat](https://github.com/pymeasure/leco-protocol/tree/pyleco-state) contains the assumptions used in this project, which are not yet accepted into the LECO main branch.
 These things might change, if LECO defines them differently.
 
-![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bmoneke/7a8a7b874b62ed803eb56ca04830bede/raw/pyleco-coverage.json)
+![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/BenediktBurger/7a8a7b874b62ed803eb56ca04830bede/raw/pyleco-coverage.json)
 
 
 ## Installation
