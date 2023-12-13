@@ -9,5 +9,5 @@ Follow that branch to have always working code (as far as possible), but followi
 
 Note: LECO is still under development, such that the code and API might change.
 
-![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bmoneke/7a8a7b874b62ed803eb56ca04830bede/raw/pyleco-coverage.json)
+![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/BenediktBurger/7a8a7b874b62ed803eb56ca04830bede/raw/pyleco-coverage.json)
 
