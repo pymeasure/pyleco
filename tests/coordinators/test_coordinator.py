@@ -135,6 +135,26 @@ def test_set_address_manually():
     assert coordinator.address == f"{host}:12300"
 
 
+class TestClose:
+    @pytest.fixture
+    def coordinator_closed(self, coordinator: Coordinator):
+        coordinator.shut_down = MagicMock()  # type: ignore[method-assign]
+        coordinator.close()
+        return coordinator
+
+    def test_call_shutdown(self, coordinator_closed: Coordinator):
+        coordinator_closed.shut_down.assert_called_once()  # type: ignore
+
+    def test_close_socket(self, coordinator_closed: Coordinator):
+        assert coordinator_closed.sock.closed is True
+
+
+def test_context_manager_calls_close():
+    with Coordinator(multi_socket=FakeMultiSocket()) as c:
+        c.close = MagicMock()  # type: ignore[method-assign]
+    c.close.assert_called_once()
+
+
 class Test_clean_addresses:
     def test_expired_component(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_components()[b"send"].heartbeat = -3.5

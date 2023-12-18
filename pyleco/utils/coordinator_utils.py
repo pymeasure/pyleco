@@ -45,6 +45,8 @@ log.addHandler(logging.NullHandler())
 class MultiSocket(Protocol):
     """Represents a socket with multiple connections."""
 
+    closed: bool = False
+
     @abstractmethod
     def bind(self, host: str = "", port: Union[int, str] = 0) -> None: ...  # pragma: no cover
 
@@ -71,6 +73,10 @@ class ZmqMultiSocket(MultiSocket):
         context = zmq.Context.instance() if context is None else context
         self._sock: zmq.Socket = context.socket(zmq.ROUTER)
         super().__init__(*args, **kwargs)
+
+    @property
+    def closed(self) -> bool:
+        return self._sock.closed  # type: ignore
 
     def bind(self, host: str = "*", port: Union[str, int] = COORDINATOR_PORT) -> None:
         self._sock.bind(f"tcp://{host}:{port}")
@@ -106,7 +112,7 @@ class FakeMultiSocket(MultiSocket):
         pass  # pragma: no cover
 
     def close(self, timeout: int) -> None:
-        pass  # pragma: no cover
+        self.closed = True  # pragma: no cover
 
     def send_message(self, identity: bytes, message: Message) -> None:
         self._messages_sent.append((identity, message))
