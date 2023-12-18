@@ -262,7 +262,7 @@ class Coordinator:
             try:
                 self.directory.update_heartbeat(sender_identity=sender_identity, message=message)
             except CommunicationError as exc:
-                log.error(str(exc))
+                log.error(f"Updating heartbeat of {message.sender} failed due to '{exc}'.")
                 self.send_main_sock_reply(
                     sender_identity=sender_identity,
                     original_message=message,
