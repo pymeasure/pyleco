@@ -254,6 +254,7 @@ class Starter(MessageHandler):
             else:
                 self.started_tasks[key] = self.started_tasks.get(key, 0) & ~Status.RUNNING
                 del self.threads[key]
+                log.warning(f"Thread '{key}' stopped unexpectedly.")
         ret_data.update(self.started_tasks)  # type: ignore
         return ret_data
 

@@ -117,6 +117,9 @@ class Test_status_tasks:
     def test_stopped_running_thread_is_removed(self, status):
         assert "S" not in self.starter.threads.keys()
 
+    def test_stopped_causes_log_entry(self, status, caplog: pytest.LogCaptureFixture):
+        assert caplog.get_records(when="setup")[-1].message == "Thread 'S' stopped unexpectedly."
+
 
 class Test_check_installed_tasks:
     @pytest.fixture
