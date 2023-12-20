@@ -59,7 +59,7 @@ def listener(publisher):
     context = start_proxy(offset=offset)
     listener = ModListener(name="listener", data_port=port - 1 - 2 * offset)
     listener.start_listen()
-    listener.subscribe("")
+    listener.communicator.subscribe("")
     sleep(.5)  # due to slow joiner: Allow time for connections.
     yield listener  # type: ignore
     listener.close()

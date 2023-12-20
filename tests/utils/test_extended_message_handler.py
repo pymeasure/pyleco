@@ -60,7 +60,7 @@ def test_subscribe_single(handler: ExtendedMessageHandler):
 
 
 @pytest.mark.parametrize("topics, result", (
-        ("topic", [b"topic"]),  # sigle string
+        ("topic", [b"topic"]),  # single string
         (["topic1", "topic2"], [b"topic1", b"topic2"]),  # list of strings
         (("topic1", "topic2"), [b"topic1", b"topic2"]),  # tuple of strings
 ))
@@ -78,7 +78,7 @@ def test_unsubscribe_single(handler: ExtendedMessageHandler):
 
 
 @pytest.mark.parametrize("topics, result", (
-        ("topic", [b"topic"]),  # sigle string
+        ("topic", [b"topic"]),  # single string
         (["topic1", "topic2"], [b"topic1", b"topic2"]),  # list of strings
         (("topic1", "topic2"), [b"topic1", b"topic2"]),  # tuple of strings
 ))

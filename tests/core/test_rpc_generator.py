@@ -45,8 +45,8 @@ def generator() -> RPCGenerator:
         ("with kwargs", (), {'kwarg': 7},
          '{"id":1,"method":"with kwargs","params":{"kwarg":7},"jsonrpc":"2.0"}'),
 ))
-def test_buil_request_str(generator: RPCGenerator, method: str, args: tuple, kwargs: dict,
-                          result: str) -> None:
+def test_build_request_str(generator: RPCGenerator, method: str, args: tuple, kwargs: dict,
+                           result: str) -> None:
     assert generator.build_request_str(method, *args, **kwargs) == result
 
 

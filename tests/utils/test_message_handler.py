@@ -132,7 +132,7 @@ def test_send_with_sender(handler: MessageHandler):
                                   b'[["TEST"]]']]
 
 
-def test_send_message_raises_eror(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+def test_send_message_raises_error(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
     handler.send(receiver=b"5", header=b"header", conversation_id=b"12345")
     assert caplog.messages[-1].startswith("Composing message with")
 

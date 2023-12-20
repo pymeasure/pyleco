@@ -295,7 +295,7 @@ class Test_calculate_single_data:
         data_logger.lists["2"] = []
         assert data_logger.calculate_single_data("2", tmp=list) == result
 
-    def test_reapeating_without_last_value_results_in_nan(self, data_logger: DataLogger):
+    def test_repeating_without_last_value_results_in_nan(self, data_logger: DataLogger):
         data_logger.value_repeating = True
         data_logger.lists["2"] = []
         assert isnan(data_logger.calculate_single_data("2", tmp=[]))

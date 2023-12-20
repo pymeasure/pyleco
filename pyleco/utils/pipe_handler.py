@@ -161,7 +161,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
     def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
                      ) -> Message:
         if conversation_id is None:
-            raise ValueError("You have to request a messsage with its conversation_id.")
+            raise ValueError("You have to request a message with its conversation_id.")
         return self.buffer.retrieve_message(conversation_id=conversation_id,
                                             timeout=self.timeout if timeout is None else timeout,
                                             )
@@ -220,7 +220,7 @@ class PipeHandler(ExtendedMessageHandler):
     This message handler offers the thread-safe :meth:`get_communicator` method to create a
     communicator in a thread different to the handlers thread.
     These communicator instances (in different threads) can communicate with the single message
-    handler savely.
+    handler safely.
     The normal usage is to have the Pipehandler in some background thread listening ):meth:`listen`)
     while the "active" threads have each a Communicator.
 

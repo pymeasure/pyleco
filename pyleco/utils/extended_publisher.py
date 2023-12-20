@@ -52,7 +52,7 @@ class ExtendedPublisher(Publisher):
     """
 
     def send(self, data: dict[str, Any]) -> None:
-        """Send the dictionay `data`."""
+        """Send the dictionary `data`."""
         if self.full_name == "":
             raise ValueError("You have to specify the sender name, before sending!")
         else:

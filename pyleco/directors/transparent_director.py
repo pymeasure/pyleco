@@ -106,7 +106,7 @@ class TransparentDevice:
         else:
             self.director.set_parameters(parameters={name: value})
 
-    # TODO generate a list of capabilities of the actor and return these capabilites during a call
+    # TODO generate a list of capabilities of the actor and return these capabilities during a call
     # to __dir__. That enables autocompletion etc.
 
 

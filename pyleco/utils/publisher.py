@@ -99,5 +99,5 @@ class Publisher(DataPublisher):
             self.send_data(topic=key, data=json.dumps(value, cls=PowerEncoder), message_type=235)
 
     def send(self, data: dict[str, Any]) -> None:
-        """Send the dictionay `data`."""
+        """Send the dictionary `data`."""
         self.send_legacy(data=data)
