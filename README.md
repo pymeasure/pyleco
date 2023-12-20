@@ -63,7 +63,7 @@ For that purpose, you send a message which encodes exactly that (via jsonrpc): t
 ### Minimum Setup
 
 For a minimum setup, you need:
-* a Coordinator (just run `coordinator.py`)
+* a Coordinator (just run `coordinator.py` file)
 * one Component
 
 For example, you can use a `Communicator` instance to send/receive messages via LECO protocol.
@@ -79,15 +79,17 @@ print(connected_components)
 
 ### Instrument control
 
-Let's say you have an instrument with a pymeasure driver, which you want to control.
+Let's say you have an instrument with a pymeasure driver `Driver`, which you want to control.
 
-You need:
+You need to start (in different threads):
 * a Coordinator (as shown above).
-* an `Actor` listening to commands and controlling the instrument (for usage see the docstring).
-* a `TransparentDirector` instance `director`. As `actor` parameter you have to give the name, you gave to the actor as `name` parameter.
+* an `Actor` instance listening to commands and controlling the instrument: `actor = Actor(name="inst_actor", cls=Driver)`.
+  For an example see the `pymeasure_actor.py` in the examples folder.
+* a `TransparentDirector`: `director=TransparentDirector(actor="inst_actor")`. The `actor` parameter has to match the Actor's `name` parameter.
+  For an example of a measurement script see `measurement_script.py` in the examples folder.
 
-If you want to set some property of the instrument (e.g. `instrument.voltage = 5`), you can just use the `director` transparently: `director.voltage = 5`.
-In the background, the TransparentDirector knows, that it itself does not have a voltage parameter, therefore it sends a message to the Actor to set that parameter.
+If you want to set some property of the instrument (e.g. `instrument.voltage = 5`), you can just use the `director` transparently: `director.device.voltage = 5`.
+In the background, the TransparentDirector, which does not have a `device`, sends a messsage to the Actor to set that parameter.
 The Actor in turn sets that parameter of the instrument driver, which in turn will send some command to the device to take an appropriate action (e.g. setting the voltage to 5 V).
 
 Currently you cannot call methods in a similar, transparent way, without manual intervention.
@@ -99,21 +101,22 @@ Afterwards you can use these methods transparently similar to the property shown
 
 See the docstrings of the individual classes for more information and for examples.
 
-* The `core` subpackage contains elements necessary for implementing LECO, especially the `Message` class, which helps to setup and interpret LECO messages.
+* The `core` subpackage contains elements necessary for implementing LECO, especially the `Message` class, which helps to create and interpret LECO messages.
 * The `utils` subpackage contains modules useful for creating LECO Components.
   * The`Communicator` can send and receive messages, but neither blocks (just for a short time waiting for an answer) nor requires an extra thread.
     It is useful for usage in scripts.
   * The `MessageHandler` handles incoming messages in a continuous loop (blocking until stopped).
     It is useful for creating standalone scripts, like tasks for the Starter.
   * The `Listener` offers the same interface as the Communicator, but listens in an extra thread for incoming messages.
-    It is useful if you want to react to incoming messages (via data or control protocol) and if you want send messages of your own accord, for example for GUI applications.
+    It is useful if you want to react to incoming messages (via data or control protocol) and if you want to send messages of your own accord, for example for GUI applications.
 * The `coordinators` subpackage contains the differenc Coordinators.
   * `Coordinator` is the Coordinator for the control protocol (exchanging messages).
   * `proxy_server` is the Coordinator for the data protocol (broadcasting).
 * The `actors` subpackage contains Actor classes to control devices.
 * The `management` subpackage contains Components useful for experiment management
-  * The `Starter` can execute tasks in separate threads, for example one task per device.
+  * The `Starter` can execute tasks in separate threads.
+    A task could be an Actor controlling some Device.
   * The `DataLogger` listens to published data (data protocol) and collects them.
 * The `directors` subpackage contains Directors, which facilitate controlling actors or management utilities.
-  For example the `CoordinatorDirector` has a method for getting Coordinators and Components connected to a Coordinator.
-  The `TransparentDirector` reads / writes all messages to the remote actor, such that you use the director's `device` as if it were the instrument itself.
+  * For example the `CoordinatorDirector` has a method for getting Coordinators and Components connected to a Coordinator.
+  * The `TransparentDirector` reads / writes all messages to the remote actor, such that you use the director's `device` as if it were the instrument itself.

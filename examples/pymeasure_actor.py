@@ -21,13 +21,13 @@ interval = 0.05  # Readout interval in s
 adapter = "COM15"  # pymeasure adapter string
 
 
-def readout(device, publisher: DataPublisher) -> None:
+def readout(device: YAR, publisher: DataPublisher) -> None:
     """This method is executed every `interval`.
 
     :param device: The device driver managed by the Actor.
     :param publisher: The :class:`DataPublisher` instance of the Actor to publish data.
     """
-    publisher.send_data(data={'some_value': device.power})
+    publisher.send_data(data={'power': device.power})
 
 
 def task(stop_event) -> None:
