@@ -87,7 +87,7 @@ You need:
 * a `TransparentDirector` instance `director`. As `actor` parameter you have to give the name, you gave to the actor as `name` parameter.
 
 If you want to set some property of the instrument (e.g. `instrument.voltage = 5`), you can just use the `director` transparently: `director.voltage = 5`.
-In the background, the TransparentDirector knows, that it itself does not have a voltage parameter, therefore it sends a messsage to the Actor to set that parameter.
+In the background, the TransparentDirector knows, that it itself does not have a voltage parameter, therefore it sends a message to the Actor to set that parameter.
 The Actor in turn sets that parameter of the instrument driver, which in turn will send some command to the device to take an appropriate action (e.g. setting the voltage to 5 V).
 
 Currently you cannot call methods in a similar, transparent way, without manual intervention.
@@ -103,7 +103,7 @@ See the docstrings of the individual classes for more information and for exampl
 * The `utils` subpackage contains modules useful for creating LECO Components.
   * The`Communicator` can send and receive messages, but neither blocks (just for a short time waiting for an answer) nor requires an extra thread.
     It is useful for usage in scripts.
-  * The `MessageHandler` handles incomming messages in a continuous loop (blocking until stopped).
+  * The `MessageHandler` handles incoming messages in a continuous loop (blocking until stopped).
     It is useful for creating standalone scripts, like tasks for the Starter.
   * The `Listener` offers the same interface as the Communicator, but listens in an extra thread for incoming messages.
     It is useful if you want to react to incoming messages (via data or control protocol) and if you want send messages of your own accord, for example for GUI applications.

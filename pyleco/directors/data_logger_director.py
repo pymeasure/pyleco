@@ -76,7 +76,7 @@ class DataLoggerDirector(Director):
         return name
 
     def save_data_async(self) -> bytes:
-        """Save the data asynchroneously."""
+        """Save the data asynchronously."""
         return self.ask_rpc_async("save_data")
 
     def stop_collecting(self) -> None:

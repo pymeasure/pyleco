@@ -45,7 +45,7 @@ class Director:
         with BaseDirector() as d:
             d.get_properties(["property1", "property2"])
 
-    :param actor: Default name of the Actor to cummunicate with. Stored as :attr:`actor`.
+    :param actor: Default name of the Actor to communicate with. Stored as :attr:`actor`.
     :param communicator: A Communicator class to communicate with the actor.
         If None, create a new Communicator instance.
     :param name: The name of this Director.

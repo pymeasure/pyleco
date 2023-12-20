@@ -47,7 +47,7 @@ heartbeat_interval = 10  # s
 class MessageHandler(ExtendedComponentProtocol):
     """Maintain connection to the Coordinator and listen to incoming messages.
 
-    This class is inteded to run in a thread, maintain the connection to the coordinator
+    This class is intended to run in a thread, maintain the connection to the coordinator
     with heartbeats and timely responses. If a message arrives which is not connected to the control
     protocol itself (e.g. ping message), another method is called.
     You may subclass this class in order to handle these messages as desired.

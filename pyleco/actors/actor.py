@@ -58,7 +58,7 @@ class Actor(MessageHandler, Generic[Device]):
     :param str name: Name to listen to and to publish values with.
     :param class cls: Instrument class.
     :param int port: Port number to connect to.
-    :param periodic_reading: Inteval between periodic readouts in s.
+    :param periodic_reading: Interval between periodic readouts in s.
     :param dict auto_connect: Kwargs to automatically connect to the device.
     :param \\**kwargs: Keywoard arguments for the general message handling.
     """
@@ -228,7 +228,7 @@ class Actor(MessageHandler, Generic[Device]):
         return data
 
     def set_parameters(self, parameters: dict[str, Any]) -> None:
-        """Set devcie properties from a dictionary."""
+        """Set device properties from a dictionary."""
         for key, value in parameters.items():
             path = key.split(".")
             obj = self.device
