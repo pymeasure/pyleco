@@ -158,19 +158,19 @@ def test_context_manager_calls_close():
 class Test_clean_addresses:
     def test_expired_component(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_components()[b"send"].heartbeat = -3.5
-        coordinator.remove_expired_adresses(1)
+        coordinator.remove_expired_addresses(1)
         assert b"send" not in coordinator.directory.get_component_names()
 
     def test_expired_component_updates_directory(self, coordinator: Coordinator, fake_counting):
         coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.directory.get_components()[b"send"].heartbeat = -3.5
-        coordinator.remove_expired_adresses(1)
+        coordinator.remove_expired_addresses(1)
         coordinator.publish_directory_update.assert_called()
 
     def test_warn_component(self, coordinator: Coordinator, fake_counting):
         # TODO implement heartbeat request
         coordinator.directory.get_components()[b"send"].heartbeat = -1.5
-        coordinator.remove_expired_adresses(1)
+        coordinator.remove_expired_addresses(1)
         assert coordinator.sock._messages_sent == [(b"321", Message(  # type: ignore
             b"N1.send", b"N1.COORDINATOR",
             message_type=MessageTypes.JSON,
@@ -178,20 +178,20 @@ class Test_clean_addresses:
 
     def test_active_Component_remains_in_directory(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_components()[b"send"].heartbeat = -0.5
-        coordinator.remove_expired_adresses(1)
+        coordinator.remove_expired_addresses(1)
         assert coordinator.sock._messages_sent == []  # type: ignore
         assert b"send" in coordinator.directory.get_components()
 
     def test_expired_Coordinator(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -3.5
-        coordinator.remove_expired_adresses(1)
+        coordinator.remove_expired_addresses(1)
         assert b"n2" not in coordinator.directory.get_node_ids()
         # further removal tests in :class:`Test_remove_coordinator`
 
     def test_warn_Coordinator(self, coordinator: Coordinator, fake_counting):
         coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -1.5
-        coordinator.remove_expired_adresses(1)
+        coordinator.remove_expired_addresses(1)
         assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
             Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
                     message_type=MessageTypes.JSON,
@@ -200,7 +200,7 @@ class Test_clean_addresses:
 
     def test_active_Coordinator_remains_in_directory(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -0.5
-        coordinator.remove_expired_adresses(1)
+        coordinator.remove_expired_addresses(1)
         assert b"n2" in coordinator.directory.get_node_ids()
 
 

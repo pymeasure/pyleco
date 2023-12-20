@@ -104,7 +104,7 @@ class Coordinator:
         self.global_directory: dict[bytes, list[str]] = {}  # All Components
         self.timeout = timeout
         self.cleaner = RepeatingTimer(interval=cleaning_interval,
-                                      function=self.remove_expired_adresses,
+                                      function=self.remove_expired_addresses,
                                       args=(expiration_time,))
 
         self.cleaner.start()
@@ -137,7 +137,7 @@ class Coordinator:
         rpc.method()(self.record_components)
         rpc.method()(self.send_local_components)
         rpc.method()(self.send_global_components)
-        rpc.method(description=self.remove_expired_adresses.__doc__)(self.remove_expired_adresses)
+        rpc.method(description=self.remove_expired_addresses.__doc__)(self.remove_expired_addresses)
 
     def __del__(self) -> None:
         try:
@@ -196,7 +196,7 @@ class Coordinator:
         )
         self.sock.send_message(sender_identity, response)
 
-    def remove_expired_adresses(self, expiration_time: float) -> None:
+    def remove_expired_addresses(self, expiration_time: float) -> None:
         """Remove all expired addresses from the directory.
 
         :param float expiration_time: Expiration limit in s.
