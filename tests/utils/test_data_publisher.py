@@ -72,3 +72,9 @@ def test_send_legacy(publisher: DataPublisher):
     assert message.topic == b"key"
     assert message.payload[0] == pickle.dumps(value)
     assert message.message_type == 234
+
+
+def test_set_full_name(publisher: DataPublisher):
+    new_full_name = "new full name"
+    publisher.set_full_name(new_full_name)
+    assert publisher.full_name == new_full_name
