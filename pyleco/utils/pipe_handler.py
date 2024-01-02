@@ -227,7 +227,7 @@ class PipeHandler(ExtendedMessageHandler):
     :attr name_changing_methods: List of methods which are called, whenever the full_name changes.
     """
     _communicators: dict[int, CommunicatorPipe]
-    name_changing_methods: list[Callable[[str], None]]
+    _on_name_change_methods: set[Callable[[str], None]] = set()
 
     def __init__(self, name: str, context: Optional[zmq.Context] = None, **kwargs) -> None:
         context = context or zmq.Context.instance()
@@ -237,7 +237,6 @@ class PipeHandler(ExtendedMessageHandler):
                                                                 min_port=12345)
         self.buffer = MessageBuffer()
         self._communicators = {}
-        self.name_changing_methods = []
 
     def close(self) -> None:
         self.internal_pipe.close(1)
@@ -245,12 +244,19 @@ class PipeHandler(ExtendedMessageHandler):
 
     def set_full_name(self, full_name: str) -> None:
         super().set_full_name(full_name=full_name)
-        for method in self.name_changing_methods:
+        for method in self._on_name_change_methods:
             try:
                 method(full_name)
             except Exception as exc:
                 self.log.exception("Setting the name with a registered method failed.",
                                    exc_info=exc)
+
+    def register_on_name_change_method(self, method: Callable[[str], None]) -> None:
+        """Register a method (accepting a string) to be called whenever the full name changes."""
+        self._on_name_change_methods.add(method)
+
+    def unregister_on_name_change_method(self, method: Callable[[str], None]) -> None:
+        self._on_name_change_methods.discard(method)
 
     def _listen_setup(self, **kwargs) -> zmq.Poller:
         poller = super()._listen_setup(**kwargs)

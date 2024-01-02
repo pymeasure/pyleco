@@ -286,12 +286,21 @@ def test_communicator_rename(pipe_handler_pipe: PipeHandler, communicator: Commu
     pipe_handler_pipe.sign_in.assert_called_once()
 
 
-def test_add_name_change_method(pipe_handler: PipeHandler):
+def test_register_name_change_method(pipe_handler: PipeHandler):
     method = MagicMock()
-    pipe_handler.name_changing_methods.append(method)
+    pipe_handler.register_on_name_change_method(method)
     pipe_handler.set_full_name("new full name")
     # assert
     method.assert_called_once_with("new full name")
+
+
+def test_unregister_name_change_method(pipe_handler: PipeHandler):
+    method = MagicMock()
+    pipe_handler.register_on_name_change_method(method)
+    assert method in pipe_handler._on_name_change_methods
+    # act
+    pipe_handler.unregister_on_name_change_method(method)
+    assert method not in pipe_handler._on_name_change_methods
 
 
 def test_handle_local_method(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):

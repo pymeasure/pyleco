@@ -107,14 +107,14 @@ class DataPublisher:
     def set_full_name(self, full_name: str) -> None:
         """Set the full name of the data publisher.
 
-        This method is useful for the listener's `data_change_methods` list.
-        That way a name change of the listener is transferred easily to the publisher as well.
+        This method is useful for the listener's handler. That way a change of the listener's
+        name or namespace is transferred easily to the publisher as well.
 
         .. code::
 
             listener = Listener()
             publisher = data_publisher(full_name=listener.full_name)
-            listener.message_handler.name_changing_methods.append(publisher.set_full_name)
+            listener.message_handler.register_on_name_change_method(publisher.set_full_name)
 
         """
         self.full_name = full_name

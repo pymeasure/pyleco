@@ -73,7 +73,7 @@ class QtListener(Listener):
 
     def start_listen(self) -> None:
         super().start_listen()
-        self.message_handler.name_changing_methods.append(self.signals.name_changed.emit)
+        self.message_handler.register_on_name_change_method(self.signals.name_changed.emit)
         # as the method is added after init, call it once:
         self.signals.name_changed.emit(self.message_handler.full_name)
         self.message_handler.handle_subscription_data = self.handle_subscription_data  # type:ignore
