@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Any
+from typing import Any, Union
 
 from jsonrpc2pyclient._irpcclient import IRPCClient  # type: ignore
 from jsonrpcobjects.objects import Error
@@ -45,7 +45,7 @@ class RPCGenerator(IRPCClient):
         return self._build_request(method=method, params=kwargs or list(args) or None
                                    ).model_dump_json()
 
-    def get_result_from_response(self, data: bytes | str) -> Any:
+    def get_result_from_response(self, data: Union[bytes, str]) -> Any:
         """Get the result of that object or raise an error."""
         return self._get_result_from_response(data=data)
 

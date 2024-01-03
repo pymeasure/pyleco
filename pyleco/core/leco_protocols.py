@@ -66,7 +66,7 @@ For unit test, that all the necessary methods are reachable via RPC, the followi
         raise AssertionError(f"Method {method} is not available.")
 """
 
-from typing import Any, Optional, Protocol, Union
+from typing import Any, Iterable, Optional, Protocol, Sequence
 
 
 class ComponentProtocol(Protocol):
@@ -112,11 +112,11 @@ class CoordinatorProtocol(ComponentProtocol, Protocol):
 class ActorProtocol(ComponentProtocol, Protocol):
     """An Actor Component."""
 
-    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]: ...
+    def get_parameters(self, parameters: Iterable[str]) -> dict[str, Any]: ...
 
     def set_parameters(self, parameters: dict[str, Any]) -> None: ...
 
-    def call_action(self, action: str, args: Optional[list | tuple] = None,
+    def call_action(self, action: str, args: Optional[Sequence[Any]] = None,
                     kwargs: Optional[dict[str, Any]] = None) -> Any: ...
 
 

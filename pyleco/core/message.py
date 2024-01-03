@@ -23,7 +23,7 @@
 #
 
 from json import JSONDecodeError
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 
 from . import VERSION_B
@@ -55,8 +55,10 @@ class Message:
     header: bytes
     payload: list[bytes]
 
-    def __init__(self, receiver: bytes | str, sender: bytes | str = b"",
-                 data: Optional[bytes | str | Any] = None,
+    def __init__(self,
+                 receiver: Union[bytes, str],
+                 sender: Union[bytes, str] = b"",
+                 data: Optional[Union[bytes, str, Any]] = None,
                  header: Optional[bytes] = None,
                  conversation_id: Optional[bytes] = None,
                  message_id: Optional[bytes] = None,

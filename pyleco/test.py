@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence, Union
 
 from .core.message import Message
 from .core.internal_protocols import CommunicatorProtocol
@@ -53,7 +53,7 @@ class FakeSocket:
         self.closed: bool = False
 
         # Added for testing purposes
-        self.addr: None | str = None
+        self.addr: Union[None, str] = None
         self.socket_type: int = socket_type
         # they contain a list of messages sent/received
         self._s: list[list[bytes]] = []
@@ -89,7 +89,6 @@ class FakeSocket:
 
     def send_multipart(self, msg_parts: Sequence, flags: int = 0, copy: bool = True,
                        track: bool = False, **kwargs) -> None:
-        # print(parts)
         for i, part in enumerate(msg_parts):
             if not isinstance(part, bytes):
                 # Similar to real error message.

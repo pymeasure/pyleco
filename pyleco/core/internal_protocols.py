@@ -33,7 +33,7 @@ For example a Director might use these tools to direct an Actor.
 
 from typing import Any, Optional, Protocol
 
-from .message import Message
+from .message import Message, MessageTypes
 from .rpc_generator import RPCGenerator
 
 
@@ -51,8 +51,11 @@ class CommunicatorProtocol(Protocol):
 
     def sign_out(self) -> None: ...  # pragma: no cover
 
+    def send_message(self, message: Message) -> None: ...  # pragma: no cover
+
+    # Utilities
     def send(self,
-             receiver: bytes | str,
+             receiver: Union[bytes, str],
              conversation_id: Optional[bytes] = None,
              data: Optional[Any] = None,
              **kwargs) -> None:
@@ -60,8 +63,6 @@ class CommunicatorProtocol(Protocol):
         self.send_message(message=Message(
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
         ))
-
-    def send_message(self, message: Message) -> None: ...  # pragma: no cover
 
     def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
             data: Optional[Any] = None,

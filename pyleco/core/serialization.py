@@ -23,7 +23,7 @@
 #
 
 import json
-from typing import Any, Optional, NamedTuple
+from typing import Any, Optional, NamedTuple, Union
 
 from uuid_extensions import uuid7  # type: ignore  #  as long as uuid does not yet support UUIDv7
 from jsonrpcobjects.objects import (Request,
@@ -62,7 +62,7 @@ class Header(NamedTuple):
 
 
 def create_header_frame(conversation_id: Optional[bytes] = None,
-                        message_id: Optional[bytes] = None,
+                        message_id: Optional[Union[bytes, int]] = 0,
                         message_type: Optional[bytes] = None) -> bytes:
     """Create the header frame.
 
