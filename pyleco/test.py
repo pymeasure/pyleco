@@ -125,6 +125,7 @@ class FakeSocket:
 
 class FakePoller:
     """A fake zmq poller."""
+
     def __init__(self) -> None:
         self._sockets: list[FakeSocket] = []
 
@@ -183,6 +184,12 @@ class FakeCommunicator(CommunicatorProtocol):
 class FakeDirector:
     """Supplements a regular director to create a fake one for testing.
 
+    If you want to test the `SomeDirector` class, which directs `SomeActor`, you can create a
+    subclass of the `FakeDirector` and `SomeDirector`.
+    The newly created director will verify that methods are present in the `SomeActor` class,
+    defined in the `remote_class` parameter.
+    That way you can test, that `SomeDirector` calls an existing remote method.
+
     ..code::
 
         class FakeSomeDirector(FakeDirector, SomeDirector):
@@ -191,10 +198,21 @@ class FakeDirector:
         @pytest.fixture
         def some_director():
             return FakeSomeDirector(remote_class=SomeActor)
+
+        def test_some_method(some_director):
+            # arrange
+            some_director.return_value = 7  # define return value
+            # act
+            some_director.ask_rpc(method="method_name", arg1=5)  # returns 7
+            # assert that the correct method name and kwargs are called
+            assert some_director.method == "method_name"
+            assert some_director.kwargs == {"arg1": 5}
+
     """
 
-    return_value: Any
-    kwargs: dict[str, Any]
+    return_value: Any  # value which the remote method should return
+    method: str  # called method
+    kwargs: dict[str, Any]  # kwargs sent to the method
 
     def __init__(self, remote_class, **kwargs):
         kwargs.setdefault("communicator", FakeCommunicator("communicator"))
@@ -203,11 +221,13 @@ class FakeDirector:
 
     def ask_rpc(self, method: str, actor: Optional[Union[bytes, str]] = None, **kwargs) -> Any:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
+        self.method = method
         self.kwargs = kwargs
         return self.return_value
 
     def ask_rpc_async(self, method: str, actor: Optional[Union[bytes, str]] = None,
                       **kwargs) -> bytes:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
+        self.method = method
         self.kwargs = kwargs
         return b"conversation_id;"
