@@ -101,7 +101,7 @@ jobs:
           hide-comment: false
           report-only-changed-files: false
           remove-link-from-badge: false
-          unique-id-for-comment: python3.8
+          unique-id-for-comment: python3
           junitxml-path: ./pytest.xml
           junitxml-title: Coverage Summary
       - name: Check output coverage
@@ -140,7 +140,7 @@ jobs:
       fail-fast: true
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11"]
     steps:
       - uses: actions/checkout@v3
         with:

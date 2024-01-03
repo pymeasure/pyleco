@@ -66,7 +66,16 @@ For unit test, that all the necessary methods are reachable via RPC, the followi
         raise AssertionError(f"Method {method} is not available.")
 """
 
-from typing import Any, Optional, Protocol, Union
+try:
+    from enum import StrEnum
+except ImportError:
+    # For python<3.11
+    from enum import Enum
+
+    class StrEnum(str, Enum):  # type: ignore
+        pass
+
+from typing import Any, Iterable, Optional, Protocol, Sequence
 
 
 class ComponentProtocol(Protocol):
@@ -77,10 +86,19 @@ class ComponentProtocol(Protocol):
         return  # always succeeds.
 
 
+class LogLevels(StrEnum):
+    """Log levels for :meth:`ExtendedComponentProtocol.set_log_level` method."""
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
 class ExtendedComponentProtocol(ComponentProtocol, Protocol):
     """A Component which supports more features."""
 
-    def set_log_level(self, level: int) -> None: ...
+    def set_log_level(self, level: LogLevels) -> None: ...
 
     def shut_down(self) -> None: ...
 
@@ -106,17 +124,17 @@ class CoordinatorProtocol(ComponentProtocol, Protocol):
 
     def send_global_components(self) -> dict[str, list[str]]: ...
 
-    def remove_expired_adresses(self, expiration_time: float) -> None: ...
+    def remove_expired_addresses(self, expiration_time: float) -> None: ...
 
 
 class ActorProtocol(ComponentProtocol, Protocol):
     """An Actor Component."""
 
-    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]: ...
+    def get_parameters(self, parameters: Iterable[str]) -> dict[str, Any]: ...
 
     def set_parameters(self, parameters: dict[str, Any]) -> None: ...
 
-    def call_action(self, action: str, args: Optional[list | tuple] = None,
+    def call_action(self, action: str, args: Optional[Sequence[Any]] = None,
                     kwargs: Optional[dict[str, Any]] = None) -> Any: ...
 
 

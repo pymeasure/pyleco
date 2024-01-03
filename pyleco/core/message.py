@@ -23,12 +23,12 @@
 #
 
 from json import JSONDecodeError
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 
 from . import VERSION_B
 from .serialization import (create_header_frame, serialize_data, interpret_header, split_name,
-                            deserialize_data, FullName, Header
+                            deserialize_data, FullName, Header, MessageTypes,
                             )
 
 
@@ -55,16 +55,18 @@ class Message:
     header: bytes
     payload: list[bytes]
 
-    def __init__(self, receiver: bytes | str, sender: bytes | str = b"",
-                 data: Optional[bytes | str | Any] = None,
+    def __init__(self,
+                 receiver: Union[bytes, str],
+                 sender: Union[bytes, str] = b"",
+                 data: Optional[Union[bytes, str, Any]] = None,
                  header: Optional[bytes] = None,
                  conversation_id: Optional[bytes] = None,
                  message_id: Optional[bytes] = None,
-                 message_type: Optional[bytes] = None,
+                 message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
                  ) -> None:
-        self.receiver = receiver if isinstance(receiver, bytes) else receiver.encode()
-        self.sender = sender if isinstance(sender, bytes) else sender.encode()
-        if header and (conversation_id or message_id or message_type):
+        self.receiver = receiver.encode() if isinstance(receiver, str) else receiver
+        self.sender = sender.encode() if isinstance(sender, str) else sender
+        if header and (conversation_id or message_id or message_type != MessageTypes.NOT_DEFINED):
             raise ValueError(
                 "You may not specify the header and some header element at the same time!")
         self.header = (create_header_frame(conversation_id=conversation_id, message_id=message_id,
@@ -145,4 +147,5 @@ class Message:
                     and self.payload[1:] == other.payload[1:])
 
     def __repr__(self) -> str:
-        return f"Message.from_frames({self._to_frames_without_sender_check()})"
+        list_of_frames_strings = [str(frame) for frame in self.to_frames()]
+        return f"Message.from_frames({', '.join(list_of_frames_strings)})"
