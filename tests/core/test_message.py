@@ -27,7 +27,7 @@ import pytest
 from pyleco.core import VERSION_B
 from pyleco.core.serialization import serialize_data
 
-from pyleco.core.message import Message
+from pyleco.core.message import Message, MessageTypes
 
 
 cid = b"conversation_id;"
@@ -41,7 +41,7 @@ def message() -> Message:
         data=[["GET", [1, 2]], ["GET", 3]],
         conversation_id=cid,
         message_id=b"mid",
-        message_type=b"T"
+        message_type=int.from_bytes(b"T", byteorder="big")
     )
 
 
@@ -84,10 +84,13 @@ class Test_Message_create_message:
         message = Message(b"rec", data="some string")
         assert message.payload[0] == b"some string"
 
-    @pytest.mark.parametrize("key", ("conversation_id", "message_id", "message_type"))
-    def test_header_param_incompatible_with_header_element_params(self, key):
+    @pytest.mark.parametrize("key, value", (("conversation_id", b"content"),
+                                            ("message_id", b"mid"),
+                                            ("message_type", 7),
+                                            ))
+    def test_header_param_incompatible_with_header_element_params(self, key, value):
         with pytest.raises(ValueError, match="header"):
-            Message(receiver=b"", header=b"whatever", **{key: b"content"})
+            Message(receiver=b"", header=b"whatever", **{key: value})
 
 
 class Test_Message_from_frames:
@@ -139,7 +142,7 @@ class Test_Message_frame_splitting:
         assert message.header_elements.message_id == b"mid"
 
     def test_header_message_type(self, message: Message):
-        assert message.header_elements.message_type == b"T"
+        assert message.header_elements.message_type == int.from_bytes(b"T", byteorder="big")
 
 
 class Test_Message_with_string_parameters:
@@ -157,7 +160,7 @@ class Test_Message_with_string_parameters:
 
 class Test_Message_data_payload_conversion:
     def test_data_to_payload(self):
-        message = Message(b"r", b"s", data=([{5: "1asfd"}], 8))
+        message = Message(b"r", b"s", data=([{5: "1asfd"}], 8), message_type=MessageTypes.JSON)
         assert message.payload == [serialize_data([[{"5": "1asfd"}], 8])]
         assert message.data == [[{'5': "1asfd"}], 8]  # converted to and from json, so modified!
 
@@ -187,8 +190,10 @@ class TestComparison:
         assert m1 == m2
 
     def test_dictionary_order_is_irrelevant(self):
-        m1 = Message(b"r", conversation_id=cid, data={"a": 1, "b": 2})
-        m2 = Message(b"r", conversation_id=cid, data={"b": 2, "a": 1})
+        m1 = Message(b"r", conversation_id=cid, data={"a": 1, "b": 2},
+                     message_type=MessageTypes.JSON)
+        m2 = Message(b"r", conversation_id=cid, data={"b": 2, "a": 1},
+                     message_type=MessageTypes.JSON)
         assert m1 == m2
 
     def test_distinguish_empty_payload_frame(self):
@@ -201,3 +206,12 @@ class TestComparison:
     @pytest.mark.parametrize("other", (5, 3.4, [64, 3], (5, "string"), "string"))
     def test_comparison_with_something_else_fails(self, message, other):
         assert message != other
+
+
+def test_repr():
+    message = Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')
+    assert repr(message) == r"Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')"
+
+
+def test_conversation_id_getter(message: Message):
+    assert message.conversation_id == cid

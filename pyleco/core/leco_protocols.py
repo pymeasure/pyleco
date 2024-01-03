@@ -66,6 +66,15 @@ For unit test, that all the necessary methods are reachable via RPC, the followi
         raise AssertionError(f"Method {method} is not available.")
 """
 
+try:
+    from enum import StrEnum
+except ImportError:
+    # For python<3.11
+    from enum import Enum
+
+    class StrEnum(str, Enum):  # type: ignore
+        pass
+
 from typing import Any, Iterable, Optional, Protocol, Sequence
 
 
@@ -77,10 +86,19 @@ class ComponentProtocol(Protocol):
         return  # always succeeds.
 
 
+class LogLevels(StrEnum):
+    """Log levels for :meth:`ExtendedComponentProtocol.set_log_level` method."""
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
 class ExtendedComponentProtocol(ComponentProtocol, Protocol):
     """A Component which supports more features."""
 
-    def set_log_level(self, level: int) -> None: ...
+    def set_log_level(self, level: LogLevels) -> None: ...
 
     def shut_down(self) -> None: ...
 
@@ -106,7 +124,7 @@ class CoordinatorProtocol(ComponentProtocol, Protocol):
 
     def send_global_components(self) -> dict[str, list[str]]: ...
 
-    def remove_expired_adresses(self, expiration_time: float) -> None: ...
+    def remove_expired_addresses(self, expiration_time: float) -> None: ...
 
 
 class ActorProtocol(ComponentProtocol, Protocol):
