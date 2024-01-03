@@ -58,6 +58,10 @@ class FakeSocket:
         # they contain a list of messages sent/received
         self._s: list[list[bytes]] = []
         self._r: list[list[bytes]] = []
+        if socket_type == 2:  # zmq.SUB
+            # empirical data shots, that you have to unsubscribe as many times as you have
+            # subscribed, therefore a list is best
+            self._subscriptions: list[bytes] = []
 
     def bind(self, addr: str) -> None:
         self.addr = addr
@@ -95,12 +99,58 @@ class FakeSocket:
                 raise TypeError(f"Frame {i} ({part}) does not support the buffer interface.")
         self._s.append(list(msg_parts))
 
+    def subscribe(self, topic: Union[str, bytes]) -> None:
+        if self.socket_type != 2:
+            raise ValueError("Invalid argument")  # type is a ZMQError
+        else:
+            if isinstance(topic, str):
+                topic = topic.encode()
+            self._subscriptions.append(topic)
+
+    def unsubscribe(self, topic: Union[str, bytes]) -> None:
+        if self.socket_type != 2:
+            raise ValueError("Invalid argument")  # type is a ZMQError
+        else:
+            if isinstance(topic, str):
+                topic = topic.encode()
+            try:
+                self._subscriptions.remove(topic)
+            except ValueError:
+                pass  # not present
+
     def close(self, linger: Optional[int] = None) -> None:
         self.addr = None
         self.closed = True
 
 
+class FakePoller:
+    """A fake zmq poller."""
+    def __init__(self) -> None:
+        self._sockets: list[FakeSocket] = []
+
+    def poll(self, timeout: Optional[int] = None) -> list[tuple[FakeSocket, Any]]:
+        """Returns a list of events (socket, event_mask)"""
+        events = []
+        for sock in self._sockets:
+            if sock.poll(timeout=timeout):
+                events.append((sock, 1))
+        return events
+
+    def register(self, socket,
+                 flags: int = "PollEvent.POLLIN",  # type: ignore
+                 ) -> None:
+        self._sockets.append(socket)
+
+    def unregister(self, socket: FakeSocket) -> None:
+        try:
+            self._sockets.remove(socket)
+        except ValueError:
+            pass  # already removed
+
+
 class FakeCommunicator(CommunicatorProtocol):
+    """Contains lists with received (`_r`) and sent (`_s`) messages."""
+
     def __init__(self, name: str):
         super().__init__()
         self.name = name
@@ -122,6 +172,42 @@ class FakeCommunicator(CommunicatorProtocol):
             message.sender = self.name.encode()
         self._s.append(message)
 
-    def ask_message(self, message: Message) -> Message:
-        self.send_message(message)
+    def read_message(self, conversation_id: Optional[bytes] = None, timeout=None):
         return self._r.pop(0)
+
+    def ask_message(self, message: Message, timeout=None) -> Message:
+        self.send_message(message)
+        return self.read_message(timeout=timeout)
+
+
+class FakeDirector:
+    """Supplements a regular director to create a fake one for testing.
+
+    ..code::
+
+        class FakeSomeDirector(FakeDirector, SomeDirector):
+            pass
+
+        @pytest.fixture
+        def some_director():
+            return FakeSomeDirector(remote_class=SomeActor)
+    """
+
+    return_value: Any
+    kwargs: dict[str, Any]
+
+    def __init__(self, remote_class, **kwargs):
+        kwargs.setdefault("communicator", FakeCommunicator("communicator"))
+        super().__init__(**kwargs)
+        self.remote_class = remote_class
+
+    def ask_rpc(self, method: str, actor: Optional[Union[bytes, str]] = None, **kwargs) -> Any:
+        assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
+        self.kwargs = kwargs
+        return self.return_value
+
+    def ask_rpc_async(self, method: str, actor: Optional[Union[bytes, str]] = None,
+                      **kwargs) -> bytes:
+        assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
+        self.kwargs = kwargs
+        return b"conversation_id;"

@@ -31,7 +31,7 @@ Any Component could use these tools in order to send and read messsages.
 For example a Director might use these tools to direct an Actor.
 """
 
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, Iterable, Union
 
 from .message import Message, MessageTypes
 from .rpc_generator import RPCGenerator
@@ -46,12 +46,21 @@ class CommunicatorProtocol(Protocol):
     name: str
     namespace: Optional[str] = None
     rpc_generator: RPCGenerator
+    timeout: float = 1  # default reading timeout in seconds
 
     def sign_in(self) -> None: ...  # pragma: no cover
 
     def sign_out(self) -> None: ...  # pragma: no cover
 
     def send_message(self, message: Message) -> None: ...  # pragma: no cover
+
+    def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
+                     ) -> Message: ...  # pragma: no cover
+
+    def ask_message(self, message: Message, timeout: Optional[float] = None
+                    ) -> Message: ...  # pragma: no cover
+
+    def close(self) -> None: ...  # pragma: no cover
 
     # Utilities
     def send(self,
@@ -64,13 +73,42 @@ class CommunicatorProtocol(Protocol):
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
         ))
 
-    def ask(self, receiver: bytes | str, conversation_id: Optional[bytes] = None,
+    def ask(self, receiver: Union[bytes, str], conversation_id: Optional[bytes] = None,
             data: Optional[Any] = None,
+            timeout: Optional[float] = None,
             **kwargs) -> Message:
         """Send a message based on kwargs and retrieve the response."""
         return self.ask_message(message=Message(
-            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs))
+            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs),
+            timeout=timeout)
 
-    def ask_message(self, message: Message) -> Message: ...  # pragma: no cover
+    def ask_rpc(self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None,
+                **kwargs) -> Any:
+        string = self.rpc_generator.build_request_str(method=method, **kwargs)
+        response = self.ask(receiver=receiver, data=string, message_type=MessageTypes.JSON,
+                            timeout=timeout)
+        return self.rpc_generator.get_result_from_response(response.payload[0])
 
-    def close(self) -> None: ...  # pragma: no cover
+
+class SubscriberProtocol(Protocol):
+    """A helper class to subscribe to data protocol topics."""
+
+    def subscribe_single(self, topic: bytes) -> None: ...  # pragma: no cover
+
+    def unsubscribe_single(self, topic: bytes) -> None: ...  # pragma: no cover
+
+    def subscribe(self, topics: Union[str, Iterable[str]]) -> None:
+        """Subscribe to a topic or list of topics."""
+        if isinstance(topics, str):
+            self.subscribe_single(topics.encode())
+        else:
+            for topic in topics:
+                self.subscribe_single(topic.encode())
+
+    def unsubscribe(self, topics: Union[str, Iterable[str]]) -> None:
+        """Unsubscribe to a topic or list of topics."""
+        if isinstance(topics, str):
+            self.unsubscribe_single(topics.encode())
+        else:
+            for topic in topics:
+                self.unsubscribe_single(topic.encode())
