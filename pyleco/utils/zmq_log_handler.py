@@ -22,7 +22,6 @@
 # THE SOFTWARE.
 #
 
-import json
 import logging
 from logging.handlers import QueueHandler
 import time
@@ -31,25 +30,25 @@ from typing import Any, Optional
 import zmq
 
 from ..core import LOG_RECEIVING_PORT
+from ..core.data_message import DataMessage
+from ..utils.data_publisher import DataPublisher
 
 
 class ZmqLogHandler(QueueHandler):
     """Handle log entries publishing them.
 
-    You have to set the :attr:`fullname` in order to publish logs.
+    You have to set the :attr:`full_name` in order to publish logs.
 
-    :attr fullname: Full name of the Component.
+    :attr full_name: Full name of the Component.
     """
 
-    fullname: str
+    full_name: str
 
     def __init__(self, context: Optional[zmq.Context] = None, host: str = "localhost",
-                 port: int = LOG_RECEIVING_PORT, fullname: str = "") -> None:
-        context = context or zmq.Context.instance()
-        socket: zmq.Socket = context.socket(zmq.PUB)
-        socket.connect(f"tcp://{host}:{port}")
-        super().__init__(socket)  # type: ignore
-        self.fullname = fullname
+                 port: int = LOG_RECEIVING_PORT, full_name: str = "") -> None:
+        publisher = DataPublisher(full_name=full_name, host=host, port=port, context=context)
+        super().__init__(publisher)  # type: ignore
+        self.full_name = full_name
 
     def prepare(self, record: logging.LogRecord) -> list[str]:
         """Prepare a json serializable message from the record in order to send it."""
@@ -75,11 +74,5 @@ class ZmqLogHandler(QueueHandler):
 
     def enqueue(self, record: Any) -> None:
         """Enqueue a message prepared by :meth:`prepare`, if the fullname is given."""
-        # TODO adjust serialization according to protocol definition
-        try:
-            self.queue.send_multipart((self.fullname.encode(), json.dumps(record).encode()))  # type: ignore  # noqa: E501
-        except AttributeError:
-            pass
-
-    def close(self) -> None:
-        self.queue.close(1)  # type: ignore
+        message = DataMessage(topic=self.full_name.encode(), data=record)
+        self.queue.send_message(message)  # type: ignore

@@ -25,22 +25,24 @@
 import pytest
 
 from pyleco.test import FakeContext
-from pyleco.utils.zmq_log_handler import ZmqLogHandler
+from pyleco.utils.zmq_log_handler import ZmqLogHandler, DataMessage
 
 
 @pytest.fixture
 def handler() -> ZmqLogHandler:
-    return ZmqLogHandler(context=FakeContext(), fullname="fullname", port=12345)  # type: ignore
+    return ZmqLogHandler(context=FakeContext(), full_name="fullname", port=12345)  # type: ignore
 
 
 def test_init_(handler: ZmqLogHandler):
-    assert handler.fullname == "fullname"
+    assert handler.full_name == "fullname"
 
 
 def test_init_address(handler: ZmqLogHandler):
-    assert handler.queue.addr == "tcp://localhost:12345"  # type: ignore
+    assert handler.queue.socket.addr == "tcp://localhost:12345"  # type: ignore
 
 
 def test_enqueue(handler: ZmqLogHandler):
     handler.enqueue("whatever")
-    assert handler.queue._s == [[b"fullname", b'"whatever"']]  # type: ignore
+    message = DataMessage.from_frames(*handler.queue.socket._s.pop())  # type: ignore
+    assert message.topic == b"fullname"
+    assert message.payload == [b'whatever']
