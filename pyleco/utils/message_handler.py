@@ -179,6 +179,9 @@ class MessageHandler(ExtendedComponentProtocol):
         self._send_message(message)
 
     def read_message(self) -> Message:
+        return self._read_message()
+
+    def _read_message(self) -> Message:
         return Message.from_frames(*self.socket.recv_multipart())
 
     # Continuous listening and message handling
@@ -223,7 +226,7 @@ class MessageHandler(ExtendedComponentProtocol):
         """
         socks = dict(poller.poll(waiting_time))
         if self.socket in socks:
-            self.handle_message()
+            self.read_and_handle_message()
             del socks[self.socket]
         elif (now := time.perf_counter()) > self.next_beat:
             self.heartbeat()
@@ -235,11 +238,11 @@ class MessageHandler(ExtendedComponentProtocol):
         self.log.info(f"Stop listen as '{self.name}'.")
         self.sign_out()
         if self.socket.poll(timeout=waiting_time):
-            self.handle_message()
+            self.read_and_handle_message()
         else:
             self.log.warning("Waiting for sign out response timed out.")
 
-    def handle_message(self) -> None:
+    def read_and_handle_message(self) -> None:
         """Interpret incoming message.
 
         COORDINATOR messages are handled and then :meth:`handle_commands` does the rest.

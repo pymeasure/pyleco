@@ -146,7 +146,7 @@ def test_handle_message_ignores_heartbeats(handler: MessageHandler):
     handler.handle_commands = MagicMock()  # type: ignore
     # empty message of heartbeat
     handler.socket._r = [[VERSION_B, b"N1.handler", b"whatever", b";"]]  # type: ignore
-    handler.handle_message()
+    handler.read_and_handle_message()
     handler.handle_commands.assert_not_called()
 
 
@@ -158,7 +158,7 @@ def test_handle_message_ignores_heartbeats(handler: MessageHandler):
 ))
 def test_handle_message(handler: MessageHandler, i, out):
     handler.socket._r = [i]  # type: ignore
-    handler.handle_message()
+    handler.read_and_handle_message()
     for j in range(len(out)):
         if j == 3:
             continue  # reply adds timestamp
@@ -171,7 +171,7 @@ def test_handle_not_signed_in_message(handler: MessageHandler):
                                  message_type=MessageTypes.JSON,
                                  data={"id": 5, "error": {"code": NOT_SIGNED_IN.code}}
                                  ).to_frames()]
-    handler.handle_message()
+    handler.read_and_handle_message()
     assert handler.namespace is None
     handler.sign_in.assert_called_once()
     assert handler.full_name == "handler"
@@ -186,7 +186,7 @@ def test_handle_SIGNIN_message_response(handler: MessageHandler):
                                      "id": 0, "result": None, "jsonrpc": "2.0",
                                  }).to_frames()]
     handler.namespace = None
-    handler.handle_message()
+    handler.read_and_handle_message()
     assert handler.namespace == "N3"
 
 
@@ -196,7 +196,7 @@ def test_handle_ACK_does_not_change_Namespace(handler: MessageHandler):
                                  message_type=MessageTypes.JSON,
                                  data={"id": 3, "result": None, "jsonrpc": "2.0"}).to_frames()]
     handler.namespace = "N1"
-    handler.handle_message()
+    handler.read_and_handle_message()
     assert handler.namespace == "N1"
 
 
@@ -204,7 +204,7 @@ def test_handle_corrupted_message(handler: MessageHandler, caplog: pytest.LogCap
     handler.socket._r = [Message(b"N3.handler", b"N3.COORDINATOR",  # type: ignore
                                  message_type=MessageTypes.JSON,
                                  data=[]).to_frames()]
-    handler.handle_message()
+    handler.read_and_handle_message()
     assert caplog.records[-1].msg.startswith("Message data")
 
 
