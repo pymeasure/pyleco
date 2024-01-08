@@ -94,14 +94,6 @@ class Director:
         log.debug(f"Data '{response.data}' received.")
         return response
 
-    def ask(self, actor: Optional[Union[bytes, str]] = None, data: Optional[Any] = None,
-            **kwargs) -> Any:
-        """Send a request to the actor and return the content of the response."""
-        warn("Deprecated use `ask_rpc` instead", FutureWarning)
-        response = self.ask_message(actor=actor, data=data, **kwargs)
-        response_string = response.payload[0]
-        return self.generator.get_result_from_response(response_string)
-
     def _actor_check(self, actor: Optional[Union[bytes, str]]) -> Union[bytes, str]:
         actor = actor or self.actor
         if actor is None:

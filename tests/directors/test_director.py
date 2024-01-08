@@ -76,17 +76,6 @@ class ActorCheck:
         assert director._actor_check("") == "actor"
 
 
-def test_ask(director: Director):
-    director.communicator._r = [  # type: ignore
-        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
-            "id": 1, "result": 123.456, "jsonrpc": "2.0"
-            })]
-    response = director.ask(actor=None)
-    assert director.communicator._s == [  # type: ignore
-        Message("actor", "director", conversation_id=cid)]
-    assert response == 123.456
-
-
 def test_shutdown_actor(director: Director):
     director.communicator._r = [  # type: ignore
         Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
