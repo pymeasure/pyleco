@@ -26,15 +26,16 @@ import logging
 import time
 from typing import Any, Callable, Optional, Union
 
+from jsonrpcobjects.errors import JSONRPCError
 from openrpc import RPCServer
 import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
+from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message, MessageTypes
 from ..errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..core.rpc_generator import RPCGenerator
-from ..core.serialization import generate_conversation_id
 from .log_levels import PythonLogLevels
 from .zmq_log_handler import ZmqLogHandler
 from .events import Event, SimpleEvent
@@ -44,7 +45,7 @@ from .events import Event, SimpleEvent
 heartbeat_interval = 10  # s
 
 
-class MessageHandler(ExtendedComponentProtocol):
+class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
     """Maintain connection to the Coordinator and listen to incoming messages.
 
     This class is intended to run in a thread, maintain the connection to the coordinator
@@ -76,12 +77,6 @@ class MessageHandler(ExtendedComponentProtocol):
         self.rpc = RPCServer(title=name)
         self.rpc_generator = RPCGenerator()
         self.register_rpc_methods()
-
-        self._requests: dict[bytes, str] = {}
-        self.response_methods: dict[str, Callable] = {
-            "sign_in": self.handle_sign_in_response,
-            "sign_out": self.handle_sign_out_response
-        }
 
         self.setup_logging(log=log)
         self.setup_socket(host=host, port=port, protocol=protocol,
@@ -132,7 +127,13 @@ class MessageHandler(ExtendedComponentProtocol):
 
     # Base communication
     def sign_in(self) -> None:
-        self._ask_rpc_async(b"COORDINATOR", method="sign_in")
+        string = self.rpc_generator.build_request_str(method="sign_in")
+        try:
+            msg = self.ask(b"COORDINATOR", data=string, message_type=MessageTypes.JSON)
+        except TimeoutError:
+            self.log.error("Signing in timed out.")
+        else:
+            self.handle_sign_in_response(msg)
 
     def heartbeat(self) -> None:
         """Send a heartbeat to the router."""
@@ -140,7 +141,14 @@ class MessageHandler(ExtendedComponentProtocol):
         self._send_message(Message(b"COORDINATOR"))
 
     def sign_out(self) -> None:
-        self._ask_rpc_async(b"COORDINATOR", method="sign_out")
+        try:
+            self.ask_rpc(b"COORDINATOR", method="sign_out")
+        except TimeoutError:
+            self.log.warning("Waiting for sign out response timed out.")
+        except Exception as exc:
+            self.log.exception("Signing out failed.", exc_info=exc)
+        else:
+            self.finish_sign_out()
 
     def _send_message(self, message: Message) -> None:
         """Send a message, supplying sender information."""
@@ -163,15 +171,6 @@ class MessageHandler(ExtendedComponentProtocol):
         else:
             self._send_message(message)
 
-    def _ask_rpc_async(self, receiver: Union[bytes, str], method: str, **kwargs) -> None:
-        """Send a message and store the converation_id."""
-        cid = generate_conversation_id()
-        message = Message(receiver=receiver, conversation_id=cid,
-                          message_type=MessageTypes.JSON,
-                          data=self.rpc_generator.build_request_str(method=method, **kwargs))
-        self._requests[cid] = method
-        self._send_message(message)
-
     def send(self, receiver: Union[bytes, str], data: Optional[Any] = None,
              conversation_id: Optional[bytes] = None, **kwargs) -> None:
         """Send a message to a receiver with serializable `data`."""
@@ -180,41 +179,56 @@ class MessageHandler(ExtendedComponentProtocol):
     def send_message(self, message: Message) -> None:
         self._send_message(message)
 
-    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
-                     ) -> Message:
+    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
+        if self.socket.poll(int(timeout or self.timeout * 1000)):
+            return Message.from_frames(*self.socket.recv_multipart())
+        raise TimeoutError("Reading timed out")
+
+    def _read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
+                      ) -> Message:
         if self._message_buffer:
-            for i, m in enumerate(self._message_buffer):
-                cid = m.conversation_id
+            for i, msg in enumerate(self._message_buffer):
+                cid = msg.conversation_id
                 if conversation_id == cid:
                     self._requested_ids.discard(cid)
                     return self._message_buffer.pop(i)
                 elif cid not in self._requested_ids and conversation_id is None:
                     return self._message_buffer.pop(i)
-        stop = float("inf") if timeout is None else time.perf_counter() + timeout
+        stop = time.perf_counter() + (timeout or self.timeout)
         while True:
-            m = self._read_message()
-            cid = m.conversation_id
+            msg = self._read_socket_message(timeout)
+            cid = msg.conversation_id
             if conversation_id == cid:
                 self._requested_ids.discard(cid)
-                return m
+                return msg
             elif conversation_id is not None or cid in self._requested_ids:
-                self._message_buffer.append(m)
+                self._message_buffer.append(msg)
             else:
-                return m
+                return msg
             if time.perf_counter() > stop:
                 # inside the loop to do it at least once, even if timeout is 0
                 break
         raise TimeoutError("Message not found.")
 
+    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
+                     ) -> Message:
+        msg = self._read_message(conversation_id=conversation_id, timeout=timeout)
+        if msg.sender_elements.name == b"COORDINATOR" and msg.payload:
+            try:
+                self.rpc_generator.get_result_from_response(msg.payload[0])
+            except JSONRPCError as exc:
+                code = exc.rpc_error.code
+                if code == NOT_SIGNED_IN.code:
+                    self.handle_not_signed_in()
+                raise
+        return msg
+
     def ask_message(self, message: Message, timeout: Optional[float] = None
                     ) -> Message:
         self.send_message(message)
         cid = message.conversation_id
-        self._requested_ids.add(cid)
+        # self._requested_ids.add(cid)
         return self.read_message(conversation_id=cid, timeout=timeout)
-
-    def _read_message(self) -> Message:
-        return Message.from_frames(*self.socket.recv_multipart())
 
     # Continuous listening and message handling
     def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
@@ -269,40 +283,25 @@ class MessageHandler(ExtendedComponentProtocol):
         """Close the listening loop."""
         self.log.info(f"Stop listen as '{self.name}'.")
         self.sign_out()
-        if self.socket.poll(timeout=waiting_time):
-            self.read_and_handle_message()
-        else:
-            self.log.warning("Waiting for sign out response timed out.")
 
     def read_and_handle_message(self) -> None:
-        """Interpret incoming message.
-
-        COORDINATOR messages are handled and then :meth:`handle_commands` does the rest.
+        """Interpret incoming message, which have not been requested.
         """
-        msg = self.read_message()
+        try:
+            msg = self.read_message(timeout=0)
+        except (TimeoutError, JSONRPCError):
+            # only responses / errors arrived.
+            return
         self.log.debug(f"Handling message {msg}")
         if not msg.payload:
             return  # no payload, that means just a heartbeat
-        try:
-            if (msg.sender_elements.name == b"COORDINATOR"
-                    and (error := msg.data.get("error"))  # type: ignore
-                    and error.get("code") == NOT_SIGNED_IN.code):
-                self.namespace = None
-                self.set_full_name(self.name)
-                self.sign_in()
-                self.log.warning("I was not signed in, signing in.")
-                return
-            elif (method := self._requests.get(msg.conversation_id)):
-                self.handle_response(msg, method)
-                return
-        except AttributeError as exc:
-            self.log.exception(f"Message data {msg.data} misses an attribute!", exc_info=exc)
-        else:
-            self.handle_commands(msg)
+        self.handle_commands(msg)
 
-    def handle_response(self, message: Message, method: str):
-        del self._requests[message.conversation_id]
-        self.response_methods[method](message)
+    def handle_not_signed_in(self) -> None:
+        self.namespace = None
+        self.set_full_name(self.name)
+        self.sign_in()
+        self.log.warning("I was not signed in, signing in.")
 
     def handle_sign_in_response(self, message: Message) -> None:
         if not isinstance(message.data, dict):
@@ -318,21 +317,15 @@ class MessageHandler(ExtendedComponentProtocol):
         else:
             self.log.warning("Sign in failed, unexpected message.")
 
-    def handle_sign_out_response(self, message: Message) -> None:
-        if isinstance(message.data, dict) and message.data.get("result", False) is None:
-            self.finish_sign_out(message)
-        else:
-            self.log.error(f"Signing out failed with {message}.")
-
     def finish_sign_in(self, message: Message) -> None:
         self.namespace = message.sender_elements.namespace.decode()
         self.set_full_name(full_name=".".join((self.namespace, self.name)))
         self.log.info(f"Signed in to Node '{self.namespace}'.")
 
-    def finish_sign_out(self, message: Message) -> None:
+    def finish_sign_out(self) -> None:
+        self.log.info(f"Signed out from Node '{self.namespace}'.")
         self.namespace = None
         self.set_full_name(full_name=self.name)
-        self.log.info(f"Signed out from Node '{message.sender_elements.namespace.decode()}'.")
 
     def set_full_name(self, full_name: str) -> None:
         self.full_name = full_name

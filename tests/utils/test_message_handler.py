@@ -32,11 +32,12 @@ import pytest
 from pyleco.core import VERSION_B
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
+from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
-from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME
+from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME, ErrorResponse
 
-from pyleco.utils.message_handler import MessageHandler, SimpleEvent
+from pyleco.utils.message_handler import MessageHandler, SimpleEvent, JSONRPCError
 
 
 cid = b"conversation_id;"
@@ -58,6 +59,7 @@ def handler() -> MessageHandler:
     handler.namespace = "N1"
     handler.full_name = "N1.handler"
     handler.stop_event = SimpleEvent()
+    handler.timeout = 0.1
     return handler
 
 
@@ -68,6 +70,10 @@ class TestProtocolImplemented:
         def testing(component: ExtendedComponentProtocol):
             pass
         testing(MessageHandler(name="test"))
+
+        def test_internal_communicator_protocol(communicator: CommunicatorProtocol):
+            pass
+        test_internal_communicator_protocol(MessageHandler(name="test"))
 
     @pytest.fixture
     def component_methods(self, handler: MessageHandler):
@@ -102,6 +108,18 @@ def test_context_manager():
     assert stored_handler.socket.closed is True  # exit
 
 
+def test_sign_in(handler: MessageHandler, fake_cid_generation):
+    handler.socket._r = [Message(receiver=b"N3.handler", sender=b"N3.COORDINATOR",  # type: ignore
+                                 conversation_id=cid,
+                                 message_type=MessageTypes.JSON,
+                                 data={
+                                     "id": 0, "result": None, "jsonrpc": "2.0",
+                                 }).to_frames()]
+    handler.namespace = None
+    handler.sign_in()
+    assert handler.namespace == "N3"
+
+
 def test_finish_sign_in(handler: MessageHandler):
     handler.finish_sign_in(message=Message(b"handler", b"N5.COORDINATOR",
                                            message_type=MessageTypes.JSON, data={
@@ -111,9 +129,7 @@ def test_finish_sign_in(handler: MessageHandler):
 
 
 def test_finish_sign_out(handler: MessageHandler):
-    handler.finish_sign_out(message=Message(b"handler", b"N5.COORDINATOR",
-                                            message_type=MessageTypes.JSON, data={
-                                                "id": 10, "result": None, "jsonrpc": "2.0"}))
+    handler.finish_sign_out()
     assert handler.namespace is None
     assert handler.full_name == "handler"
 
@@ -209,10 +225,10 @@ class Test_read_message:
         # assert that no error is raised
 
     def test_timeout_error(self, handler: MessageHandler):
-        def waiting():
+        def waiting(*args, **kwargs):
             time.sleep(.1)
             return self.m1
-        handler._read_message = waiting  # type: ignore[assignment]
+        handler._read_socket_message = waiting  # type: ignore[assignment]
         with pytest.raises(TimeoutError):
             handler.read_message(conversation_id=cid, timeout=0)
 
@@ -235,6 +251,15 @@ class Test_ask_message:
 
     def test_no_cid_in_requested_cids_list(self, handler_asked: MessageHandler):
         assert cid not in handler_asked._requested_ids
+
+
+def test_handle_message_handles_no_new_message(handler: MessageHandler):
+    handler._requested_ids.add(cid)
+    handler.socket._r = [  # type: ignore
+        Message(receiver="handler", sender="abc", conversation_id=cid).to_frames()]
+    # act
+    handler.read_and_handle_message()
+    # assert that no error is raised.
 
 
 def test_handle_message_ignores_heartbeats(handler: MessageHandler):
@@ -264,25 +289,13 @@ def test_handle_not_signed_in_message(handler: MessageHandler):
     handler.sign_in = MagicMock()  # type: ignore
     handler.socket._r = [Message(receiver="handler", sender="N1.COORDINATOR",  # type: ignore
                                  message_type=MessageTypes.JSON,
-                                 data={"id": 5, "error": {"code": NOT_SIGNED_IN.code}}
+                                 data=ErrorResponse(id=5, error=NOT_SIGNED_IN),
                                  ).to_frames()]
-    handler.read_and_handle_message()
+    with pytest.raises(JSONRPCError):
+        handler.read_message()
     assert handler.namespace is None
     handler.sign_in.assert_called_once()
     assert handler.full_name == "handler"
-
-
-def test_handle_SIGNIN_message_response(handler: MessageHandler):
-    handler._requests[b"conversation_si;"] = "sign_in"
-    handler.socket._r = [Message(receiver=b"N3.handler", sender=b"N3.COORDINATOR",  # type: ignore
-                                 conversation_id=b"conversation_si;",
-                                 message_type=MessageTypes.JSON,
-                                 data={
-                                     "id": 0, "result": None, "jsonrpc": "2.0",
-                                 }).to_frames()]
-    handler.namespace = None
-    handler.read_and_handle_message()
-    assert handler.namespace == "N3"
 
 
 def test_handle_ACK_does_not_change_Namespace(handler: MessageHandler):
@@ -300,7 +313,7 @@ def test_handle_corrupted_message(handler: MessageHandler, caplog: pytest.LogCap
                                  message_type=MessageTypes.JSON,
                                  data=[]).to_frames()]
     handler.read_and_handle_message()
-    assert caplog.records[-1].msg.startswith("Message data")
+    assert caplog.records[-1].msg.startswith("AttributeError")
 
 
 class Test_HandleSignInResponses:
@@ -347,23 +360,26 @@ class Test_HandleSignInResponses:
         assert caplog.records[-1].msg.startswith("Sign in failed, unexpected message.")
 
 
-def test_handle_sign_out_response(handler: MessageHandler):
+def test_sign_out_success(handler: MessageHandler, fake_cid_generation):
     handler.namespace = "N3"
     message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
         "jsonrpc": "2.0", "result": None, "id": 1,
-    })
-    handler.handle_sign_out_response(message)
+    }, conversation_id=cid)
+    handler.socket._r = [message.to_frames()]  # type: ignore
+    handler.sign_out()
     assert handler.namespace is None
 
 
-def test_handle_sign_out_response_fail(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+def test_sign_out_fail(handler: MessageHandler, caplog: pytest.LogCaptureFixture,
+                       fake_cid_generation):
     handler.namespace = "N3"
     message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
         "jsonrpc": "2.0", "error": {"code": 12345}, "id": 1,
-    })
-    handler.handle_sign_out_response(message)
+    }, conversation_id=cid)
+    handler.socket._r = [message.to_frames()]  # type: ignore
+    handler.sign_out()
     assert handler.namespace is not None
-    assert caplog.messages[-1].startswith("Signing out failed with")
+    assert caplog.messages[-1].startswith("Signing out failed")
 
 
 def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
@@ -374,22 +390,22 @@ def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.Log
 
 class Test_listen:
     @pytest.fixture
-    def handler_l(self, handler: MessageHandler):
+    def handler_l(self, handler: MessageHandler, fake_cid_generation):
         event = SimpleEvent()
         event.set()
         handler.socket._r = [  # type: ignore
-            Message("handler", "COORDINATOR", message_type=MessageTypes.JSON,
+            Message("handler", "N1.COORDINATOR", message_type=MessageTypes.JSON,
+                    conversation_id=cid,
                     data={"id": 2, "result": None, "jsonrpc": "2.0"}).to_frames()]
         handler.listen(stop_event=event)
         return handler
 
     def test_messages_are_sent(self, handler_l: MessageHandler):
-        cids = tuple(handler_l._requests.keys())
         assert handler_l.socket._s == [
-            Message("COORDINATOR", "N1.handler", conversation_id=cids[0],
+            Message("COORDINATOR", "N1.handler", conversation_id=cid,
                     message_type=MessageTypes.JSON,
                     data={"id": 1, "method": "sign_in", "jsonrpc": "2.0"}).to_frames(),
-            Message("COORDINATOR", "N1.handler", conversation_id=cids[1],
+            Message("COORDINATOR", "N1.handler", conversation_id=cid,
                     message_type=MessageTypes.JSON,
                     data={"id": 2, "method": "sign_out", "jsonrpc": "2.0"}).to_frames(),
         ]
@@ -412,6 +428,7 @@ class Test_listen:
     def test_KeyboardInterrupt_in_loop(self, handler: MessageHandler):
         def raise_error(poller, waiting_time):
             raise KeyboardInterrupt
+        handler.sign_in = MagicMock()
         handler._listen_loop_element = raise_error  # type: ignore
         handler.listen()
         # assert that no error is raised and that the test does not hang
