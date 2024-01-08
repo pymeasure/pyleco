@@ -70,6 +70,8 @@ class MessageHandler(ExtendedComponentProtocol):
                  **kwargs):
         self.name = name
         self.namespace: Optional[str] = None
+        self._message_buffer: list[Message] = []
+        self._requested_ids: set[bytes] = set()
         self.full_name = name
         self.rpc = RPCServer(title=name)
         self.rpc_generator = RPCGenerator()
@@ -178,8 +180,31 @@ class MessageHandler(ExtendedComponentProtocol):
     def send_message(self, message: Message) -> None:
         self._send_message(message)
 
-    def read_message(self) -> Message:
-        return self._read_message()
+    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
+                     ) -> Message:
+        if self._message_buffer:
+            for i, m in enumerate(self._message_buffer):
+                cid = m.conversation_id
+                if conversation_id == cid:
+                    self._requested_ids.discard(cid)
+                    return self._message_buffer.pop(i)
+                elif cid not in self._requested_ids and conversation_id is None:
+                    return self._message_buffer.pop(i)
+        stop = float("inf") if timeout is None else time.perf_counter() + timeout
+        while True:
+            m = self._read_message()
+            cid = m.conversation_id
+            if conversation_id == cid:
+                self._requested_ids.discard(cid)
+                return m
+            elif conversation_id is not None or cid in self._requested_ids:
+                self._message_buffer.append(m)
+            else:
+                return m
+            if time.perf_counter() > stop:
+                # inside the loop to do it at least once, even if timeout is 0
+                break
+        raise TimeoutError("Message not found.")
 
     def _read_message(self) -> Message:
         return Message.from_frames(*self.socket.recv_multipart())

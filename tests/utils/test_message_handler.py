@@ -24,6 +24,8 @@
 
 import logging
 from unittest.mock import MagicMock
+import time
+from typing import Optional
 
 import pytest
 
@@ -142,6 +144,73 @@ def test_heartbeat(handler: MessageHandler, fake_cid_generation):
     assert handler.socket._s == [[VERSION_B, b"COORDINATOR", b"N1.handler", header]]
 
 
+class Test_read_message:
+    m1 = Message(receiver="N1.handler", sender="xy")  # some message
+    mr = Message(receiver="N1.handler", sender="xy", conversation_id=cid)  # requested message
+    m2 = Message(receiver="N1.handler", sender="xy")  # another message
+
+    conf: list[tuple[list[Message], list[Message], Optional[bytes], list[Message], list[Message],
+                     str]] = [
+        # socket_in, buffer_in, cid, socket_out, buffer_out, test_id
+        # find first not requested message
+        ([m1], [], None, [], [], "return first message from socket"),
+        ([m2], [m1], None, [m2], [], "return first message from buffer, not socket"),
+        ([m1], [mr], None, [], [mr], "ignore requested message in buffer"),
+        ([mr, m1], [], None, [], [mr], "ignore requested message in socket"),
+        # find requested message
+        ([mr], [], cid, [], [], "return specific message from socket"),
+        ([m2], [mr], cid, [m2], [], "return specific message from buffer"),
+        ([mr], [m2], cid, [], [m2], "return specific message from socket altough filled buffer"),
+        ([m2, mr, m1], [], cid, [m1], [m2], "find specific message in socket"),
+        ([], [m2, mr, m1], cid, [], [m2, m1], "find specific message in buffer"),
+    ]
+    ids = [test[-1] for test in conf]
+
+    def test_return_message_from_socket(self, handler: MessageHandler):
+        handler.socket._r = [self.m1.to_frames()]  # type: ignore
+        assert handler.read_message() == self.m1
+
+    def test_return_message_from_buffer(self, handler: MessageHandler):
+        handler._message_buffer.append(self.m1)
+        assert handler.read_message() == self.m1
+        # assert that no error is raised
+
+    @pytest.mark.parametrize("test", conf, ids=ids)
+    def test_return_correct_message(self,
+                                    test: tuple[list[Message], list, Optional[bytes]],
+                                    handler: MessageHandler):
+        socket, buffer, cid0, *_ = test
+        handler.socket._r = [m.to_frames() for m in socket]  # type: ignore
+        handler._message_buffer = buffer
+        handler._requested_ids = {cid, }
+        # act and assert
+        assert handler.read_message(conversation_id=cid0) == self.m1 if cid is None else self.mr
+
+    @pytest.mark.parametrize("test", conf, ids=ids)
+    def test_correct_buffer_socket(self, test, handler: MessageHandler):
+        socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test
+        handler.socket._r = [m.to_frames() for m in socket_in]  # type: ignore
+        handler._message_buffer = buffer_in
+        handler._requested_ids = {cid, }
+        # act
+        handler.read_message(conversation_id=cid0)
+        assert handler.socket._r == [m.to_frames() for m in socket_out]  # type: ignore
+        assert handler._message_buffer == buffer_out
+
+    def test_timeout_zero_works(self, handler: MessageHandler):
+        handler.socket._r = [self.m1.to_frames()]  # type: ignore
+        handler.read_message(timeout=0)
+        # assert that no error is raised
+
+    def test_timeout_error(self, handler: MessageHandler):
+        def waiting():
+            time.sleep(.1)
+            return self.m1
+        handler._read_message = waiting  # type: ignore[assignment]
+        with pytest.raises(TimeoutError):
+            handler.read_message(conversation_id=cid, timeout=0)
+
+
 def test_handle_message_ignores_heartbeats(handler: MessageHandler):
     handler.handle_commands = MagicMock()  # type: ignore
     # empty message of heartbeat
@@ -156,7 +225,7 @@ def test_handle_message_ignores_heartbeats(handler: MessageHandler):
      [VERSION_B, b"N1.CB", b"N1.handler", b"conversation_id;\x00\x00\x00\x00",
       serialize_data({"id": 5, "result": None, "jsonrpc": "2.0"})]),
 ))
-def test_handle_message(handler: MessageHandler, i, out):
+def test_read_and_handle_message(handler: MessageHandler, i, out):
     handler.socket._r = [i]  # type: ignore
     handler.read_and_handle_message()
     for j in range(len(out)):
