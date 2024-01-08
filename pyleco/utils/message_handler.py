@@ -206,6 +206,13 @@ class MessageHandler(ExtendedComponentProtocol):
                 break
         raise TimeoutError("Message not found.")
 
+    def ask_message(self, message: Message, timeout: Optional[float] = None
+                    ) -> Message:
+        self.send_message(message)
+        cid = message.conversation_id
+        self._requested_ids.add(cid)
+        return self.read_message(conversation_id=cid, timeout=timeout)
+
     def _read_message(self) -> Message:
         return Message.from_frames(*self.socket.recv_multipart())
 

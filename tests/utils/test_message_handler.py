@@ -175,6 +175,12 @@ class Test_read_message:
         assert handler.read_message() == self.m1
         # assert that no error is raised
 
+    def test_cid_not_longer_in_requested_ids(self, handler: MessageHandler):
+        handler._requested_ids.add(cid)
+        handler._message_buffer.append(self.mr)
+        handler.read_message(conversation_id=cid)
+        assert cid not in handler._requested_ids
+
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_return_correct_message(self,
                                     test: tuple[list[Message], list, Optional[bytes]],
@@ -209,6 +215,26 @@ class Test_read_message:
         handler._read_message = waiting  # type: ignore[assignment]
         with pytest.raises(TimeoutError):
             handler.read_message(conversation_id=cid, timeout=0)
+
+
+class Test_ask_message:
+    expected_sent = Message("receiver", sender="handler", conversation_id=cid)
+    expected_response = Message("handler", sender="receiver", conversation_id=cid)
+
+    @pytest.fixture
+    def handler_asked(self, handler: MessageHandler):
+        handler.socket._r = [self.expected_response.to_frames()]  # type: ignore
+        self.response = handler.ask_message(message=self.expected_sent)
+        return handler
+
+    def test_sent_expected(self, handler_asked: MessageHandler):
+        assert handler_asked.socket._s == [self.expected_sent.to_frames()]
+
+    def test_expected_response(self, handler_asked):
+        assert self.expected_response == self.response
+
+    def test_no_cid_in_requested_cids_list(self, handler_asked: MessageHandler):
+        assert cid not in handler_asked._requested_ids
 
 
 def test_handle_message_ignores_heartbeats(handler: MessageHandler):
