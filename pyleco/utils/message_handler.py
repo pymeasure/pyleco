@@ -171,8 +171,11 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
         else:
             self._send_message(message)
 
-    def send(self, receiver: Union[bytes, str], data: Optional[Any] = None,
-             conversation_id: Optional[bytes] = None, **kwargs) -> None:
+    def send(self,
+             receiver: Union[bytes, str],
+             conversation_id: Optional[bytes] = None,
+             data: Optional[Any] = None,
+             **kwargs) -> None:
         """Send a message to a receiver with serializable `data`."""
         self._send(receiver=receiver, data=data, conversation_id=conversation_id, **kwargs)
 

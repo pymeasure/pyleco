@@ -428,7 +428,7 @@ class Test_listen:
     def test_KeyboardInterrupt_in_loop(self, handler: MessageHandler):
         def raise_error(poller, waiting_time):
             raise KeyboardInterrupt
-        handler.sign_in = MagicMock()
+        handler.sign_in = MagicMock()  # type: ignore[method-assign]
         handler._listen_loop_element = raise_error  # type: ignore
         handler.listen()
         # assert that no error is raised and that the test does not hang
