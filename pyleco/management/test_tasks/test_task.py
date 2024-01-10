@@ -42,7 +42,7 @@ def task(stop_event: Event) -> None:
     with Actor(name="pymeasure_actor", cls=FakeInstrument, periodic_reading=-1) as actor:
         actor.connect()  # connect to the device
 
-        # Continuos loop
+        # Continuous loop
         actor.listen(stop_event=stop_event)  # listen for commands and do the regular readouts
 
         # Finish
