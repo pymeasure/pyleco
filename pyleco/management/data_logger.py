@@ -99,7 +99,7 @@ class DataLogger(ExtendedMessageHandler):
     # TODO names
     tmp: dict[str, list[Any]] = {}  # contains all values since last datapoint
     lists: dict[str, list[Any]] = {}  # contains datapoints.
-    # units: dict[str, Quantity]
+    units: dict[str, Any] = {}  # contains the units of the variables  TODO TBD what the value is.
     last_datapoint: dict[str, Any] = {}
     last_save_name: str = ""
 
@@ -114,7 +114,6 @@ class DataLogger(ExtendedMessageHandler):
     def __init__(self, name: str = "DataLoggerN", directory: str = ".", **kwargs) -> None:
         super().__init__(name=name, **kwargs)
         self.directory = directory
-        self.units: dict = {}  # TODO later
         self.publisher = DataPublisher(full_name=name)
         self.valuing = average
         # TODO add auto_save functionality?
@@ -219,6 +218,7 @@ class DataLogger(ExtendedMessageHandler):
     # Control
     def start_collecting(self, *,
                          variables: Optional[list[str]] = None,
+                         units: Optional[dict[str, Any]] = None,
                          trigger_type: Optional[TriggerTypes] = None,
                          trigger_timeout: Optional[float] = None,
                          trigger_variable: Optional[str] = None,
@@ -242,6 +242,7 @@ class DataLogger(ExtendedMessageHandler):
         self.today = datetime.datetime.now(datetime.timezone.utc).date()
         self.set_valuing_mode(valuing_mode=valuing_mode)
         self.setup_variables(self.lists.keys() if variables is None else variables)
+        self.units = units if units else {}
 
     def setup_variables(self, variables: Iterable[str]) -> None:
         """Subscribe to the variables."""
@@ -346,7 +347,7 @@ class DataLogger(ExtendedMessageHandler):
         config['value_repeating'] = self.value_repeating
         # Header and Variables.
         config['variables'] = list(self.lists.keys())
-        # config['unitsText'] = self.leUnits.text()
+        config['units'] = self.units
         # config['autoSave'] = self.actionAutoSave.isChecked()
         return config
 

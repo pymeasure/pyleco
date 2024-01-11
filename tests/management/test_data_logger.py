@@ -342,7 +342,9 @@ class Test_save_data:
              "configuration": {"trigger_type": "variable", "trigger_timeout": 10,
                                "trigger_variable": "test", "valuing_mode": "average",
                                "value_repeating": False,
-                               "variables": ["time", "test", "2", "N1.sender.var"]},
+                               "variables": ["time", "test", "2", "N1.sender.var"],
+                               "units": {},
+                               },
              },
             ]
 
@@ -356,6 +358,7 @@ def test_get_configuration(data_logger: DataLogger):
         "valuing_mode": "average",
         "value_repeating": False,
         "variables": ["time", "test", "2", "N1.sender.var"],
+        "units": {},
         }
 
 

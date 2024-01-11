@@ -44,6 +44,7 @@ class DataLoggerDirector(Director):
 
     def start_collecting(self, *,
                          variables: Optional[list[str]] = None,
+                         units: Optional[dict[str, Any]] = None,
                          trigger_type: Optional[TriggerTypes] = None,
                          trigger_timeout: Optional[float] = None,
                          trigger_variable: Optional[str] = None,
@@ -55,6 +56,7 @@ class DataLoggerDirector(Director):
                      trigger_timeout=trigger_timeout,
                      trigger_variable=trigger_variable,
                      variables=variables,
+                     units=units,
                      valuing_mode=valuing_mode,
                      value_repeating=value_repeating,
                      )
@@ -62,9 +64,6 @@ class DataLoggerDirector(Director):
     def get_last_datapoint(self) -> dict[str, Any]:
         """Read the last datapoint."""
         return self.ask_rpc("get_last_datapoint")
-
-    def saveData(self) -> str:
-        return self.save_data()
 
     def save_data(self) -> str:
         """Save the data and return the name of the file."""
