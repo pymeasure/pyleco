@@ -104,11 +104,11 @@ def test_context_manager_opens_connection():
 class Test_close:
     @pytest.fixture
     def closed_communicator(self, communicator: Communicator, fake_cid_generation):
-        communicator.connection._r = [Message("Test", "COORDINATOR", message_type=MessageTypes.JSON,
-                                              conversation_id=cid, data={
-                                                  "jsonrcp": "2.0", "result": None, "id": 1,
-                                              },
-                                              ).to_frames()]
+        message = Message("Test", "COORDINATOR", message_type=MessageTypes.JSON,
+                          conversation_id=cid, data={
+                              "jsonrcp": "2.0", "result": None, "id": 1,
+                              })
+        communicator.connection._r = [message.to_frames()]  # type: ignore
         communicator.close()
         return communicator
 
@@ -160,8 +160,9 @@ class Test_ask_raw:
         ping_message = Message(receiver=b"N1.Test", sender=b"N1.COORDINATOR",
                                message_type=MessageTypes.JSON,
                                data={"id": 0, "method": "pong", "jsonrpc": "2.0"})
-        communicator.connection._r = [ping_message.to_frames(),
-                                      self.response.to_frames()]
+        communicator.connection._r = [  # type: ignore
+            ping_message.to_frames(),
+            self.response.to_frames()]
         communicator.ask_raw(self.request)
         assert communicator.connection._s == [self.request.to_frames()]
 
@@ -173,8 +174,9 @@ class Test_ask_raw:
                                       "error": NOT_SIGNED_IN.model_dump(),
                                       "jsonrpc": "2.0"},
                                 )
-        communicator.connection._r = [not_signed_in.to_frames(),
-                                      self.response.to_frames()]
+        communicator.connection._r = [  # type: ignore
+            not_signed_in.to_frames(),
+            self.response.to_frames()]
         response = communicator.ask_raw(self.request)
         print("result", response)
         assert communicator.connection._s.pop(0) == self.request.to_frames()  # type: ignore
@@ -187,7 +189,7 @@ class Test_ask_raw:
         caplog.set_level(10)
         m = Message(receiver="whatever", sender="s", message_type=MessageTypes.JSON,
                     data={'jsonrpc': "2.0"}).to_frames()
-        communicator.connection._r = [m, self.response.to_frames()]
+        communicator.connection._r = [m, self.response.to_frames()]  # type: ignore
         assert communicator.ask_raw(self.request) == self.response
         assert caplog.records[-1].msg.startswith("Message with different conversation id received:")
 
@@ -196,7 +198,7 @@ def test_ask_rpc(communicator: Communicator, fake_cid_generation):
     received = Message(receiver=b"N1.Test", sender=b"N1.receiver",
                        conversation_id=cid)
     received.payload = [b"""{"jsonrpc": "2.0", "result": 123.45, "id": "1"}"""]
-    communicator.connection._r = [received.to_frames()]
+    communicator.connection._r = [received.to_frames()]  # type: ignore
     response = communicator.ask_rpc(receiver="N1.receiver", method="test_method", some_arg=4)
     assert communicator.connection._s == [
         Message(b'N1.receiver', b'Test',
@@ -208,7 +210,7 @@ def test_ask_rpc(communicator: Communicator, fake_cid_generation):
 
 
 def test_communicator_sign_in(fake_cid_generation, communicator: Communicator):
-    communicator.connection._r = [
+    communicator.connection._r = [  # type: ignore
         Message(b"N2.n", b"N2.COORDINATOR",
                 conversation_id=cid, message_type=MessageTypes.JSON,
                 data={"id": 1, "result": None, "jsonrpc": "2.0"}).to_frames()]

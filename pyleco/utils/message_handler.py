@@ -130,10 +130,16 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
         string = self.rpc_generator.build_request_str(method="sign_in")
         try:
             msg = self.ask(b"COORDINATOR", data=string, message_type=MessageTypes.JSON)
+        except JSONRPCError as exc:
+            json_error = exc.rpc_error
+            if json_error.code == DUPLICATE_NAME.code:
+                self.log.warning("Sign in failed, the name is already used.")
+            else:
+                self.log.warning(f"Sign in failed, unknown error '{json_error}'.")
         except TimeoutError:
             self.log.error("Signing in timed out.")
         else:
-            self.handle_sign_in_response(msg)
+            self.finish_sign_in(msg)
 
     def heartbeat(self) -> None:
         """Send a heartbeat to the router."""
@@ -305,20 +311,6 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
         self.set_full_name(self.name)
         self.sign_in()
         self.log.warning("I was not signed in, signing in.")
-
-    def handle_sign_in_response(self, message: Message) -> None:
-        if not isinstance(message.data, dict):
-            self.log.error(f"Not json message received: {message}")
-            return
-        if message.data.get("result", False) is None:
-            self.finish_sign_in(message)
-        elif (error := message.data.get("error")):
-            if error.get("code") == DUPLICATE_NAME.code:
-                self.log.warning("Sign in failed, the name is already used.")
-            else:
-                self.log.warning(f"Sign in failed, unknown error '{error}'.")
-        else:
-            self.log.warning("Sign in failed, unexpected message.")
 
     def finish_sign_in(self, message: Message) -> None:
         self.namespace = message.sender_elements.namespace.decode()

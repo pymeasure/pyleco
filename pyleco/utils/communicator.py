@@ -97,14 +97,16 @@ class Communicator(CommunicatorProtocol):
 
     def close(self) -> None:
         """Close the connection."""
+        if (not hasattr(self, "connection")) or self.connection.closed:
+            return
         try:
-            if not self.connection.closed:
-                self.sign_out()
-                self.connection.close(1)
+            self.sign_out()
         except TimeoutError:
             self.log.warning("Closing, the sign out failed with a timeout.")
-        except AttributeError:
-            pass
+        except ConnectionRefusedError:
+            self.log.warning("Closing, the sign out failed with a refused connection.")
+        finally:
+            self.connection.close(1)
 
     def reset(self) -> None:
         """Reset socket"""

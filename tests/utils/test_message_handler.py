@@ -108,24 +108,105 @@ def test_context_manager():
     assert stored_handler.socket.closed is True  # exit
 
 
-def test_sign_in(handler: MessageHandler, fake_cid_generation):
-    handler.socket._r = [Message(receiver=b"N3.handler", sender=b"N3.COORDINATOR",  # type: ignore
-                                 conversation_id=cid,
-                                 message_type=MessageTypes.JSON,
-                                 data={
-                                     "id": 0, "result": None, "jsonrpc": "2.0",
-                                 }).to_frames()]
-    handler.namespace = None
-    handler.sign_in()
-    assert handler.namespace == "N3"
+class Test_sign_in:
+    def test_sign_in_successful(self, handler: MessageHandler, fake_cid_generation):
+        message = Message(receiver=b"N3.handler", sender=b"N3.COORDINATOR",
+                          conversation_id=cid,
+                          message_type=MessageTypes.JSON,
+                          data={
+                              "id": 0, "result": None, "jsonrpc": "2.0",
+                              })
+        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.namespace = None
+        handler.sign_in()
+        assert handler.namespace == "N3"
+
+    def test_not_valid_message(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture,
+                               fake_cid_generation):
+        message = Message("handler", "COORDINATOR", data=b"[]", conversation_id=cid)
+        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.sign_in()
+        caplog.records[-1].msg.startswith("Not json message received:")
+
+    def test_duplicate_name(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture,
+                            fake_cid_generation):
+        handler.namespace = None
+        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON,
+                          data=ErrorResponse(id=5, error=DUPLICATE_NAME),
+                          conversation_id=cid)
+        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.sign_in()
+        assert handler.namespace is None
+        assert caplog.records[-1].msg == "Sign in failed, the name is already used."
+
+    def test_handle_unknown_error(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture,
+                                  fake_cid_generation):
+        handler.namespace = None
+        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+            "jsonrpc": "2.0", "error": {'code': 123545, "message": "error_msg"}, "id": 5
+        }, conversation_id=cid)
+        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.sign_in()
+        assert handler.namespace is None
+        assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
+
+    def test_handle_request_message(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture,
+                                    fake_cid_generation
+                                    ):
+        """Handle a message without result or error."""
+        handler.namespace = None
+        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+            "jsonrpc": "2.0", "id": 5, "method": "some_method",
+        }, conversation_id=cid)
+        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.sign_in()
+        assert handler.namespace is None
+        assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
+
+    def test_log_timeout_error(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+        handler.sign_in()
+        assert caplog.records[-1].msg.startswith("Signing in timed out.")
 
 
-def test_finish_sign_in(handler: MessageHandler):
-    handler.finish_sign_in(message=Message(b"handler", b"N5.COORDINATOR",
-                                           message_type=MessageTypes.JSON, data={
-                                               "id": 10, "result": None, "jsonrpc": "2.0"}))
-    assert handler.namespace == "N5"
-    assert handler.full_name == "N5.handler"
+class Test_finish_sign_in:
+    @pytest.fixture
+    def handler_fsi(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
+        caplog.set_level(logging.INFO)
+        handler.finish_sign_in(message=Message(b"handler", b"N5.COORDINATOR",
+                                               message_type=MessageTypes.JSON, data={
+                                                   "id": 10, "result": None, "jsonrpc": "2.0"}))
+        return handler
+
+    def test_namespace(self, handler_fsi: MessageHandler):
+        assert handler_fsi.namespace == "N5"
+
+    def test_full_name(self, handler_fsi: MessageHandler):
+        assert handler_fsi.full_name == "N5.handler"
+
+    def test_log_message(self, handler_fsi: MessageHandler, caplog: pytest.LogCaptureFixture):
+        assert caplog.get_records("setup")[-1].message == ("Signed in to Node 'N5'.")
+
+
+def test_sign_out_fail(handler: MessageHandler, caplog: pytest.LogCaptureFixture,
+                       fake_cid_generation):
+    handler.namespace = "N3"
+    message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+        "jsonrpc": "2.0", "error": {"code": 12345}, "id": 1,
+    }, conversation_id=cid)
+    handler.socket._r = [message.to_frames()]  # type: ignore
+    handler.sign_out()
+    assert handler.namespace is not None
+    assert caplog.messages[-1].startswith("Signing out failed")
+
+
+def test_sign_out_success(handler: MessageHandler, fake_cid_generation):
+    handler.namespace = "N3"
+    message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
+        "jsonrpc": "2.0", "result": None, "id": 1,
+    }, conversation_id=cid)
+    handler.socket._r = [message.to_frames()]  # type: ignore
+    handler.sign_out()
+    assert handler.namespace is None
 
 
 def test_finish_sign_out(handler: MessageHandler):
@@ -176,7 +257,7 @@ class Test_read_message:
         # find requested message
         ([mr], [], cid, [], [], "return specific message from socket"),
         ([m2], [mr], cid, [m2], [], "return specific message from buffer"),
-        ([mr], [m2], cid, [], [m2], "return specific message from socket altough filled buffer"),
+        ([mr], [m2], cid, [], [m2], "return specific message from socket although filled buffer"),
         ([m2, mr, m1], [], cid, [m1], [m2], "find specific message in socket"),
         ([], [m2, mr, m1], cid, [], [m2, m1], "find specific message in buffer"),
     ]
@@ -314,72 +395,6 @@ def test_handle_corrupted_message(handler: MessageHandler, caplog: pytest.LogCap
                                  data=[]).to_frames()]
     handler.read_and_handle_message()
     assert caplog.records[-1].msg.startswith("AttributeError")
-
-
-class Test_HandleSignInResponses:
-    def test_not_valid_message(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
-        message = Message("handler", "COORDINATOR", data=b"[]")
-        handler.handle_sign_in_response(message)
-        caplog.records[-1].msg.startswith("Not json message received:")
-
-    def test_sign_in_successful(self, handler: MessageHandler):
-        handler.namespace = None
-        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "jsonrcpc": "2.0", "result": None, "id": 1,
-        })
-        handler.handle_sign_in_response(message)
-        assert handler.namespace == "N3"
-
-    def test_duplicate_name(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
-        handler.namespace = None
-        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "jsonrpc": "2.0", "error": {'code': DUPLICATE_NAME.code}, "id": 5
-        })
-        handler.handle_sign_in_response(message=message)
-        assert handler.namespace is None
-        assert caplog.records[-1].msg == "Sign in failed, the name is already used."
-
-    def test_handle_unknown_error(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
-        handler.namespace = None
-        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "jsonrpc": "2.0", "error": {'code': 123545, "message": "error_msg"}, "id": 5
-        })
-        handler.handle_sign_in_response(message=message)
-        assert handler.namespace is None
-        assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
-
-    def test_handle_invalid_message(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture
-                                    ):
-        """Handle a message without result or error."""
-        handler.namespace = None
-        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "jsonrpc": "2.0", "id": 5, "method": "some_method",
-        })
-        handler.handle_sign_in_response(message=message)
-        assert handler.namespace is None
-        assert caplog.records[-1].msg.startswith("Sign in failed, unexpected message.")
-
-
-def test_sign_out_success(handler: MessageHandler, fake_cid_generation):
-    handler.namespace = "N3"
-    message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-        "jsonrpc": "2.0", "result": None, "id": 1,
-    }, conversation_id=cid)
-    handler.socket._r = [message.to_frames()]  # type: ignore
-    handler.sign_out()
-    assert handler.namespace is None
-
-
-def test_sign_out_fail(handler: MessageHandler, caplog: pytest.LogCaptureFixture,
-                       fake_cid_generation):
-    handler.namespace = "N3"
-    message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-        "jsonrpc": "2.0", "error": {"code": 12345}, "id": 1,
-    }, conversation_id=cid)
-    handler.socket._r = [message.to_frames()]  # type: ignore
-    handler.sign_out()
-    assert handler.namespace is not None
-    assert caplog.messages[-1].startswith("Signing out failed")
 
 
 def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
