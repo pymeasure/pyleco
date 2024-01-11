@@ -69,8 +69,8 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
                  context: Optional[zmq.Context] = None,
                  **kwargs):
         self.name = name
-        self._namespace = None
-        self._full_name = name
+        self._namespace: Union[str, None] = None
+        self._full_name: str = name
         self._message_buffer: list[Message] = []
         self._requested_ids: set[bytes] = set()
         self.rpc = RPCServer(title=name)
