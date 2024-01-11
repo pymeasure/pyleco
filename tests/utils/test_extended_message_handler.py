@@ -37,7 +37,6 @@ def handler():
     handler = ExtendedMessageHandler(name="handler",
                                      context=FakeContext())  # type: ignore
     handler.namespace = "N1"
-    handler.full_name = "N1.handler"
     handler.stop_event = SimpleEvent()
     handler.subscriber = FakeSocket(2)  # type: ignore
     handler.handle_subscription_message = MagicMock()  # it is not defined

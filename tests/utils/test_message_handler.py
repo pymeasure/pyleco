@@ -57,7 +57,6 @@ def fake_cid_generation(monkeypatch):
 def handler() -> MessageHandler:
     handler = MessageHandler(name="handler", context=FakeContext())  # type: ignore
     handler.namespace = "N1"
-    handler.full_name = "N1.handler"
     handler.stop_event = SimpleEvent()
     handler.timeout = 0.1
     return handler

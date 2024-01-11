@@ -27,7 +27,7 @@ These classes show pyleco's internal API of tools that talk with the LECO protoc
 
 They are not defined by LECO itself as it does not touch the message transfer.
 
-Any Component could use these tools in order to send and read messsages.
+Any Component could use these tools in order to send and read messages.
 For example a Director might use these tools to direct an Actor.
 """
 
@@ -47,6 +47,10 @@ class CommunicatorProtocol(Protocol):
     namespace: Optional[str] = None
     rpc_generator: RPCGenerator
     timeout: float = 1  # default reading timeout in seconds
+
+    @property
+    def full_name(self) -> str:
+        return self.name if self.namespace is None else ".".join((self.namespace, self.name))
 
     def sign_in(self) -> None: ...  # pragma: no cover
 
@@ -96,6 +100,8 @@ class SubscriberProtocol(Protocol):
     def subscribe_single(self, topic: bytes) -> None: ...  # pragma: no cover
 
     def unsubscribe_single(self, topic: bytes) -> None: ...  # pragma: no cover
+
+    def unsubscribe_all(self) -> None: ...  # pragma: no cover
 
     def subscribe(self, topics: Union[str, Iterable[str]]) -> None:
         """Subscribe to a topic or list of topics."""

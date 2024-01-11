@@ -38,6 +38,16 @@ def communicator() -> CommunicatorProtocol:
     return FakeCommunicator(name="communicator")
 
 
+def test_full_name_without_namespace(communicator: FakeCommunicator):
+    communicator.namespace = None
+    assert communicator.full_name == "communicator"
+
+
+def test_full_name_with_namespace(communicator: FakeCommunicator):
+    communicator.namespace = "N1"
+    assert communicator.full_name == "N1.communicator"
+
+
 def test_send(communicator: FakeCommunicator):
     kwargs = dict(receiver="rec", message_type=MessageTypes.JSON, data=[4, 5], conversation_id=cid)
     communicator.send(**kwargs)  # type: ignore

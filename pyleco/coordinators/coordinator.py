@@ -96,10 +96,10 @@ class Coordinator:
             self.namespace = namespace
         else:
             raise ValueError("`namespace` must be str or bytes or None.")
-        self.fname = self.namespace + b".COORDINATOR"
+        self.full_name = self.namespace + b".COORDINATOR"
         log.info(f"Start Coordinator of node {self.namespace!r} at port '{port}'.")
         self.address = f"{host or gethostname()}:{port}"
-        self.directory = Directory(namespace=self.namespace, full_name=self.fname,
+        self.directory = Directory(namespace=self.namespace, full_name=self.full_name,
                                    address=self.address)
         self.global_directory: dict[bytes, list[str]] = {}  # All Components
         self.timeout = timeout
@@ -121,7 +121,7 @@ class Coordinator:
     def register_methods(self):
         """Add methods to the OpenRPC register and change the name."""
         self.rpc = rpc = RPCServer(title="COORDINATOR", debug=True)
-        rpc.title = self.fname.decode()
+        rpc.title = self.full_name.decode()
         # Component
         rpc.method()(self.pong)
         # Extended Component
@@ -158,14 +158,14 @@ class Coordinator:
             self.shut_down()
             self.sock.close(timeout=1)
             self.cleaner.cancel()
-            log.info(f"Coordinator {self.fname!r} closed.")
+            log.info(f"Coordinator {self.full_name!r} closed.")
             self.closed = True
 
     def create_message(self, receiver: bytes, data: Optional[Union[bytes, str, object]] = None,
                        **kwargs) -> Message:
         return Message(
             receiver=receiver,
-            sender=self.fname,
+            sender=self.full_name,
             data=data,
             **kwargs)
 
@@ -272,7 +272,7 @@ class Coordinator:
                 return
         # Route the message
         receiver_namespace, receiver_name = message.receiver_elements
-        if message.receiver == b"COORDINATOR" or message.receiver == self.fname:
+        if message.receiver == b"COORDINATOR" or message.receiver == self.full_name:
             self.handle_commands(sender_identity=sender_identity, message=message)
         elif receiver_namespace == self.namespace or receiver_namespace == b"":
             self._deliver_locally(message=message, receiver_name=receiver_name)
@@ -404,7 +404,7 @@ class Coordinator:
         node.send_message(
             Message(
                 receiver=sender_namespace + b".COORDINATOR",
-                sender=self.fname,
+                sender=self.full_name,
                 conversation_id=message.conversation_id,
                 message_type=MessageTypes.JSON,
                 data=Request(id=100, method="coordinator_sign_out"),
@@ -482,7 +482,7 @@ def main() -> None:
 
     # Run the Coordinator
     with Coordinator(**kwargs) as c:
-        handler = ZmqLogHandler(full_name=c.fname.decode())
+        handler = ZmqLogHandler(full_name=c.full_name.decode())
         gLog.addHandler(handler)
         c.routing(coordinators=coordinators)
 

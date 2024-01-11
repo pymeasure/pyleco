@@ -283,13 +283,17 @@ class PipeHandler(ExtendedMessageHandler):
         elif cmd == b"SND":
             self._send_frames(frames=msg[1:])
         elif cmd == b"REN":
-            self.sign_out()
-            self.name = msg[1].decode()
-            self.sign_in()
+            self.rename_handler(msg[1].decode())
         elif cmd == b"LOC":
             self.handle_local_request(conversation_id=msg[1], rpc=msg[2])
         else:
             self.log.debug(f"Received unknown '{msg}'.")
+
+    def rename_handler(self, name):
+        self.sign_out()
+        self.name = name
+        self.namespace = None  # to update the full_name
+        self.sign_in()
 
     # Control protocol
     def _send_frames(self, frames: list[bytes]) -> None:

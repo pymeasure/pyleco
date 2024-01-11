@@ -62,7 +62,6 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
     :param log: Logger instance whose logs should be published. Defaults to `getLogger("__main__")`.
     """
     name: str
-    namespace: Union[None, str]
 
     def __init__(self, name: str,
                  host: str = "localhost", port: int = COORDINATOR_PORT, protocol: str = "tcp",
@@ -70,10 +69,10 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
                  context: Optional[zmq.Context] = None,
                  **kwargs):
         self.name = name
-        self.namespace: Optional[str] = None
+        self._namespace = None
+        self._full_name = name
         self._message_buffer: list[Message] = []
         self._requested_ids: set[bytes] = set()
-        self.full_name = name
         self.rpc = RPCServer(title=name)
         self.rpc_generator = RPCGenerator()
         self.register_rpc_methods()
@@ -83,6 +82,25 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
                           context=context or zmq.Context.instance())
 
         super().__init__(**kwargs)
+
+    @property
+    def namespace(self) -> Union[str, None]:
+        return self._namespace
+
+    @namespace.setter
+    def namespace(self, value: Union[str, None]) -> None:
+        self._namespace = value
+        full_name = self.name if value is None else ".".join((value, self.name))
+        self.set_full_name(full_name=full_name)
+
+    def set_full_name(self, full_name: str) -> None:
+        self._full_name = full_name
+        self.rpc.title = full_name
+        self.logHandler.full_name = full_name
+
+    @property
+    def full_name(self) -> str:
+        return self._full_name
 
     def setup_logging(self, log):
         if log is None:
@@ -308,24 +326,16 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
 
     def handle_not_signed_in(self) -> None:
         self.namespace = None
-        self.set_full_name(self.name)
         self.sign_in()
         self.log.warning("I was not signed in, signing in.")
 
     def finish_sign_in(self, message: Message) -> None:
         self.namespace = message.sender_elements.namespace.decode()
-        self.set_full_name(full_name=".".join((self.namespace, self.name)))
         self.log.info(f"Signed in to Node '{self.namespace}'.")
 
     def finish_sign_out(self) -> None:
         self.log.info(f"Signed out from Node '{self.namespace}'.")
         self.namespace = None
-        self.set_full_name(full_name=self.name)
-
-    def set_full_name(self, full_name: str) -> None:
-        self.full_name = full_name
-        self.rpc.title = full_name
-        self.logHandler.full_name = self.full_name
 
     def handle_commands(self, msg: Message) -> None:
         """Handle the list of commands in the message."""
