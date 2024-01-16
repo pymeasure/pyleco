@@ -107,6 +107,29 @@ def test_context_manager():
     assert stored_handler.socket.closed is True  # exit
 
 
+class Test_namespace_setter:
+    def test_full_name_without_namespace(self, handler: MessageHandler):
+        handler.namespace = None
+        assert handler.full_name == "handler"
+
+    @pytest.fixture
+    def handler_ns(self, handler: MessageHandler) -> MessageHandler:
+        handler.namespace = "xyz"
+        return handler
+
+    def test_namespace(self, handler_ns: MessageHandler):
+        assert handler_ns.namespace == "xyz"
+
+    def test_full_name(self, handler_ns: MessageHandler):
+        assert handler_ns.full_name == "xyz.handler"
+
+    def test_rpc_title(self, handler_ns: MessageHandler):
+        assert handler_ns.rpc.title == "xyz.handler"
+
+    def test_log_handler(self, handler_ns: MessageHandler):
+        assert handler_ns.log_handler.full_name == "xyz.handler"
+
+
 class Test_sign_in:
     def test_sign_in_successful(self, handler: MessageHandler, fake_cid_generation):
         message = Message(receiver=b"N3.handler", sender=b"N3.COORDINATOR",

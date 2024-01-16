@@ -96,7 +96,7 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
     def set_full_name(self, full_name: str) -> None:
         self._full_name = full_name
         self.rpc.title = full_name
-        self.logHandler.full_name = full_name
+        self.log_handler.full_name = full_name
 
     @property
     def full_name(self) -> str:
@@ -110,11 +110,11 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
         for h in log.handlers:
             if isinstance(h, ZmqLogHandler):
                 first_pub_handler = False
-                self.logHandler = h
+                self.log_handler = h
                 break
         if first_pub_handler:
-            self.logHandler = ZmqLogHandler()
-            log.addHandler(self.logHandler)
+            self.log_handler = ZmqLogHandler()
+            log.addHandler(self.log_handler)
         self.root_logger = log
         self.log = self.root_logger.getChild("MessageHandler")  # for cooperation
 

@@ -121,9 +121,9 @@ class Listener:
             except AttributeError:
                 pass
             else:
-                log.addHandler(self.message_handler.logHandler)
+                log.addHandler(self.message_handler.log_handler)
                 if self.logger is not None:
-                    self.logger.addHandler(self.message_handler.logHandler)
+                    self.logger.addHandler(self.message_handler.log_handler)
                 return
         raise TimeoutError("PipeHandler has not started after 0.5 s.")
 
@@ -147,9 +147,9 @@ class Listener:
                 self.stop_event.set()
                 self.thread.join()
                 self.communicator.close()
-                log.removeHandler(self.message_handler.logHandler)
+                log.removeHandler(self.message_handler.log_handler)
                 if self.logger is not None:
-                    self.logger.removeHandler(self.message_handler.logHandler)
+                    self.logger.removeHandler(self.message_handler.log_handler)
         except AttributeError:
             pass
 
