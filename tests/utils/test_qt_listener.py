@@ -26,7 +26,10 @@ import pytest
 
 from pyleco.test import FakeCommunicator
 
-from pyleco.utils.qt_listener import QtListener, Message, MessageTypes
+try:
+    from pyleco.utils.qt_listener import QtListener, Message, MessageTypes
+except ModuleNotFoundError:
+    pytest.skip(reason="qtpy not installed.", allow_module_level=True)
 
 cid = b"conversation_id;"
 
