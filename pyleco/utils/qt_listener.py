@@ -24,7 +24,7 @@
 
 from qtpy.QtCore import QObject, Signal  # type: ignore
 
-from ..core.message import Message
+from ..core.message import Message, MessageTypes
 from ..core.data_message import DataMessage
 from .listener import Listener, PipeHandler
 
@@ -83,11 +83,13 @@ class QtListener(Listener):
     # Methods for the message_handler
     def finish_handle_commands(self, message: Message) -> None:
         """Handle the list of commands: Redirect them to the application."""
-        try:
-            method = message.data.get("method")  # type: ignore
-        except AttributeError:
-            method = None
-        if method in self.local_methods:
-            super(PipeHandler, self.message_handler).handle_commands(message)
-        else:
-            self.signals.message.emit(message)
+        if message.header_elements.message_type == MessageTypes.JSON:
+            try:
+                method = message.data.get("method")  # type: ignore
+            except AttributeError:
+                pass
+            else:
+                if method in self.local_methods:
+                    super(PipeHandler, self.message_handler).handle_commands(message)
+                    return
+        self.signals.message.emit(message)
