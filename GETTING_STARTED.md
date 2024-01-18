@@ -16,8 +16,8 @@ Eventually, but not now yet, you can install PyLECO via pip or conda:
 Core of the infrastructure are communication servers, called Coordinators.
 As LECO consists in two parts, the control protocol and the data protocol, there are two servers:
 
-1. The _Coordinator_ in [`coordinator.py`](pyleco/pyleco/coordinators/coordinator.py) is the server of the control protocol.
-2. [`proxy_server.py`](pyleco/pyleco/coordinators/proxy_server.py) contains the server of the data protocol.
+1. The _Coordinator_ in [`coordinator.py`](pyleco/coordinators/coordinator.py) is the server of the control protocol.
+2. [`proxy_server.py`](pyleco/coordinators/proxy_server.py) contains the server of the data protocol.
 
 In order to start these Coordinators, just execute the files.
 For example, change directory in the folder of this file and execute `python3 pyleco/coordinators/coordinator.py` under linux or `py pyleco/coordinators/coordinator.py` under Windows with the Windows Launcher installed.
@@ -39,7 +39,7 @@ In order to start the starter itself, just execute its file with the path to the
 
 #### Define a Task File
 
-The example file [`pymeasure_actor.py`](pyleco/examples/pymeasure_actor.py) contains an example, how a task file in that directory could look like:
+The example file [`pymeasure_actor.py`](examples/pymeasure_actor.py) contains an example, how a task file in that directory could look like:
 
 The first docstring of the file is going to be the description of that task.
 The starter offers that docstring, if you query it for its available tasks.
@@ -80,7 +80,7 @@ For example you can get or set properties of the `YAR` instance, or you can call
 
 Now we have our three servers (Coordinator, proxy_server, Starter) up and running, but the task is not yet started.
 In order to start a task, we have to tell the Starter to do so.
-The easiest way is to use the `StarterDirector` (found in the `directors` directory) in a python console or script:
+The easiest way is to use the [`StarterDirector`](pyleco/directors/starter_director.py) (found in the `directors` directory) in a python console or script:
 ```python
 from pyleco.directors.starter_director import StarterDirector
 director = StarterDirector(actor="starter")
@@ -102,7 +102,7 @@ Now we have our severs running and also the task controlling our fiber amplifier
 In order to remotely control the fiber amplifier, we have to send messages to it.
 Again we have a director to direct the actions of the fiber amplifier.
 
-This time, the director is a more generic one, the `TransparentDirector` (also in the directors directory).
+This time, the director is a more generic one, the [`TransparentDirector`](pyleco/directors/transparent_director.py) (also in the directors directory).
 If you read or write any property of the the TransparentDirector's `device`, it will read or write to the remotely controlled instrument.
 For example
 ```python
@@ -171,7 +171,7 @@ The response will always return as well, as you must specify the sender's namesp
 If you're doing an experiment, you probably want to collect data as well.
 
 You can publish data via the data protocol.
-As a helper class, you can use the `DataPublisher`:
+As a helper class, you can use the [`DataPublisher`](pyleco/utils/data_publisher.py):
 ```python
 from pyleco.utils.data_publisher import DataPublisher
 
@@ -183,7 +183,7 @@ That will publish the data `"def"` from the sender `"N1.abc"`.
 Anyone connected to the same proxy_server can listen to that published data.
 You have to subscribe to the sender `"N1.abc"` first, though.
 
-The `DataLogger` (in the `management` directory) collects these data snippets (if they are in the form of dictionaries: `{variable: value}` with a variable name and an associated value) and creates datapoints.
+The [`DataLogger`](pyleco/management/data_logger.py) (in the `management` directory) collects these data snippets (if they are in the form of dictionaries: `{variable: value}` with a variable name and an associated value) and creates datapoints.
 Afterwards you can save the collected datapoints.
 
 
@@ -210,7 +210,7 @@ That example is the code behind the call of the director example.
 
 ### Daemon Type
 
-For a program which runs happily in the background listening for commands, executing them, you can base your code on the `MessageHandler` (in `utils` directory).
+For a program which runs happily in the background listening for commands, executing them, you can base your code on the [`MessageHandler`](pyleco/utils/message_handler.py) (in `utils` directory).
 The MessageHandler will listen to incoming messages and handle them in a continuous loop.
 The `listen` method has three parts:
 1. The method `_listen_setup`, where you can specify, what to do at the start of listening,
@@ -224,6 +224,8 @@ For example `register_rpc_method(do_something)` would register the method `do_so
 
 The message handler (and its subclasses) have to be in their listening loop to do their work:
 ```python
+from pyleco.utils.message_handler import MessageHandler
+
 message_handler = MessageHandler("my_name")
 message_handler.listen()  # infinity loop
 ```
@@ -232,7 +234,7 @@ message_handler.listen()  # infinity loop
 
 Sometimes, you want to have LECO communication, but do not want to block the thread, for example in a GUI.
 
-The `Listener` (in `utils` directory) starts a special form of the `MessageHandler` in another thread and offers a communicator:
+The [`Listener`](pyleco/utils/listener.py) (in `utils` directory) starts a special form of the `MessageHandler` in another thread and offers a communicator:
 ```python
 from pyleco.utils.listener import Listener
 from pyleco.directors.transparent_director import TransparentDirector
