@@ -37,7 +37,7 @@ def task(stop_event) -> None:
         actor.read_publish = readout  # define the regular readout function
         actor.connect(adapter)  # connect to the device
 
-        # Continuos loop
+        # Continuous loop
         actor.listen(stop_event=stop_event)  # listen for commands and do the regular readouts
 
         # Finish

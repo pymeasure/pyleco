@@ -1,9 +1,9 @@
 # PyLECO
+
 Python reference implementation of the Laboratory Experiment COntrol (LECO) protocol (https://github.com/pymeasure/leco-protocol).
 
 The [main branch](https://github.com/pymeasure/pyleco/tree/main) contains reviewed code, which does not yet contain all necessary modules and classes.
-The most recent development is in the [development branch
-](https://github.com/pymeasure/pyleco/tree/development), which might contain commits with PyLECO being in a broken state.
+The most recent development is in the [development branch](https://github.com/pymeasure/pyleco/tree/development), which might contain commits with PyLECO being in a broken state.
 The [stable-development branch](https://github.com/pymeasure/pyleco/tree/stable-development) contains a stable, working version of PyLECO.
 Follow that branch to have always working code (as far as possible), but following the ongoing development.
 
@@ -12,6 +12,8 @@ The LECO protocol branch [pyleco-stat](https://github.com/pymeasure/leco-protoco
 These things might change, if LECO defines them differently.
 
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/BenediktBurger/7a8a7b874b62ed803eb56ca04830bede/raw/pyleco-coverage.json)
+
+For a tutorial on how to get started, see [GETTING_STARTED.md](GETTING_STARTED.md).
 
 
 ## Installation
@@ -28,7 +30,7 @@ That way, a file import will redirect to the files in this directory, however th
 That allows to update PyLECO by just pulling the latest master branch, or to develop for PyLECO.
 In order to do an editable install, execute `pip install -e .` in this folder.
 
-The package is imported as `pyleco`.
+The package is imported as `pyleco` in python files.
 
 
 ## LECO Overview
@@ -89,7 +91,7 @@ You need to start (in different threads):
   For an example of a measurement script see `measurement_script.py` in the examples folder.
 
 If you want to set some property of the instrument (e.g. `instrument.voltage = 5`), you can just use the `director` transparently: `director.device.voltage = 5`.
-In the background, the TransparentDirector, which does not have a `device`, sends a messsage to the Actor to set that parameter.
+In the background, the TransparentDirector, which does not have a `device`, sends a message to the Actor to set that parameter.
 The Actor in turn sets that parameter of the instrument driver, which in turn will send some command to the device to take an appropriate action (e.g. setting the voltage to 5 V).
 
 Currently you cannot call methods in a similar, transparent way, without manual intervention.
