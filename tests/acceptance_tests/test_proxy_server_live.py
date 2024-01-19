@@ -25,7 +25,7 @@
 import pytest
 from time import sleep
 
-from pyleco.utils.publisher import Publisher
+from pyleco.utils.data_publisher import DataPublisher
 from pyleco.utils.listener import Listener
 from pyleco.core import PROXY_SENDING_PORT
 
@@ -50,8 +50,8 @@ class ModListener(Listener):
 
 
 @pytest.fixture(scope="module")
-def publisher() -> Publisher:
-    return Publisher(port=port - 2 * offset)
+def publisher() -> DataPublisher:
+    return DataPublisher(full_name="abc", port=port - 2 * offset)
 
 
 @pytest.fixture(scope="module")
@@ -66,7 +66,7 @@ def listener(publisher):
     context.destroy()  # in order to stop the proxy
 
 
-def test_publishing(publisher: Publisher, listener: ModListener):
-    publisher.send({"topic": "value"})
+def test_publishing(publisher: DataPublisher, listener: ModListener):
+    publisher.send_data(topic="topic", data="value")
     sleep(.1)
     assert listener._data == [{"topic": "value"}]

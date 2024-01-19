@@ -61,6 +61,8 @@ class Publisher(DataPublisher):
     """
     Publishing key-value data via zmq.
 
+    Deprecated, use the :class:`DataPublisher` instead.
+
     :param str address: Address of the server, default is localhost.
     :param int port: Port of the server, defaults to 11100, default proxy.
     :param log: Logger to log to.
@@ -85,12 +87,10 @@ class Publisher(DataPublisher):
                          context=context,
                          full_name=fullname,
                          **kwargs)
-        if standalone is not None:
-            warn("Standalone does not work anymore", FutureWarning)
+        warn("Publisher is deprecated, use DataPublisher instead.", FutureWarning)
 
     def __call__(self, data: dict[str, Any]) -> None:
         """Publish the dictionary `data`."""
-        warn("Publisher is deprecated, use DataPublisher instead.", FutureWarning)
         self.send_legacy(data=data)
 
     def send_legacy_json(self, data: dict[str, Any]) -> None:

@@ -30,7 +30,7 @@ import zmq
 
 from ..core import PROXY_SENDING_PORT
 from .extended_message_handler import ExtendedMessageHandler
-from .publisher import Publisher
+from .data_publisher import DataPublisher
 
 
 log = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class Republisher(ExtendedMessageHandler):
                  data_port: int = PROXY_SENDING_PORT,
                  **kwargs):
         super().__init__(name, data_port=data_port, **kwargs)
-        self.publisher = Publisher()
+        self.publisher = DataPublisher(name)
         self.handlings = {} if handlings is None else handlings
 
     def start_listen(self, stop_event: Optional[Event] = None) -> None:
@@ -94,4 +94,4 @@ class Republisher(ExtendedMessageHandler):
                 except Exception:
                     log.exception(f"Handling of '{key}' failed.")
         if new:
-            self.publisher(new)
+            self.publisher.send_legacy(new)
