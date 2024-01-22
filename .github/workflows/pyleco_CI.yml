@@ -159,13 +159,18 @@ jobs:
         run: pip install .[dev]
       - name: Pyleco version
         run: python -c "import pyleco;print(pyleco.__version__)"
-      - name: Run pytest with xvfb
+      - name: Run pytest under Linux with xvfb
         if: runner.os == 'Linux'
         run: |
           echo "::add-matcher::.github/pytest.json"
           xvfb-run -a pytest
-      - name: Run pytest
-        if: runner.os != 'Linux'
+      - name: Run pytest under Windows
+        if: runner.os == 'Windows'
         run: |
           echo "::add-matcher::.github/pytest.json"
           pytest
+      - name: Run pytest under Mac without acceptance tests
+        if: runner.os == 'macOS'
+        run: |
+          echo "::add-matcher::.github/pytest.json"
+          pytest --ignore=tests/acceptance_tests
