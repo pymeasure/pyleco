@@ -2,10 +2,8 @@
 
 Python reference implementation of the Laboratory Experiment COntrol (LECO) protocol (https://github.com/pymeasure/leco-protocol).
 
-The [main branch](https://github.com/pymeasure/pyleco/tree/main) contains reviewed code, which does not yet contain all necessary modules and classes.
-The most recent development is in the [development branch](https://github.com/pymeasure/pyleco/tree/development), which might contain commits with PyLECO being in a broken state.
-The [stable-development branch](https://github.com/pymeasure/pyleco/tree/stable-development) contains a stable, working version of PyLECO.
-Follow that branch to have always working code (as far as possible), but following the ongoing development.
+The [reviewed branch](https://github.com/pymeasure/pyleco/tree/reviewed) contains reviewed code, which does not yet contain all necessary modules and classes.
+Development happens in the [main](https://github.com/pymeasure/pyleco/tree/main).
 
 Note: LECO is still under development, such that the code and API might change.
 The LECO protocol branch [pyleco-stat](https://github.com/pymeasure/leco-protocol/tree/pyleco-state) contains the assumptions used in this project, which are not yet accepted into the LECO main branch.
@@ -27,7 +25,7 @@ For example under windows, you have to run `set SETUPTOOLS_SCM_PRETEND_VERSION=0
 
 It is recommended to install the package editable, though.
 That way, a file import will redirect to the files in this directory, however they will be at import time.
-That allows to update PyLECO by just pulling the latest master branch, or to develop for PyLECO.
+That allows to update PyLECO by just pulling the latest main branch, or to develop for PyLECO.
 In order to do an editable install, execute `pip install -e .` in this folder.
 
 The package is imported as `pyleco` in python files.

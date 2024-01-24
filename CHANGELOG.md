@@ -9,6 +9,7 @@
 
 ### Added
 - Add compatibility with Python 3.9 ([`18abb87`](https://github.com/pymeasure/pyleco/commit/18abb87fea259f9e87411d88cca92a886bbd62b4))
+- Add compatibility with Python 3.12 ([#22](https://github.com/pymeasure/pyleco/pull/22), @BenediktBurger)
 - Add more tests.
 - Add more functionality to internal protocol and test suite ([`42e107c5cb90`](https://github.com/pymeasure/pyleco/commit/42e107c5cb90704dbb99ef1c5a50be739f3acf85))
 - Add Communicator functionality to the MessageHandler by distinguishing messages. (`9b0cc42`, `45913a5`, `97d902b`)
