@@ -1,7 +1,7 @@
 #
 # This file is part of the PyLECO package.
 #
-# Copyright (c) 2023-2023 PyLECO Developers
+# Copyright (c) 2023-2024 PyLECO Developers
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ Tasks have to be PyQtObjects with name "Task" in a file called with the taskname
 in the folder "tasks" or any other folder given with `directory`.
 E.g. in "tasks/test1.py" for task "test1".
 
-Created on Thu Dec 15 09:31:04 2022by Benedikt Moneke
+Created on Thu Dec 15 09:31:04 2022 by Benedikt Moneke
 """
 
 from enum import IntFlag
