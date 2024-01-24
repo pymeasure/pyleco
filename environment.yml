@@ -2,7 +2,7 @@ name: pyleco
 channels:
   - conda-forge
 dependencies:
-  - pyzmq=25.1.0
+  - pyzmq=25.1.2
   - pip  # don't pin, to gain newest conda compatibility fixes
   - pip:
     - jsonrpc2-pyclient==4.3.0

@@ -125,7 +125,6 @@ class FakeSocket:
 
 class FakePoller:
     """A fake zmq poller."""
-
     def __init__(self) -> None:
         self._sockets: list[FakeSocket] = []
 
