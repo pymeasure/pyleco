@@ -6,7 +6,7 @@ This tutorial gives an overview how to start a LECO setup in Python.
 
 Install PyLECO as described in the README.
 
-Eventually, although not right now, you will be able to install PyLECO via pip or conda:
+Eventually, you will be able to install PyLECO via pip or conda:
 ```pip install pyleco```
 
 ## Setup the Infrastructure
