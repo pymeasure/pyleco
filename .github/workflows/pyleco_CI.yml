@@ -68,6 +68,9 @@ jobs:
   test_coverage:
     name: Code Coverage
     runs-on: "ubuntu-latest"
+    permissions:
+      contents: read
+      pull-requests: write
     defaults:
       run:
         shell: bash -l {0}
