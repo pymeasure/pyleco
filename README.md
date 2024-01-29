@@ -3,7 +3,7 @@
 Python reference implementation of the Laboratory Experiment COntrol (LECO) protocol (https://github.com/pymeasure/leco-protocol).
 
 The [reviewed branch](https://github.com/pymeasure/pyleco/tree/reviewed) contains reviewed code, which does not yet contain all necessary modules and classes.
-Development happens in the [main](https://github.com/pymeasure/pyleco/tree/main).
+Development happens in the [main](https://github.com/pymeasure/pyleco/tree/main) branch.
 
 Note: LECO is still under development, such that the code and API might change.
 The LECO protocol branch [pyleco-stat](https://github.com/pymeasure/leco-protocol/tree/pyleco-state) contains the assumptions used in this project, which are not yet accepted into the LECO main branch.
@@ -18,7 +18,7 @@ For a tutorial on how to get started, see [GETTING_STARTED.md](GETTING_STARTED.m
 
 For now, as PyLECO is not yet a PyPI / conda package, you have to clone this repository and install it manually.
 Eventually it will be published as `pyleco` package on PyPI.
-Execute `pip install` in this folder for installation.
+Execute `pip install` in this folder to install it.
 
 If you did not clone the repository, you have to set the environment variable `SETUPTOOLS_SCM_PRETEND_VERSION`.
 For example under windows, you have to run `set SETUPTOOLS_SCM_PRETEND_VERSION=0.0.1.dev` in the console before installing pyleco.
@@ -35,7 +35,7 @@ The package is imported as `pyleco` in python files.
 
 ### Network Topology
 
-PyLECO is an implementation of LECO, so see there for full protocol specifications.
+PyLECO is an implementation of LECO, for the full protocol specifications please visit https://github.com/pymeasure/leco-protocol.
 LECO offers a protocol for data exchange, for example for laboratory experimental control.
 
 There exist two different communication protocols in LECO.
