@@ -10,6 +10,7 @@ The LECO protocol branch [pyleco-stat](https://github.com/pymeasure/leco-protoco
 These things might change, if LECO defines them differently.
 
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/BenediktBurger/7a8a7b874b62ed803eb56ca04830bede/raw/pyleco-coverage.json)
+[![codecov](https://codecov.io/gh/BenediktBurger/pyleco/graph/badge.svg?token=9OB3GWDLRB)](https://codecov.io/gh/BenediktBurger/pyleco)
 
 For a tutorial on how to get started, see [GETTING_STARTED.md](GETTING_STARTED.md).
 
