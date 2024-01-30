@@ -24,7 +24,6 @@
 
 import logging
 from typing import Any, Optional, Sequence, Union
-from warnings import warn
 
 from ..utils.communicator import CommunicatorProtocol, Communicator
 from ..utils.log_levels import get_leco_log_level
@@ -116,11 +115,6 @@ class Director:
         receiver = self._actor_check(actor)
         return self.communicator.ask_rpc(receiver=receiver, method=method, **kwargs)
 
-    def call_method_rpc(self, method: str, actor: Optional[Union[bytes, str]] = None,
-                        **kwargs) -> Any:
-        warn("Deprecated, use `ask_rpc` instead.", FutureWarning)
-        return self.ask_rpc(method=method, actor=actor, **kwargs)
-
     #   Component
     def get_rpc_capabilities(self, actor: Optional[Union[bytes, str]] = None) -> dict:
         return self.ask_rpc(method="rpc.discover", actor=actor)
@@ -178,11 +172,6 @@ class Director:
                       **kwargs) -> bytes:
         string = self.generator.build_request_str(method=method, **kwargs)
         return self.send(actor=actor, data=string, message_type=MessageTypes.JSON)
-
-    def call_method_rpc_async(self, method: str, actor: Optional[Union[bytes, str]] = None,
-                              **kwargs) -> bytes:
-        warn("Deprecated, use `ask_rpc_async` instead.", FutureWarning)
-        return self.ask_rpc_async(method=method, actor=actor, **kwargs)
 
     #   Actor
     def get_parameters_async(self, parameters: Union[str, Sequence[str]],
