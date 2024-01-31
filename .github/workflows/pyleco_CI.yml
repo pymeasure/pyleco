@@ -43,6 +43,7 @@ jobs:
         run: |
           echo "::add-matcher::.github/sphinx.json"
           make doctest SPHINXOPTS="-W --keep-going"
+
   type_checking:
     name: Static Type Checking
     runs-on: "ubuntu-latest"
@@ -65,6 +66,7 @@ jobs:
         run: pip install mypy
       - name: Run mypy
         run: mypy .
+
   test_coverage:
     name: Code Coverage
     runs-on: "ubuntu-latest"
@@ -95,6 +97,7 @@ jobs:
       - name: Pytest Coverage Comment
         id: coverageComment
         uses: MishaKav/pytest-coverage-comment@main
+        continue-on-error: true
         with:
           pytest-coverage-path: ./pytest-coverage.txt
           title: Coverage Report
@@ -109,6 +112,7 @@ jobs:
           junitxml-path: ./pytest.xml
           junitxml-title: Coverage Summary
       - name: Check output coverage
+        if: ${{ success() }}
         run: |
           echo "Coverage Percentage - ${{ steps.coverageComment.outputs.coverage }}"
           echo "Coverage Color - ${{ steps.coverageComment.outputs.color }}"
@@ -125,6 +129,8 @@ jobs:
           echo "Not Success Test Info - ${{ steps.coverageComment.outputs.notSuccessTestInfo }}"
 
       - name: Create the Badge
+        if: ${{ success() }}
+        continue-on-error: true
         uses: schneegans/dynamic-badges-action@v1.6.0
         with:
           auth: ${{ secrets.pyleco_coverage_gist_secret }}
@@ -134,6 +140,7 @@ jobs:
           message: ${{ steps.coverageComment.outputs.coverage }}
           color: ${{ steps.coverageComment.outputs.color }}
           namedLogo: python
+
   test:
     name: Python ${{ matrix.python-version }}, ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
