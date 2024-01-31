@@ -1,17 +1,21 @@
 [project]
 name = "pyleco"
-version = "0.0.1.dev"
 authors = [
   { name="PyLECO Developers" },
 ]
+dynamic = ["version"]
+
 description = "Python reference implementation of the Laboratory Experiment COntrol (LECO) protocol"
 readme = "README.md"
 license = {file = "LICENSE"}
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
-    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Networking",
 ]
 
 requires-python = ">=3.9"
