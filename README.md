@@ -1,6 +1,6 @@
 # PyLECO
 
-Python reference implementation of the Laboratory Experiment COntrol (LECO) protocol (https://github.com/pymeasure/leco-protocol).
+Python reference implementation of the [Laboratory Experiment COntrol (LECO) protocol](https://github.com/pymeasure/leco-protocol).
 
 The [reviewed branch](https://github.com/pymeasure/pyleco/tree/reviewed) contains reviewed code, which does not yet contain all necessary modules and classes.
 Development happens in the [main](https://github.com/pymeasure/pyleco/tree/main) branch.
@@ -10,25 +10,17 @@ The LECO protocol branch [pyleco-state](https://github.com/pymeasure/leco-protoc
 These things might change, if LECO defines them differently.
 
 [![codecov](https://codecov.io/gh/pymeasure/pyleco/graph/badge.svg?token=9OB3GWDLRB)](https://codecov.io/gh/pymeasure/pyleco)
+[![pypi release](https://img.shields.io/pypi/v/pyleco.svg)](https://pypi.org/project/pyleco/)
+[![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
 
-For a tutorial on how to get started, see [GETTING_STARTED.md](GETTING_STARTED.md).
+For a tutorial on how to get started, see [GETTING_STARTED.md](https://github.com/pymeasure/pyleco/blob/main/GETTING_STARTED.md).
 
 
-## Installation
+## Quick Start
 
-For now, as PyLECO is not yet a PyPI / conda package, you have to clone this repository and install it manually.
-Eventually it will be published as `pyleco` package on PyPI.
-Execute `pip install` in this folder to install it.
-
-If you did not clone the repository, you have to set the environment variable `SETUPTOOLS_SCM_PRETEND_VERSION`.
-For example under windows, you have to run `set SETUPTOOLS_SCM_PRETEND_VERSION=0.0.1.dev` in the console before installing pyleco.
-
-It is recommended to install the package editable, though.
-That way, a file import will redirect to the files in this directory, however they will be at import time.
-That allows to update PyLECO by just pulling the latest master branch, or to develop for PyLECO.
-In order to do an editable install, execute `pip install -e .` in this folder.
-
-The package is imported as `pyleco` in python files.
+1. Install Python,
+2. Execute `pip install pyleco`,
+3. Import `pyleco` in your python scripts.
 
 
 ## LECO Overview
@@ -58,7 +50,7 @@ In order to set the output of that measurement instrument, you want to call the 
 For that purpose, you send a message which encodes exactly that (via jsonrpc): the method to call and the parameters of that method.
 
 
-## Usage of the control protocol
+## Usage of the Control Protocol
 
 ### Minimum Setup
 
@@ -77,7 +69,7 @@ connected_components = c.ask_rpc(method="send_local_components")
 print(connected_components)
 ```
 
-### Instrument control
+### Instrument Control
 
 Let's say you have an instrument with a pymeasure driver `Driver`, which you want to control.
 
@@ -120,3 +112,8 @@ See the docstrings of the individual classes for more information and for exampl
 * The `directors` subpackage contains Directors, which facilitate controlling actors or management utilities.
   * For example the `CoordinatorDirector` has a method for getting Coordinators and Components connected to a Coordinator.
   * The `TransparentDirector` reads / writes all messages to the remote actor, such that you use the director's `device` as if it were the instrument itself.
+
+### PyLECO extras
+
+The [pyleco-extras](https://github.com/BenediktBurger/pyleco-extras) package contains additional modules.
+Among them are GUIs controlling the `DataLogger` and the `Starter`.
