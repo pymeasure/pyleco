@@ -211,7 +211,7 @@ class Communicator(CommunicatorProtocol):
         response = self.ask(receiver=receiver, data=send_json, timeout=timeout,
                             message_type=MessageTypes.JSON)
         try:
-            result = self.rpc_generator.get_result_from_response(response.payload[0])
+            result = self.interpret_rpc_response(response)
         except JSONRPCError as exc:
             if exc.rpc_error.code == INVALID_SERVER_RESPONSE.code:
                 self.log.exception(f"Decoding failed for {response.payload[0]!r}.", exc_info=exc)
