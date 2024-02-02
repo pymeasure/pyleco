@@ -24,6 +24,8 @@
 
 import pytest
 
+from jsonrpcobjects.errors import JSONRPCError
+
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.test import FakeCommunicator
@@ -70,6 +72,18 @@ class Test_ask:
     def test_read(self, communicator_asked: FakeCommunicator):
         response = communicator_asked.ask(receiver="rec", conversation_id=cid)
         assert response == self.response
+
+
+class Test_interpret_rpc_response:
+    def test_valid_message(self, communicator: FakeCommunicator):
+        message = Message(receiver="rec", data={"jsonrpc": "2.0", "result": 6.0, "id": 7})
+        assert communicator.interpret_rpc_response(message) == 6.0
+
+    def test_error(self, communicator: FakeCommunicator):
+        message = Message(receiver="rec", data={"jsonrpc": "2.0",
+                                                "error": {"code": -1, "message": "abc"}, "id": 7})
+        with pytest.raises(JSONRPCError):
+            communicator.interpret_rpc_response(message)
 
 
 class Test_ask_rpc:
