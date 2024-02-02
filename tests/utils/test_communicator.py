@@ -139,17 +139,6 @@ def test_communicator_send(communicator: Communicator, kwargs, message, monkeypa
     assert communicator.connection._s.pop() == message  # type: ignore
 
 
-@pytest.mark.parametrize("kwargs, message", message_tests)
-def test_communicator_read(communicator: Communicator, kwargs, message):
-    communicator.connection._r.append(message)  # type: ignore
-    response = communicator.read()
-    assert response.receiver == kwargs.get('receiver').encode()
-    assert response.conversation_id == kwargs.get('conversation_id', cid)
-    assert response.sender == kwargs.get('sender', "").encode()
-    assert response.header_elements.message_id == kwargs.get('message_id', b"\x00\x00\x00")
-    assert response.data == kwargs.get("data")
-
-
 class Test_ask_raw:
     request = Message(receiver=b"N1.receiver", data="whatever")
     response = Message(receiver=b"N1.Test", sender=b"N1.receiver", data=["xyz"],

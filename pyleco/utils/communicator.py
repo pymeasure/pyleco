@@ -163,10 +163,6 @@ class Communicator(CommunicatorProtocol):
         # TODO add filtering for conversation_id (with the MessageBuffer?)
         return Message.from_frames(*self.read_raw(timeout=timeout))
 
-    def read(self) -> Message:
-        # deprecated
-        return Message.from_frames(*self.read_raw())
-
     def ask_raw(self, message: Message, timeout: Optional[float] = None) -> Message:
         """Send and read the answer, signing in if necessary."""
         self.send_message(message=message)

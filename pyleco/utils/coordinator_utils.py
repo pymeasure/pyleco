@@ -307,11 +307,6 @@ class Directory:
         elif isinstance(data, dict) and (error := data.get("error") is not None):
             log.error(f"Coordinator sign in to node {message.sender_elements.namespace!r} failed with '{error}'.")  # noqa: E501
             self._remove_waiting_node(key=key)
-        # TODO this is only useful, if we read the DEALER sockets regularly
-        # elif data == [[Commands.ERROR, Errors.NOT_SIGNED_IN]]:
-        #     # Somehow connection got lost, sign in again
-        #     sock.send_multipart(create_message(receiver=b"COORDINATOR", sender=self.fname,
-        #                                        payload=serialize_data([[Commands.CO_SIGNIN]])))
         else:
             log.warning(
                 f"Unknown message {message.payload!r} from {message.sender!r} at DEALER socket '{key}'.")  # noqa: E501
