@@ -64,8 +64,9 @@ def test_context_manager():
     assert communicator._closed is True  # type: ignore
 
 
-class ActorCheck:
+class Test_actor_check:
     def test_invalid_actor(self, director: Director):
+        director.actor = None
         with pytest.raises(ValueError):
             director._actor_check(actor=None)
 
@@ -86,6 +87,14 @@ def test_shutdown_actor(director: Director):
         Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data={
             "id": 1, "method": "shut_down", "jsonrpc": "2.0"
             })]
+
+
+def test_read_rpc_response(director: Director):
+    director.communicator._r = [  # type: ignore
+        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
+            "id": 1, "result": 7.5, "jsonrpc": "2.0"
+            })]
+    assert director.read_rpc_response(conversation_id=cid) == 7.5
 
 
 def test_get_properties_async(director: Director):
