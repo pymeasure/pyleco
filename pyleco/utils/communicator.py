@@ -25,6 +25,7 @@
 import logging
 from time import perf_counter
 from typing import Any, Callable, Optional, Union
+from warnings import warn
 
 from jsonrpcobjects.errors import JSONRPCError
 import zmq
@@ -33,7 +34,7 @@ from ..core import COORDINATOR_PORT
 from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message, MessageTypes
 from ..core.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
-from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
+from ..errors import NOT_SIGNED_IN
 
 
 class Communicator(CommunicatorProtocol):
@@ -80,6 +81,8 @@ class Communicator(CommunicatorProtocol):
             self.open()
         self.name = name
         self.namespace = None
+        self._message_buffer: list[Message] = []
+        self._requested_ids: set[bytes] = set()
         self._last_beat: float = 0
         self._reading: Optional[Callable[[], list[bytes]]] = None
         self.rpc_generator = RPCGenerator()
@@ -127,13 +130,6 @@ class Communicator(CommunicatorProtocol):
         """Called after the with clause has finished, does cleanup."""
         self.close()
 
-    def retry_read(self, timeout: Optional[int] = None) -> Union[list[bytes], None]:
-        """Retry reading."""
-        if self._reading and self.poll(timeout=timeout):
-            return self._reading()
-        else:
-            return None
-
     def send_message(self, message: Message) -> None:
         now = perf_counter()
         if now > self._last_beat + 15:
@@ -146,6 +142,8 @@ class Communicator(CommunicatorProtocol):
         self.connection.send_multipart(frames)
 
     def read_raw(self, timeout: Optional[float] = None) -> list[bytes]:
+        # deprecated
+        warn("`read_raw` is deprecated, use `_read_socket_message` instead.", FutureWarning)
         if self.poll(timeout=timeout):
             return self.connection.recv_multipart()
         else:
@@ -158,37 +156,73 @@ class Communicator(CommunicatorProtocol):
             timeout = self.timeout
         return self.connection.poll(timeout=timeout * 1000)  # in ms
 
+    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
+        """Read the next message from the socket, without further processing."""
+        if self.connection.poll(int(timeout or self.timeout * 1000)):
+            return Message.from_frames(*self.connection.recv_multipart())
+        raise TimeoutError("Reading timed out")
+
+    def _find_buffer_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
+        """Find a message in the buffer."""
+        for i, msg in enumerate(self._message_buffer):
+            cid = msg.conversation_id
+            if conversation_id == cid:
+                self._requested_ids.discard(cid)
+                return self._message_buffer.pop(i)
+            elif cid not in self._requested_ids and conversation_id is None:
+                return self._message_buffer.pop(i)
+        return None
+
+    def _find_socket_message(self, conversation_id: Optional[bytes] = None,
+                             timeout: Optional[float] = None,
+                             ) -> Message:
+        """Find a specific message among socket messages, storing the other ones in the buffer.
+
+        :param conversation_id: Conversation ID to filter for, or next free message if None.
+        """
+        stop = perf_counter() + (timeout or self.timeout)
+        while True:
+            msg = self._read_socket_message(timeout)
+            cid = msg.conversation_id
+            if conversation_id == cid:
+                self._requested_ids.discard(cid)
+                return msg
+            elif conversation_id is not None or cid in self._requested_ids:
+                self._message_buffer.append(msg)
+            else:
+                return msg
+            if perf_counter() > stop:
+                # inside the loop to do it at least once, even if timeout is 0
+                break
+        raise TimeoutError("Message not found.")
+
     def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None,
                      ) -> Message:
-        # TODO add filtering for conversation_id (with the MessageBuffer?)
-        return Message.from_frames(*self.read_raw(timeout=timeout))
+        message = self._find_buffer_message(conversation_id=conversation_id)
+        if message is None:
+            message = self._find_socket_message(conversation_id=conversation_id, timeout=timeout)
+        if message.sender_elements.name == b"COORDINATOR" and message.payload:
+            try:
+                self.rpc_generator.get_result_from_response(message.payload[0])
+            except JSONRPCError as exc:
+                code = exc.rpc_error.code
+                if code == NOT_SIGNED_IN.code:
+                    self.log.error("I'm not signed in, signing in.")
+                    self.sign_in()
+                    raise ConnectionResetError("Was not signed in, signing in.")
+                raise
+        return message
 
     def ask_raw(self, message: Message, timeout: Optional[float] = None) -> Message:
         """Send and read the answer, signing in if necessary."""
-        self.send_message(message=message)
-        cid = message.conversation_id
-        while True:
-            response = self.read_message(timeout=timeout)
-            # skip pings as we either are still signed in or going to sign in again.
-            if (response.header_elements.message_type == MessageTypes.JSON
-                    or b"jsonrpc" in response.payload[0]) and isinstance(response.data, dict):
-                # TODO use MessageType instead of "jsonrpc"
-                if response.data.get("method") == "pong":
-                    continue
-                elif (error := response.data.get("error")):
-                    code = error.get("code")
-                    if code == NOT_SIGNED_IN.code:
-                        self.log.error("I'm not signed in, signing in.")
-                        self.sign_in()
-                        self.send_message(message=message)
-                        continue
-                    elif code == DUPLICATE_NAME.code:
-                        self.log.error(f"Sign in failed: {DUPLICATE_NAME.message}")
-                        raise ConnectionRefusedError(f"Sign in failed: {DUPLICATE_NAME.message}")
-            if cid == response.conversation_id:
-                return response
-            else:
-                self.log.warning(f"Message with different conversation id received: {response}.")
+        for _ in range(2):
+            self.send_message(message=message)
+            cid = message.conversation_id
+            try:
+                return self.read_message(conversation_id=cid, timeout=timeout)
+            except ConnectionResetError:
+                pass  # sign in required, retry
+        raise
 
     def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
         """Send a message and retrieve the response."""

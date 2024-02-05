@@ -140,10 +140,10 @@ def test_communicator_send(communicator: Communicator, kwargs, message, monkeypa
 
 
 class Test_ask_raw:
-    request = Message(receiver=b"N1.receiver", data="whatever")
+    request = Message(receiver=b"N1.receiver", data="whatever", conversation_id=cid)
     response = Message(receiver=b"N1.Test", sender=b"N1.receiver", data=["xyz"],
                        message_type=MessageTypes.JSON,
-                       conversation_id=request.conversation_id)
+                       conversation_id=cid)
 
     def test_ignore_ping(self, communicator: Communicator):
         ping_message = Message(receiver=b"N1.Test", sender=b"N1.COORDINATOR",
@@ -155,10 +155,11 @@ class Test_ask_raw:
         communicator.ask_raw(self.request)
         assert communicator.connection._s == [self.request.to_frames()]
 
-    def test_sign_in(self, communicator: Communicator):
+    def test_sign_in(self, communicator: Communicator, fake_cid_generation):
         communicator.sign_in = MagicMock()  # type: ignore
         not_signed_in = Message(receiver="N1.Test", sender="N1.COORDINATOR",
                                 message_type=MessageTypes.JSON,
+                                conversation_id=cid,
                                 data={"id": None,
                                       "error": NOT_SIGNED_IN.model_dump(),
                                       "jsonrpc": "2.0"},
@@ -167,10 +168,14 @@ class Test_ask_raw:
             not_signed_in.to_frames(),
             self.response.to_frames()]
         response = communicator.ask_raw(self.request)
-        print("result", response)
+        # assert that the message is sent once
         assert communicator.connection._s.pop(0) == self.request.to_frames()  # type: ignore
+        # assert that it tries to sign in
         communicator.sign_in.assert_called()
+        # assert that the message is called a second time
         assert communicator.connection._s == [self.request.to_frames()]
+        # assert that the correct response is returned
+        assert response == self.response
 
     def test_ignore_wrong_response(self, communicator: Communicator,
                                    caplog: pytest.LogCaptureFixture):
@@ -180,7 +185,6 @@ class Test_ask_raw:
                     data={'jsonrpc': "2.0"}).to_frames()
         communicator.connection._r = [m, self.response.to_frames()]  # type: ignore
         assert communicator.ask_raw(self.request) == self.response
-        assert caplog.records[-1].msg.startswith("Message with different conversation id received:")
 
 
 def test_ask_rpc(communicator: Communicator, fake_cid_generation):
