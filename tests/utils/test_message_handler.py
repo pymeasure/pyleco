@@ -194,9 +194,10 @@ class Test_finish_sign_in:
     @pytest.fixture
     def handler_fsi(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
         caplog.set_level(logging.INFO)
-        handler.finish_sign_in(message=Message(b"handler", b"N5.COORDINATOR",
-                                               message_type=MessageTypes.JSON, data={
-                                                   "id": 10, "result": None, "jsonrpc": "2.0"}))
+        handler.finish_sign_in(response_message=Message(
+            b"handler", b"N5.COORDINATOR",
+            message_type=MessageTypes.JSON,
+            data={"id": 10, "result": None, "jsonrpc": "2.0"}))
         return handler
 
     def test_namespace(self, handler_fsi: MessageHandler):

@@ -104,8 +104,8 @@ def test_connect_N1_to_N2(leco: Communicator):
         sleep(TALKING_TIME)  # time for coordinators to talk
         # assert that the N1.COORDINATOR knows about N2
         assert d.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}
-    # assert that the listener can contact N2.COORDINATOR
-    assert leco.ask_rpc(receiver="N2.COORDINATOR", method="pong") is None
+        # assert that the listener can contact N2.COORDINATOR
+        assert d.ask_rpc(actor="N2.COORDINATOR", method="pong") is None
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
