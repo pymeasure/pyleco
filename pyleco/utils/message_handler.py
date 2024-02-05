@@ -207,20 +207,29 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
         self._send_message(message)
 
     def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
+        """Read the next message from the socket, without further processing."""
         if self.socket.poll(int(timeout or self.timeout * 1000)):
             return Message.from_frames(*self.socket.recv_multipart())
         raise TimeoutError("Reading timed out")
 
-    def _read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
-                      ) -> Message:
-        if self._message_buffer:
-            for i, msg in enumerate(self._message_buffer):
-                cid = msg.conversation_id
-                if conversation_id == cid:
-                    self._requested_ids.discard(cid)
-                    return self._message_buffer.pop(i)
-                elif cid not in self._requested_ids and conversation_id is None:
-                    return self._message_buffer.pop(i)
+    def _find_buffer_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
+        """Find a message in the buffer."""
+        for i, msg in enumerate(self._message_buffer):
+            cid = msg.conversation_id
+            if conversation_id == cid:
+                self._requested_ids.discard(cid)
+                return self._message_buffer.pop(i)
+            elif cid not in self._requested_ids and conversation_id is None:
+                return self._message_buffer.pop(i)
+        return None
+
+    def _find_socket_message(self, conversation_id: Optional[bytes] = None,
+                             timeout: Optional[float] = None,
+                             ) -> Message:
+        """Find a specific message among socket messages, storing the other ones in the buffer.
+
+        :param conversation_id: Conversation ID to filter for, or next free message if None.
+        """
         stop = time.perf_counter() + (timeout or self.timeout)
         while True:
             msg = self._read_socket_message(timeout)
@@ -237,18 +246,20 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
                 break
         raise TimeoutError("Message not found.")
 
-    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
+    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None,
                      ) -> Message:
-        msg = self._read_message(conversation_id=conversation_id, timeout=timeout)
-        if msg.sender_elements.name == b"COORDINATOR" and msg.payload:
+        message = self._find_buffer_message(conversation_id=conversation_id)
+        if message is None:
+            message = self._find_socket_message(conversation_id=conversation_id, timeout=timeout)
+        if message.sender_elements.name == b"COORDINATOR" and message.payload:
             try:
-                self.rpc_generator.get_result_from_response(msg.payload[0])
+                self.rpc_generator.get_result_from_response(message.payload[0])
             except JSONRPCError as exc:
                 code = exc.rpc_error.code
                 if code == NOT_SIGNED_IN.code:
                     self.handle_not_signed_in()
                 raise
-        return msg
+        return message
 
     def ask_message(self, message: Message, timeout: Optional[float] = None
                     ) -> Message:
