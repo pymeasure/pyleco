@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from json import JSONDecodeError
 import logging
 from socket import gethostname
 from typing import Optional, Union
@@ -316,23 +317,26 @@ class Coordinator:
             return  # Empty payload, just heartbeat.
         self.current_message = message
         self.current_identity = sender_identity
-        if (message.header_elements.message_type == MessageTypes.JSON
-                or b'"jsonrpc"' in message.payload[0]):
-            # TODO use MessageType instead of jsonrpc
-            log.debug(f"Coordinator json commands: {message.payload[0]!r}")
-            if b'"method":' in message.payload[0]:
+        if message.header_elements.message_type == MessageTypes.JSON:
+            try:
+                data = message.data
+            except JSONDecodeError:
+                log.error(f"Invalid JSON message from {message.sender!r} received: {message.payload[0]!r}")  # noqa
+                return
+            if isinstance(data, dict):
+                if error := data.get("error"):
+                    log.error(f"Error from {message.sender!r} received: {error}.")
+                    return
+                elif data.get("result", False) is None:
+                    return  # acknowledgement == heartbeat
+            try:
                 self.handle_rpc_call(sender_identity=sender_identity, message=message)
-            elif b'"error":' in message.payload[0]:
-                log.error(f"Error from {message.sender!r} received: {message.payload[0]!r}.")
-            elif b'"result":null' in message.payload[0]:
-                pass  # acknowledgement == heartbeat
-            else:
-                log.error(
-                    f"Unknown message from {message.sender!r} received: {message.payload[0]!r}")
-            return
+            except Exception as exc:
+                log.exception(f"Invalid JSON-RPC message from {message.sender!r} received: {data}",
+                              exc_info=exc)
         else:
-            # TODO raise an error?
-            log.error(f"Unknown message from {message.sender!r} received: {message.payload[0]!r}")
+            log.error(
+                f"Message from {message.sender!r} of unknown type received: {message.payload[0]!r}")
 
     def handle_rpc_call(self, sender_identity: bytes, message: Message) -> None:
         reply = self.rpc.process_request(message.payload[0])
