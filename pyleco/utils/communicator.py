@@ -221,16 +221,16 @@ class Communicator(BaseCommunicator):
     def open(self, context: Optional[zmq.Context] = None) -> None:
         """Open the connection."""
         context = context or zmq.Context.instance()
-        self.connection: zmq.Socket = context.socket(zmq.DEALER)
+        self.socket: zmq.Socket = context.socket(zmq.DEALER)
         protocol, standalone = self._conn_details
         if standalone:
-            self.connection.bind(f"{protocol}://*:{self.port}")
+            self.socket.bind(f"{protocol}://*:{self.port}")
         else:
-            self.connection.connect(f"{protocol}://{self.host}:{self.port}")
+            self.socket.connect(f"{protocol}://{self.host}:{self.port}")
 
     def close(self) -> None:
         """Close the connection."""
-        if (not hasattr(self, "connection")) or self.connection.closed:
+        if (not hasattr(self, "socket")) or self.socket.closed:
             return
         try:
             self.sign_out()
@@ -239,7 +239,7 @@ class Communicator(BaseCommunicator):
         except ConnectionRefusedError:
             self.log.warning("Closing, the sign out failed with a refused connection.")
         finally:
-            self.connection.close(1)
+            self.socket.close(1)
 
     def reset(self) -> None:
         """Reset socket"""
@@ -264,27 +264,27 @@ class Communicator(BaseCommunicator):
         super().send_message(message=message)
 
     def _send_socket_message(self, message: Message) -> None:
-        self.connection.send_multipart(message.to_frames())
+        self.socket.send_multipart(message.to_frames())
 
     def read_raw(self, timeout: Optional[float] = None) -> list[bytes]:
         # deprecated
         warn("`read_raw` is deprecated, use `_read_socket_message` instead.", FutureWarning)
         if self.poll(timeout=int(timeout or self.timeout * 1000)):
-            return self.connection.recv_multipart()
+            return self.socket.recv_multipart()
         else:
-            self._reading = self.connection.recv_multipart
+            self._reading = self.socket.recv_multipart
             raise TimeoutError("Reading timed out.")
 
     def poll(self, timeout: Optional[float] = None) -> int:
         """Check how many messages arrived."""
         if timeout is None:
             timeout = self.timeout
-        return self.connection.poll(timeout=timeout * 1000)  # in ms
+        return self.socket.poll(timeout=timeout * 1000)  # in ms
 
     def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
         """Read the next message from the socket, without further processing."""
-        if self.connection.poll(int(timeout or self.timeout * 1000)):
-            return Message.from_frames(*self.connection.recv_multipart())
+        if self.socket.poll(int(timeout or self.timeout * 1000)):
+            return Message.from_frames(*self.socket.recv_multipart())
         raise TimeoutError("Reading timed out")
 
     def handle_not_signed_in(self):

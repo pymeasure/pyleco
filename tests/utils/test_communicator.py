@@ -87,7 +87,7 @@ def test_name():
 
 def test_auto_open():
     c = FakeCommunicator(name="Test", auto_open=True)
-    assert isinstance(c.connection, FakeSocket)
+    assert isinstance(c.socket, FakeSocket)
 
 
 def test_context_manager_opens_connection():
@@ -98,7 +98,7 @@ def test_context_manager_opens_connection():
         def sign_in(self):
             pass
     with FK2(name="Test") as c:
-        assert isinstance(c.connection, FakeSocket)
+        assert isinstance(c.socket, FakeSocket)
 
 
 class Test_close:
@@ -108,15 +108,15 @@ class Test_close:
                           conversation_id=cid, data={
                               "jsonrcp": "2.0", "result": None, "id": 1,
                               })
-        communicator.connection._r = [message.to_frames()]  # type: ignore
+        communicator.socket._r = [message.to_frames()]  # type: ignore
         communicator.close()
         return communicator
 
     def test_socket_closed(self, closed_communicator: Communicator):
-        assert closed_communicator.connection.closed is True
+        assert closed_communicator.socket.closed is True
 
     def test_signed_out(self, closed_communicator: Communicator):
-        sign_out_message = Message.from_frames(*closed_communicator.connection._s.pop())  # type: ignore  # noqa
+        sign_out_message = Message.from_frames(*closed_communicator.socket._s.pop())  # type: ignore  # noqa
         assert sign_out_message == Message(
             "COORDINATOR",
             "Test",
@@ -136,7 +136,7 @@ def test_communicator_send(communicator: Communicator, kwargs, message, monkeypa
                            fake_cid_generation):
     monkeypatch.setattr("pyleco.utils.communicator.perf_counter", fake_time)
     communicator.send(**kwargs)
-    assert communicator.connection._s.pop() == message  # type: ignore
+    assert communicator.socket._s.pop() == message  # type: ignore
 
 
 class Test_ask_raw:
@@ -149,11 +149,11 @@ class Test_ask_raw:
         ping_message = Message(receiver=b"N1.Test", sender=b"N1.COORDINATOR",
                                message_type=MessageTypes.JSON,
                                data={"id": 0, "method": "pong", "jsonrpc": "2.0"})
-        communicator.connection._r = [  # type: ignore
+        communicator.socket._r = [  # type: ignore
             ping_message.to_frames(),
             self.response.to_frames()]
         communicator.ask_raw(self.request)
-        assert communicator.connection._s == [self.request.to_frames()]
+        assert communicator.socket._s == [self.request.to_frames()]
 
     def test_sign_in(self, communicator: Communicator, fake_cid_generation):
         communicator.sign_in = MagicMock()  # type: ignore
@@ -164,16 +164,16 @@ class Test_ask_raw:
                                       "error": NOT_SIGNED_IN.model_dump(),
                                       "jsonrpc": "2.0"},
                                 )
-        communicator.connection._r = [  # type: ignore
+        communicator.socket._r = [  # type: ignore
             not_signed_in.to_frames(),
             self.response.to_frames()]
         response = communicator.ask_raw(self.request)
         # assert that the message is sent once
-        assert communicator.connection._s.pop(0) == self.request.to_frames()  # type: ignore
+        assert communicator.socket._s.pop(0) == self.request.to_frames()  # type: ignore
         # assert that it tries to sign in
         communicator.sign_in.assert_called()
         # assert that the message is called a second time
-        assert communicator.connection._s == [self.request.to_frames()]
+        assert communicator.socket._s == [self.request.to_frames()]
         # assert that the correct response is returned
         assert response == self.response
 
@@ -183,7 +183,7 @@ class Test_ask_raw:
         caplog.set_level(10)
         m = Message(receiver="whatever", sender="s", message_type=MessageTypes.JSON,
                     data={'jsonrpc': "2.0"}).to_frames()
-        communicator.connection._r = [m, self.response.to_frames()]  # type: ignore
+        communicator.socket._r = [m, self.response.to_frames()]  # type: ignore
         assert communicator.ask_raw(self.request) == self.response
 
 
@@ -191,9 +191,9 @@ def test_ask_rpc(communicator: Communicator, fake_cid_generation):
     received = Message(receiver=b"N1.Test", sender=b"N1.receiver",
                        conversation_id=cid)
     received.payload = [b"""{"jsonrpc": "2.0", "result": 123.45, "id": "1"}"""]
-    communicator.connection._r = [received.to_frames()]  # type: ignore
+    communicator.socket._r = [received.to_frames()]  # type: ignore
     response = communicator.ask_rpc(receiver="N1.receiver", method="test_method", some_arg=4)
-    assert communicator.connection._s == [
+    assert communicator.socket._s == [
         Message(b'N1.receiver', b'Test',
                 conversation_id=cid,
                 message_type=MessageTypes.JSON,
@@ -203,7 +203,7 @@ def test_ask_rpc(communicator: Communicator, fake_cid_generation):
 
 
 def test_communicator_sign_in(fake_cid_generation, communicator: Communicator):
-    communicator.connection._r = [  # type: ignore
+    communicator.socket._r = [  # type: ignore
         Message(b"N2.n", b"N2.COORDINATOR",
                 conversation_id=cid, message_type=MessageTypes.JSON,
                 data={"id": 1, "result": None, "jsonrpc": "2.0"}).to_frames()]
