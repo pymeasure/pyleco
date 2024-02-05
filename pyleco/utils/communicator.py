@@ -327,6 +327,8 @@ class Communicator(BaseCommunicator):
         self.namespace = None
         self._last_beat = perf_counter()  # to not sign in again...
         super().sign_in()
+        if self.namespace is None:
+            raise ConnectionRefusedError("Sign in failed.")
 
     def get_capabalities(self, receiver: Union[bytes, str]) -> dict:
         return self.ask_rpc(receiver=receiver, method="rpc.discover")

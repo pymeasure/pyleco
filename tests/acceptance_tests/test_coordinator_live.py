@@ -137,7 +137,7 @@ def test_Component_to_second_coordinator(leco: Communicator):
 
 
 def test_sign_in_rejected_for_duplicate_name(leco: Communicator):
-    with pytest.raises(ConnectionRefusedError, match=DUPLICATE_NAME.message):
+    with pytest.raises(ConnectionRefusedError):
         with Communicator(name="Controller", port=PORT):
             pass
 
