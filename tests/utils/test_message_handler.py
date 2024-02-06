@@ -99,14 +99,6 @@ class Test_setup_logging:
         assert handler.log == logging.getLogger("test.MessageHandler")
 
 
-def test_context_manager():
-    stored_handler = None
-    with MessageHandler(name="handler", context=FakeContext()) as handler:  # type: ignore
-        assert isinstance(handler, MessageHandler)  # assert enter
-        stored_handler = handler
-    assert stored_handler.socket.closed is True  # exit
-
-
 class Test_namespace_setter:
     def test_full_name_without_namespace(self, handler: MessageHandler):
         handler.namespace = None

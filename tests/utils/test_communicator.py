@@ -209,3 +209,16 @@ def test_communicator_sign_in(fake_cid_generation, communicator: Communicator):
                 data={"id": 1, "result": None, "jsonrpc": "2.0"}).to_frames()]
     communicator.sign_in()
     assert communicator.namespace == "N2"
+
+
+def test_get_capabilities(communicator: Communicator, fake_cid_generation):
+    communicator.socket._r = [  # type: ignore
+        Message("communicator", "sender", conversation_id=cid,
+                message_type=MessageTypes.JSON,
+                data={"id": 1, "result": 6, "jsonrpc": "2.0"}
+                ).to_frames()
+    ]
+    result = communicator.get_capabilities(receiver="rec")
+    sent = Message.from_frames(*communicator.socket._s.pop())  # type: ignore
+    assert sent.data == {"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}
+    assert result == 6

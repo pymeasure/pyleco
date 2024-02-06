@@ -24,151 +24,14 @@
 
 import logging
 from time import perf_counter
-from typing import Callable, Optional, Protocol, Union
-from warnings import warn
+from typing import Optional, Union
 
-from jsonrpcobjects.errors import JSONRPCError
 import zmq
 
 from ..core import COORDINATOR_PORT
-from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message, MessageTypes
 from ..core.rpc_generator import RPCGenerator
-from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
-
-
-class BaseCommunicator(CommunicatorProtocol, Protocol):
-    """Abstract class of a Communicator
-
-    This class contains some logic, useful for users of the CommunicatorProtocol.
-    """
-
-    socket: zmq.Socket
-    _message_buffer: list[Message]
-    _requested_ids: set[bytes]
-    log: logging.Logger
-    namespace: Optional[str]
-
-    # Context manager
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
-        self.close()
-
-    # Base communication
-    def _send_socket_message(self, message: Message) -> None:
-        self.socket.send_multipart(message.to_frames())
-
-    def send_message(self, message: Message) -> None:
-        """Send a message, supplying sender information."""
-        if not message.sender:
-            message.sender = self.full_name.encode()
-        self.log.debug(f"Sending {message}")
-        self._send_socket_message(message=message)
-
-    def sign_in(self) -> None:
-        string = self.rpc_generator.build_request_str(method="sign_in")
-        try:
-            msg = self.ask(b"COORDINATOR", data=string, message_type=MessageTypes.JSON)
-        except JSONRPCError as exc:
-            json_error = exc.rpc_error
-            if json_error.code == DUPLICATE_NAME.code:
-                self.log.warning("Sign in failed, the name is already used.")
-            else:
-                self.log.warning(f"Sign in failed, unknown error '{json_error}'.")
-        except TimeoutError:
-            self.log.error("Signing in timed out.")
-        else:
-            self.finish_sign_in(msg)
-
-    def finish_sign_in(self, response_message: Message) -> None:
-        self.namespace = response_message.sender_elements.namespace.decode()
-        self.log.info(f"Signed in to Node '{self.namespace}'.")
-
-    def heartbeat(self) -> None:
-        """Send a heartbeat to the router."""
-        self.log.debug("heartbeat")
-        self.send_message(Message(b"COORDINATOR"))
-
-    def sign_out(self) -> None:
-        try:
-            self.ask_rpc(b"COORDINATOR", method="sign_out")
-        except TimeoutError:
-            self.log.warning("Waiting for sign out response timed out.")
-        except Exception as exc:
-            self.log.exception("Signing out failed.", exc_info=exc)
-        else:
-            self.finish_sign_out()
-
-    def finish_sign_out(self) -> None:
-        self.log.info(f"Signed out from Node '{self.namespace}'.")
-        self.namespace = None
-
-    # Reading messages with buffer
-    def _find_buffer_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
-        """Find a message in the buffer."""
-        for i, msg in enumerate(self._message_buffer):
-            cid = msg.conversation_id
-            if conversation_id == cid:
-                self._requested_ids.discard(cid)
-                return self._message_buffer.pop(i)
-            elif cid not in self._requested_ids and conversation_id is None:
-                return self._message_buffer.pop(i)
-        return None
-
-    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
-        """Read the next message from the socket, without further processing."""
-        if self.socket.poll(int(timeout or self.timeout * 1000)):
-            return Message.from_frames(*self.socket.recv_multipart())
-        raise TimeoutError("Reading timed out")
-
-    def _find_socket_message(self, conversation_id: Optional[bytes] = None,
-                             timeout: Optional[float] = None,
-                             ) -> Message:
-        """Find a specific message among socket messages, storing the other ones in the buffer.
-
-        :param conversation_id: Conversation ID to filter for, or next free message if None.
-        """
-        stop = perf_counter() + (timeout or self.timeout)
-        while True:
-            msg = self._read_socket_message(timeout)
-            cid = msg.conversation_id
-            if conversation_id == cid:
-                self._requested_ids.discard(cid)
-                return msg
-            elif conversation_id is not None or cid in self._requested_ids:
-                self._message_buffer.append(msg)
-            else:
-                return msg
-            if perf_counter() > stop:
-                # inside the loop to do it at least once, even if timeout is 0
-                break
-        raise TimeoutError("Message not found.")
-
-    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None,
-                     ) -> Message:
-        message = self._find_buffer_message(conversation_id=conversation_id)
-        if message is None:
-            message = self._find_socket_message(conversation_id=conversation_id, timeout=timeout)
-        if message.sender_elements.name == b"COORDINATOR" and message.payload:
-            try:
-                self.rpc_generator.get_result_from_response(message.payload[0])
-            except JSONRPCError as exc:
-                code = exc.rpc_error.code
-                if code == NOT_SIGNED_IN.code:
-                    self.handle_not_signed_in()
-                raise
-        return message
-
-    def handle_not_signed_in(self) -> None:
-        self.namespace = None
-        self.sign_in()
-        self.log.warning("I was not signed in, signing in.")
-
-    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
-        self.send_message(message=message)
-        return self.read_message(conversation_id=message.conversation_id, timeout=timeout)
+from .base_communicator import BaseCommunicator
 
 
 class Communicator(BaseCommunicator):
@@ -218,7 +81,6 @@ class Communicator(BaseCommunicator):
         self._message_buffer: list[Message] = []
         self._requested_ids: set[bytes] = set()
         self._last_beat: float = 0
-        self._reading: Optional[Callable[[], list[bytes]]] = None
         self.rpc_generator = RPCGenerator()
         super().__init__(**kwargs)
 
@@ -243,7 +105,7 @@ class Communicator(BaseCommunicator):
         except ConnectionRefusedError:
             self.log.warning("Closing, the sign out failed with a refused connection.")
         finally:
-            self.socket.close(1)
+            super().close()
 
     def reset(self) -> None:
         """Reset socket"""
@@ -255,7 +117,7 @@ class Communicator(BaseCommunicator):
 
     def __enter__(self):  # -> typing.Self for py>=3.11
         """Called with `with` keyword, returns the Director."""
-        if not hasattr(self, "connection"):
+        if not hasattr(self, "socket"):
             self.open()
         self.sign_in()
         return self
@@ -266,15 +128,6 @@ class Communicator(BaseCommunicator):
             self.sign_in()
         self._last_beat = now
         super().send_message(message=message)
-
-    def read_raw(self, timeout: Optional[float] = None) -> list[bytes]:
-        # deprecated
-        warn("`read_raw` is deprecated, use `_read_socket_message` instead.", FutureWarning)
-        if self.poll(timeout=int(timeout or self.timeout * 1000)):
-            return self.socket.recv_multipart()
-        else:
-            self._reading = self.socket.recv_multipart
-            raise TimeoutError("Reading timed out.")
 
     def poll(self, timeout: Optional[float] = None) -> int:
         """Check how many messages arrived."""
@@ -319,11 +172,10 @@ class Communicator(BaseCommunicator):
     # Messages
     def sign_in(self) -> None:
         """Sign in to the Coordinator and return the node."""
-        self.namespace = None
         self._last_beat = perf_counter()  # to not sign in again...
         super().sign_in()
         if self.namespace is None:
             raise ConnectionRefusedError("Sign in failed.")
 
-    def get_capabalities(self, receiver: Union[bytes, str]) -> dict:
+    def get_capabilities(self, receiver: Union[bytes, str]) -> dict:
         return self.ask_rpc(receiver=receiver, method="rpc.discover")

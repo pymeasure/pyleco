@@ -34,7 +34,7 @@ from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message, MessageTypes
 from ..core.rpc_generator import RPCGenerator
-from .communicator import BaseCommunicator
+from .base_communicator import BaseCommunicator
 from .log_levels import PythonLogLevels
 from .zmq_log_handler import ZmqLogHandler
 from .events import Event, SimpleEvent
@@ -131,10 +131,6 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.register_rpc_method(self.shut_down)
         self.register_rpc_method(self.set_log_level)
         self.register_rpc_method(self.pong)
-
-    def close(self) -> None:
-        """Close the connection."""
-        self.socket.close(1)
 
     # Base communication
     def send(self,
