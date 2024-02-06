@@ -149,15 +149,6 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
             self.log.exception(f"Composing message with data {data} failed.", exc_info=exc)
             # TODO send an error message to the receiver?
 
-    def _send_socket_message(self, message: Message) -> None:
-        self.socket.send_multipart(message.to_frames())
-
-    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
-        """Read the next message from the socket, without further processing."""
-        if self.socket.poll(int(timeout or self.timeout * 1000)):
-            return Message.from_frames(*self.socket.recv_multipart())
-        raise TimeoutError("Reading timed out")
-
     # Continuous listening and message handling
     def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
         """Listen for zmq communication until `stop_event` is set or until KeyboardInterrupt.

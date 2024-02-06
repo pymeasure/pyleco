@@ -29,7 +29,6 @@ import threading
 
 import pytest
 
-from pyleco.errors import DUPLICATE_NAME
 from pyleco.core.message import Message, MessageTypes
 from pyleco.utils.listener import Listener
 from pyleco.utils.communicator import Communicator

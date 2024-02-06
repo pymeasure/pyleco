@@ -43,16 +43,11 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
     This class contains some logic, useful for users of the CommunicatorProtocol.
     """
 
+    socket: zmq.Socket
     _message_buffer: list[Message]
     _requested_ids: set[bytes]
     log: logging.Logger
     namespace: Optional[str]
-
-    # Methods required
-    def _send_socket_message(self, message: Message) -> None: ...  # pragma: no cover
-
-    def _read_socket_message(self, timeout: Optional[float] = None
-                             ) -> Message: ...  # pragma: no cover
 
     # Context manager
     def __enter__(self):
@@ -62,6 +57,9 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         self.close()
 
     # Base communication
+    def _send_socket_message(self, message: Message) -> None:
+        self.socket.send_multipart(message.to_frames())
+
     def send_message(self, message: Message) -> None:
         """Send a message, supplying sender information."""
         if not message.sender:
@@ -118,6 +116,12 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
             elif cid not in self._requested_ids and conversation_id is None:
                 return self._message_buffer.pop(i)
         return None
+
+    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
+        """Read the next message from the socket, without further processing."""
+        if self.socket.poll(int(timeout or self.timeout * 1000)):
+            return Message.from_frames(*self.socket.recv_multipart())
+        raise TimeoutError("Reading timed out")
 
     def _find_socket_message(self, conversation_id: Optional[bytes] = None,
                              timeout: Optional[float] = None,
@@ -263,9 +267,6 @@ class Communicator(BaseCommunicator):
         self._last_beat = now
         super().send_message(message=message)
 
-    def _send_socket_message(self, message: Message) -> None:
-        self.socket.send_multipart(message.to_frames())
-
     def read_raw(self, timeout: Optional[float] = None) -> list[bytes]:
         # deprecated
         warn("`read_raw` is deprecated, use `_read_socket_message` instead.", FutureWarning)
@@ -280,12 +281,6 @@ class Communicator(BaseCommunicator):
         if timeout is None:
             timeout = self.timeout
         return self.socket.poll(timeout=timeout * 1000)  # in ms
-
-    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
-        """Read the next message from the socket, without further processing."""
-        if self.socket.poll(int(timeout or self.timeout * 1000)):
-            return Message.from_frames(*self.socket.recv_multipart())
-        raise TimeoutError("Reading timed out")
 
     def handle_not_signed_in(self):
         super().handle_not_signed_in()
