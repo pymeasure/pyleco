@@ -24,19 +24,18 @@
 
 import logging
 from time import perf_counter
-from typing import Any, Callable, Optional, Union
+from typing import Optional, Union
 
-from jsonrpcobjects.errors import JSONRPCError
 import zmq
 
+from ..errors import NOT_SIGNED_IN
 from ..core import COORDINATOR_PORT
-from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message, MessageTypes
-from ..core.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
-from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
+from ..core.rpc_generator import RPCGenerator
+from .base_communicator import BaseCommunicator
 
 
-class Communicator(CommunicatorProtocol):
+class Communicator(BaseCommunicator):
     """A simple Communicator, which sends requests and reads the answer.
 
     This Communicator does not listen for incoming messages. It only handles messages, whenever
@@ -80,24 +79,25 @@ class Communicator(CommunicatorProtocol):
             self.open()
         self.name = name
         self.namespace = None
+        self._message_buffer: list[Message] = []
+        self._requested_ids: set[bytes] = set()
         self._last_beat: float = 0
-        self._reading: Optional[Callable[[], list[bytes]]] = None
         self.rpc_generator = RPCGenerator()
         super().__init__(**kwargs)
 
     def open(self, context: Optional[zmq.Context] = None) -> None:
         """Open the connection."""
         context = context or zmq.Context.instance()
-        self.connection: zmq.Socket = context.socket(zmq.DEALER)
+        self.socket: zmq.Socket = context.socket(zmq.DEALER)
         protocol, standalone = self._conn_details
         if standalone:
-            self.connection.bind(f"{protocol}://*:{self.port}")
+            self.socket.bind(f"{protocol}://*:{self.port}")
         else:
-            self.connection.connect(f"{protocol}://{self.host}:{self.port}")
+            self.socket.connect(f"{protocol}://{self.host}:{self.port}")
 
     def close(self) -> None:
         """Close the connection."""
-        if (not hasattr(self, "connection")) or self.connection.closed:
+        if (not hasattr(self, "socket")) or self.socket.closed:
             return
         try:
             self.sign_out()
@@ -106,7 +106,7 @@ class Communicator(CommunicatorProtocol):
         except ConnectionRefusedError:
             self.log.warning("Closing, the sign out failed with a refused connection.")
         finally:
-            self.connection.close(1)
+            super().close()
 
     def reset(self) -> None:
         """Reset socket"""
@@ -118,108 +118,36 @@ class Communicator(CommunicatorProtocol):
 
     def __enter__(self):  # -> typing.Self for py>=3.11
         """Called with `with` keyword, returns the Director."""
-        if not hasattr(self, "connection"):
+        if not hasattr(self, "socket"):
             self.open()
         self.sign_in()
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
-        """Called after the with clause has finished, does cleanup."""
-        self.close()
-
-    def retry_read(self, timeout: Optional[int] = None) -> Union[list[bytes], None]:
-        """Retry reading."""
-        if self._reading and self.poll(timeout=timeout):
-            return self._reading()
-        else:
-            return None
-
     def send_message(self, message: Message) -> None:
         now = perf_counter()
-        if now > self._last_beat + 15:
+        if now > self._last_beat + 15 and message.payload and b"sign_in" not in message.payload[0]:
             self.sign_in()
         self._last_beat = now
-        if not message.sender:
-            message.sender = (".".join(
-                (self.namespace, self.name)) if self.namespace else self.name).encode()
-        frames = message.to_frames()
-        self.connection.send_multipart(frames)
-
-    def read_raw(self, timeout: Optional[float] = None) -> list[bytes]:
-        if self.poll(timeout=timeout):
-            return self.connection.recv_multipart()
-        else:
-            self._reading = self.connection.recv_multipart
-            raise TimeoutError("Reading timed out.")
+        super().send_message(message=message)
 
     def poll(self, timeout: Optional[float] = None) -> int:
         """Check how many messages arrived."""
         if timeout is None:
             timeout = self.timeout
-        return self.connection.poll(timeout=timeout * 1000)  # in ms
+        return self.socket.poll(timeout=timeout * 1000)  # in ms
 
-    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None,
-                     ) -> Message:
-        # TODO add filtering for conversation_id (with the MessageBuffer?)
-        return Message.from_frames(*self.read_raw(timeout=timeout))
-
-    def ask_raw(self, message: Message, timeout: Optional[float] = None) -> Message:
-        """Send and read the answer, signing in if necessary."""
-        self.send_message(message=message)
-        cid = message.conversation_id
-        while True:
-            response = self.read_message(timeout=timeout)
-            # skip pings as we either are still signed in or going to sign in again.
-            if (response.header_elements.message_type == MessageTypes.JSON
-                    or b"jsonrpc" in response.payload[0]) and isinstance(response.data, dict):
-                # TODO use MessageType instead of "jsonrpc"
-                if response.data.get("method") == "pong":
-                    continue
-                elif (error := response.data.get("error")):
-                    code = error.get("code")
-                    if code == NOT_SIGNED_IN.code:
-                        self.log.error("I'm not signed in, signing in.")
-                        self.sign_in()
-                        self.send_message(message=message)
-                        continue
-                    elif code == DUPLICATE_NAME.code:
-                        self.log.error(f"Sign in failed: {DUPLICATE_NAME.message}")
-                        raise ConnectionRefusedError(f"Sign in failed: {DUPLICATE_NAME.message}")
-            if cid == response.conversation_id:
-                return response
-            else:
-                self.log.warning(f"Message with different conversation id received: {response}.")
+    def handle_not_signed_in(self):
+        super().handle_not_signed_in()
+        raise ConnectionResetError("Have not been signed in, signing in.")
 
     def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
-        """Send a message and retrieve the response."""
-        response = self.ask_raw(message=message, timeout=timeout)
-        if response.sender_elements.name == b"COORDINATOR":
+        """Send and read the answer, signing in if necessary."""
+        for _ in range(2):
             try:
-                error = response.data.get("error")  # type: ignore
-            except AttributeError:
-                pass
-            else:
-                if error:
-                    # TODO define how to transmit that information
-                    raise ConnectionError(str(error))
-        return response
-
-    def ask_rpc(self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None,
-                **kwargs) -> Any:
-        """Send a rpc call and return the result or raise an error."""
-        send_json = self.rpc_generator.build_request_str(method=method, **kwargs)
-        response = self.ask(receiver=receiver, data=send_json, timeout=timeout,
-                            message_type=MessageTypes.JSON)
-        try:
-            result = self.interpret_rpc_response(response)
-        except JSONRPCError as exc:
-            if exc.rpc_error.code == INVALID_SERVER_RESPONSE.code:
-                self.log.exception(f"Decoding failed for {response.payload[0]!r}.", exc_info=exc)
-                return
-            else:
-                self.log.exception(f"Some error happened {response.payload[0]!r}.", exc_info=exc)
-                raise
-        return result
+                return super().ask_message(message=message, timeout=timeout)
+            except ConnectionResetError:
+                pass  # sign in required, retry
+        raise ConnectionRefusedError(NOT_SIGNED_IN.message)
 
     def ask_json(self, receiver: Union[bytes, str], json_string: str,
                  timeout: Optional[float] = None
@@ -231,31 +159,10 @@ class Communicator(CommunicatorProtocol):
     # Messages
     def sign_in(self) -> None:
         """Sign in to the Coordinator and return the node."""
-        self.namespace = None
         self._last_beat = perf_counter()  # to not sign in again...
-        json_string = self.rpc_generator.build_request_str(method="sign_in")
-        request = Message(receiver=b"COORDINATOR", data=json_string, message_type=MessageTypes.JSON)
-        cid0 = request.conversation_id
-        response = self.ask_raw(message=request)
-        if b"error" in response.payload[0]:
-            raise ConnectionError
-        assert (
-            response.conversation_id == cid0
-        ), (f"Answer to another request (mine {cid0!r}) received from {response.sender!r}: "
-            f"{response.conversation_id!r}, '{response.data}'.")
-        self.namespace = response.sender_elements.namespace.decode()
-        self.log.info(f"Signed in to '{self.namespace}'.")
+        super().sign_in()
+        if self.namespace is None:
+            raise ConnectionRefusedError("Sign in failed.")
 
-    def sign_out(self) -> None:
-        """Tell the Coordinator to drop references."""
-        try:
-            self.ask_rpc(b"COORDINATOR", method="sign_out")
-        except JSONRPCError:
-            self.log.error("JSON decoding at sign out failed.")
-
-    def get_capabalities(self, receiver: Union[bytes, str]) -> dict:
+    def get_capabilities(self, receiver: Union[bytes, str]) -> dict:
         return self.ask_rpc(receiver=receiver, method="rpc.discover")
-
-    def heartbeat(self) -> None:
-        """Send a heartbeat to the connected Coordinator."""
-        self.send_message(message=Message(receiver=b"COORDINATOR"))

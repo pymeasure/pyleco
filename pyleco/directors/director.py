@@ -25,7 +25,8 @@
 import logging
 from typing import Any, Optional, Sequence, Union
 
-from ..utils.communicator import CommunicatorProtocol, Communicator
+from ..core.internal_protocols import CommunicatorProtocol
+from ..utils.communicator import Communicator
 from ..utils.log_levels import get_leco_log_level
 from ..core.serialization import generate_conversation_id
 from ..core.message import Message, MessageTypes
