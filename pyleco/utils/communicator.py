@@ -28,6 +28,7 @@ from typing import Optional, Union
 
 import zmq
 
+from ..errors import NOT_SIGNED_IN
 from ..core import COORDINATOR_PORT
 from ..core.message import Message, MessageTypes
 from ..core.rpc_generator import RPCGenerator
@@ -139,28 +140,14 @@ class Communicator(BaseCommunicator):
         super().handle_not_signed_in()
         raise ConnectionResetError("Have not been signed in, signing in.")
 
-    def ask_raw(self, message: Message, timeout: Optional[float] = None) -> Message:
+    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
         """Send and read the answer, signing in if necessary."""
         for _ in range(2):
             try:
                 return super().ask_message(message=message, timeout=timeout)
             except ConnectionResetError:
                 pass  # sign in required, retry
-        raise
-
-    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
-        """Send a message and retrieve the response."""
-        response = self.ask_raw(message=message, timeout=timeout)
-        if response.sender_elements.name == b"COORDINATOR":
-            try:
-                error = response.data.get("error")  # type: ignore
-            except AttributeError:
-                pass
-            else:
-                if error:
-                    # TODO define how to transmit that information
-                    raise ConnectionError(str(error))
-        return response
+        raise ConnectionRefusedError(NOT_SIGNED_IN.message)
 
     def ask_json(self, receiver: Union[bytes, str], json_string: str,
                  timeout: Optional[float] = None
