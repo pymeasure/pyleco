@@ -200,8 +200,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
 
     def _read_handler(self, cid: bytes, timeout: float = 1) -> Any:
         response_message = self.read_message(conversation_id=cid, timeout=timeout)
-        result = self.rpc_generator.get_result_from_response(response_message.payload[0])
-        return result
+        return self.interpret_rpc_response(response_message=response_message)
 
     def ask_handler(self, method: str, timeout: float = 1, **kwargs) -> Any:
         """Ask the associated message handler."""
