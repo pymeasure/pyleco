@@ -88,6 +88,21 @@ def test_start_collecting_starts_timer(data_logger: DataLogger):
     data_logger.timer.cancel()
 
 
+def test_start_collecting_starts_timer_even_second_time(data_logger: DataLogger):
+    """Even a second time, without explicit trigger type, the timer should be started."""
+    # arrange
+    data_logger.trigger_timeout = 1000
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER)  # first time, to set type
+    data_logger.stop_collecting()
+    assert not hasattr(data_logger, "timer")  # no timer left
+    # act
+    data_logger.start_collecting()
+    # assert
+    assert data_logger.timer.interval == 1000
+    # cleanup
+    data_logger.timer.cancel()
+
+
 def test_listen_close_stops_collecting(data_logger: DataLogger):
     data_logger.stop_collecting = MagicMock()  # type: ignore[method-assign]
     # act

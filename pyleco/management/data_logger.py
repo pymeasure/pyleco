@@ -232,14 +232,17 @@ class DataLogger(ExtendedMessageHandler):
         self.stop_collecting()
         log.info(f"Start collecting data. Trigger: {trigger_type}, {trigger_timeout}, "
                  f"{trigger_variable}; subscriptions: {variables}")
+        self.today = datetime.datetime.now(datetime.timezone.utc).date()
         self.trigger_type = trigger_type or self._last_trigger_type
         self._last_trigger_type = self.trigger_type
-        self.trigger_variable = self.trigger_variable if trigger_variable is None else trigger_variable  # noqa
-        self.trigger_timeout = self.trigger_timeout if trigger_timeout is None else trigger_timeout
-        if trigger_type == TriggerTypes.TIMER:
+        if self.trigger_type == TriggerTypes.TIMER:
             self.start_timer_trigger()
-        self.value_repeating = self.value_repeating if value_repeating is None else value_repeating
-        self.today = datetime.datetime.now(datetime.timezone.utc).date()
+        if trigger_timeout is not None:
+            self.trigger_timeout = trigger_timeout
+        if trigger_variable is not None:
+            self.trigger_variable = trigger_variable
+        if value_repeating is not None:
+            self.value_repeating = value_repeating
         self.set_valuing_mode(valuing_mode=valuing_mode)
         self.setup_variables(self.lists.keys() if variables is None else variables)
         self.units = units if units else {}
