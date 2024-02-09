@@ -161,22 +161,22 @@ def communicator(pipe_handler_pipe: PipeHandler):
     return pipe_handler_pipe.get_communicator()
 
 
-class Test_handle_commands:
+class Test_read_message:
     def test_handle_response(self, pipe_handler: PipeHandler):
         message = Message("rec", "send")
+        pipe_handler.socket._r = [message.to_frames()]  # type: ignore
         pipe_handler.buffer.add_conversation_id(message.conversation_id)
         # act
-        pipe_handler.handle_commands(message)
+        with pytest.raises(TimeoutError):
+            pipe_handler.read_message()
         assert pipe_handler.buffer.retrieve_message(message.conversation_id) == message
 
-    def test_handle_request(self, pipe_handler: PipeHandler):
-        """Message is not a response, but a request."""
+    def test_handle_request(self, pipe_handler: PipeHandler, caplog: pytest.LogCaptureFixture):
+        """Message is not a response and should be handled by the MessageHandler."""
         message = Message("rec", "send")
-        pipe_handler.finish_handle_commands = MagicMock()  # type: ignore[method-assign]
-        # act
-        pipe_handler.handle_commands(message)
-        # assert
-        pipe_handler.finish_handle_commands.assert_called_once_with(message)
+        pipe_handler.socket._r = [message.to_frames()]  # type: ignore
+        # act and assert
+        assert pipe_handler.read_message() == message
 
 
 class Test_get_communicator:

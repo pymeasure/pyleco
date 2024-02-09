@@ -66,7 +66,7 @@ class MessageBuffer:
     def add_response_message(self, message: Message) -> bool:
         """Add a message to the buffer, if it is a requested response.
 
-        :return: whether was added to the buffer.
+        :return: whether the message was added to the buffer.
         """
         with self._buffer_lock:
             if message.conversation_id in self._cids:
@@ -300,15 +300,14 @@ class PipeHandler(ExtendedMessageHandler):
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
 
-    def handle_commands(self, message: Message) -> None:
-        """Handle commands: collect a requested response or give to :meth:`finish_handle_message`.
-        """
-        if not self.buffer.add_response_message(message):
-            self.finish_handle_commands(message)
-
-    def finish_handle_commands(self, message: Message) -> None:
-        """Handle commands not requested via ask."""
-        super().handle_commands(message)
+    def _read_message_raw(self, conversation_id: Optional[bytes] = None,
+                          timeout: Optional[float] = None) -> Message:
+        """Read a message using the thread safe buffer."""
+        message = self._read_socket_message(timeout=timeout)
+        if self.buffer.add_response_message(message):
+            raise TimeoutError
+        else:
+            return message
 
     # Local messages
     def handle_local_request(self, conversation_id: bytes, rpc: bytes) -> None:

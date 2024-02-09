@@ -27,6 +27,7 @@ from unittest.mock import MagicMock
 import time
 from typing import Optional
 
+from jsonrpcobjects.objects import Request, ResultResponse
 import pytest
 
 from pyleco.core import VERSION_B
@@ -35,11 +36,13 @@ from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
-from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME, ErrorResponse
+from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME, ErrorResponse, DataError
 
 from pyleco.utils.message_handler import MessageHandler, SimpleEvent, JSONRPCError
 
 
+handler_name = "N1.handler"
+remote_name = "remote"
 cid = b"conversation_id;"
 header = b"".join((cid, b"\x00" * 4))
 
@@ -55,8 +58,8 @@ def fake_cid_generation(monkeypatch):
 
 @pytest.fixture()
 def handler() -> MessageHandler:
-    handler = MessageHandler(name="handler", context=FakeContext())  # type: ignore
-    handler.namespace = "N1"
+    handler = MessageHandler(name=handler_name.split(".")[1], context=FakeContext())  # type: ignore
+    handler.namespace = handler_name.split(".")[0]
     handler.stop_event = SimpleEvent()
     handler.timeout = 0.1
     return handler
@@ -247,7 +250,7 @@ def test_send_with_sender(handler: MessageHandler):
 
 
 def test_send_message_raises_error(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
-    handler.send(receiver=b"5", header=b"header", conversation_id=b"12345")
+    handler.send(receiver=remote_name, header=b"header", conversation_id=b"12345")
     assert caplog.messages[-1].startswith("Composing message with")
 
 
@@ -257,9 +260,9 @@ def test_heartbeat(handler: MessageHandler, fake_cid_generation):
 
 
 class Test_read_message:
-    m1 = Message(receiver="N1.handler", sender="xy")  # some message
-    mr = Message(receiver="N1.handler", sender="xy", conversation_id=cid)  # requested message
-    m2 = Message(receiver="N1.handler", sender="xy")  # another message
+    m1 = Message(receiver=handler_name, sender="xy")  # some message
+    mr = Message(receiver=handler_name, sender="xy", conversation_id=cid)  # requested message
+    m2 = Message(receiver=handler_name, sender="xy")  # another message
 
     conf: list[tuple[list[Message], list[Message], Optional[bytes], list[Message], list[Message],
                      str]] = [
@@ -330,8 +333,8 @@ class Test_read_message:
 
 
 class Test_ask_message:
-    expected_sent = Message("receiver", sender="handler", conversation_id=cid)
-    expected_response = Message("handler", sender="receiver", conversation_id=cid)
+    expected_sent = Message(remote_name, sender=handler_name, conversation_id=cid)
+    expected_response = Message(handler_name, sender=remote_name, conversation_id=cid)
 
     @pytest.fixture
     def handler_asked(self, handler: MessageHandler):
@@ -352,18 +355,18 @@ class Test_ask_message:
 def test_handle_message_handles_no_new_message(handler: MessageHandler):
     handler._requested_ids.add(cid)
     handler.socket._r = [  # type: ignore
-        Message(receiver="handler", sender="abc", conversation_id=cid).to_frames()]
+        Message(receiver=handler_name, sender=remote_name, conversation_id=cid).to_frames()]
     # act
     handler.read_and_handle_message()
     # assert that no error is raised.
 
 
 def test_handle_message_ignores_heartbeats(handler: MessageHandler):
-    handler.handle_commands = MagicMock()  # type: ignore
+    handler.handle_message = MagicMock()  # type: ignore
     # empty message of heartbeat
     handler.socket._r = [[VERSION_B, b"N1.handler", b"whatever", b";"]]  # type: ignore
     handler.read_and_handle_message()
-    handler.handle_commands.assert_not_called()
+    handler.handle_message.assert_not_called()
 
 
 @pytest.mark.parametrize("i, out", (
@@ -413,9 +416,46 @@ def test_handle_corrupted_message(handler: MessageHandler, caplog: pytest.LogCap
 
 
 def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
-    message = Message("handler", sender="sender", message_type=255)
-    handler.handle_commands(msg=message)
+    message = Message(handler_name, sender="sender", message_type=255)
+    handler.handle_message(message=message)
     assert caplog.records[-1].message.startswith("Message from b'sender'")
+
+
+class Test_handle_json_message:
+    msg: Message
+
+    @pytest.fixture
+    def handler_hjm(self, handler: MessageHandler) -> MessageHandler:
+        def _send_socket_message_fake(message: Message) -> None:
+            self.msg = message
+        handler._send_socket_message = _send_socket_message_fake  # type: ignore
+        return handler
+
+    def test_handle_rpc_request(self, handler_hjm: MessageHandler):
+        message = Message(receiver=handler_name, sender=remote_name,
+                          data=Request(id=5, method="pong"),
+                          conversation_id=cid, message_type=MessageTypes.JSON)
+        response = Message(receiver=remote_name, sender=handler_name,
+                           data=ResultResponse(id=5, result=None),
+                           conversation_id=cid, message_type=MessageTypes.JSON)
+        handler_hjm.handle_json_message(message=message)
+        assert self.msg == response
+
+    def test_handle_json_not_request(self, handler_hjm: MessageHandler):
+        """Test, that a json message, which is not a request, is handled appropriately."""
+        data = ResultResponse(id=5, result=None)  # some json, which is not a request.
+        response = Message(receiver=handler_name, sender=remote_name,
+                           data=data,
+                           conversation_id=cid, message_type=MessageTypes.JSON)
+        handler_hjm.handle_json_message(message=response)
+        error_message = Message(receiver=remote_name, sender=handler_name, conversation_id=cid,
+                                message_type=MessageTypes.JSON,
+                                data=ErrorResponse(id=5, error=DataError(
+                                    code=-32600,
+                                    message="Invalid Request",
+                                    data=data)))
+        # assert
+        assert self.msg == error_message
 
 
 class Test_listen:

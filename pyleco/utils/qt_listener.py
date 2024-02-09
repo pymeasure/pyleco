@@ -23,10 +23,54 @@
 #
 
 from qtpy.QtCore import QObject, Signal  # type: ignore
+from zmq import Context  # type: ignore
 
 from ..core.message import Message, MessageTypes
 from ..core.data_message import DataMessage
 from .listener import Listener, PipeHandler
+
+
+class ListenerSignals(QObject):
+    """Signals for the Listener."""
+    dataReady = Signal(dict)
+    message = Signal(Message)
+    data_message = Signal(DataMessage)
+    name_changed = Signal(str)
+
+
+class QtPipeHandler(PipeHandler):
+
+    local_methods = ["pong", "set_log_level"]
+
+    def __init__(self, name: str, signals: ListenerSignals, context: Context | None = None,
+                 **kwargs) -> None:
+        self.signals = signals
+        super().__init__(name, context, **kwargs)
+
+    def handle_message(self, message: Message) -> None:
+        if self.buffer.add_response_message(message):
+            return
+        elif message.header_elements.message_type == MessageTypes.JSON:
+            try:
+                method = message.data.get("method")  # type: ignore
+            except AttributeError:
+                pass
+            else:
+                if method in self.local_methods:
+                    self.handle_json_message(message=message)
+                    return
+        # in all other cases:
+        self.signals.message.emit(message)
+
+    def handle_subscription_data(self, data: dict) -> None:
+        """Handle incoming subscription data."""
+        # old style
+        self.signals.dataReady.emit(data)
+
+    def handle_subscription_message(self, message: DataMessage) -> None:
+        """Handle an incoming subscription message."""
+        # new style
+        self.signals.data_message.emit(message)
 
 
 class QtListener(Listener):
@@ -50,46 +94,12 @@ class QtListener(Listener):
 
     def __init__(self, name: str, host: str = "localhost", **kwargs) -> None:
         super().__init__(name=name, host=host, **kwargs)
-        self.signals = self.ListenerSignals()
+        self.signals = ListenerSignals()
 
-    local_methods = ["pong", "set_log_level"]
-
-    class ListenerSignals(QObject):
-        """Signals for the Listener."""
-        dataReady = Signal(dict)
-        message = Signal(Message)
-        data_message = Signal(DataMessage)
-        name_changed = Signal(str)
-
-    def handle_subscription_data(self, data: dict) -> None:
-        """Handle incoming subscription data."""
-        # old style
-        self.signals.dataReady.emit(data)
-
-    def handle_subscription_message(self, message: DataMessage) -> None:
-        """Handle an incoming subscription message."""
-        # new style
-        self.signals.data_message.emit(message)
-
-    def start_listen(self) -> None:
-        super().start_listen()
+    def _listen(self, name: str, stop_event, coordinator_host: str, coordinator_port: int,
+                data_host: str, data_port: int) -> None:
+        self.message_handler = QtPipeHandler(name, signals=self.signals,
+                                             host=coordinator_host, port=coordinator_port,
+                                             data_host=data_host, data_port=data_port,)
         self.message_handler.register_on_name_change_method(self.signals.name_changed.emit)
-        # as the method is added after init, call it once:
-        self.signals.name_changed.emit(self.message_handler.full_name)
-        self.message_handler.handle_subscription_data = self.handle_subscription_data  # type:ignore
-        self.message_handler.finish_handle_commands = self.finish_handle_commands  # type: ignore
-        self.message_handler.handle_subscription_message = self.handle_subscription_message  # type: ignore  # noqa
-
-    # Methods for the message_handler
-    def finish_handle_commands(self, message: Message) -> None:
-        """Handle the list of commands: Redirect them to the application."""
-        if message.header_elements.message_type == MessageTypes.JSON:
-            try:
-                method = message.data.get("method")  # type: ignore
-            except AttributeError:
-                pass
-            else:
-                if method in self.local_methods:
-                    super(PipeHandler, self.message_handler).handle_commands(message)
-                    return
-        self.signals.message.emit(message)
+        self.message_handler.listen(stop_event=stop_event)
