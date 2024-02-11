@@ -24,11 +24,12 @@
 
 from unittest.mock import MagicMock
 
+from jsonrpcobjects.errors import JSONRPCError
 import pytest
 
 from pyleco.core import VERSION_B
 from pyleco.core.message import Message, MessageTypes
-from pyleco.errors import NOT_SIGNED_IN
+from pyleco.errors import NOT_SIGNED_IN, NODE_UNKNOWN
 from pyleco.core.serialization import serialize_data
 
 from pyleco.utils.communicator import Communicator
@@ -87,7 +88,7 @@ def test_name():
 
 def test_auto_open():
     c = FakeCommunicator(name="Test", auto_open=True)
-    assert isinstance(c.connection, FakeSocket)
+    assert isinstance(c.socket, FakeSocket)
 
 
 def test_context_manager_opens_connection():
@@ -98,7 +99,7 @@ def test_context_manager_opens_connection():
         def sign_in(self):
             pass
     with FK2(name="Test") as c:
-        assert isinstance(c.connection, FakeSocket)
+        assert isinstance(c.socket, FakeSocket)
 
 
 class Test_close:
@@ -108,15 +109,15 @@ class Test_close:
                           conversation_id=cid, data={
                               "jsonrcp": "2.0", "result": None, "id": 1,
                               })
-        communicator.connection._r = [message.to_frames()]  # type: ignore
+        communicator.socket._r = [message.to_frames()]  # type: ignore
         communicator.close()
         return communicator
 
     def test_socket_closed(self, closed_communicator: Communicator):
-        assert closed_communicator.connection.closed is True
+        assert closed_communicator.socket.closed is True
 
     def test_signed_out(self, closed_communicator: Communicator):
-        sign_out_message = Message.from_frames(*closed_communicator.connection._s.pop())  # type: ignore  # noqa
+        sign_out_message = Message.from_frames(*closed_communicator.socket._s.pop())  # type: ignore  # noqa
         assert sign_out_message == Message(
             "COORDINATOR",
             "Test",
@@ -131,57 +132,65 @@ class Test_close:
         # no error raised
 
 
+def test_reset(communicator: Communicator):
+    communicator.close = MagicMock()  # type: ignore
+    communicator.open = MagicMock()  # type: ignore
+    # act
+    communicator.reset()
+    # assert
+    communicator.close.assert_called_once()
+    communicator.open.assert_called_once()
+
+
 @pytest.mark.parametrize("kwargs, message", message_tests)
 def test_communicator_send(communicator: Communicator, kwargs, message, monkeypatch,
                            fake_cid_generation):
     monkeypatch.setattr("pyleco.utils.communicator.perf_counter", fake_time)
     communicator.send(**kwargs)
-    assert communicator.connection._s.pop() == message  # type: ignore
+    assert communicator.socket._s.pop() == message  # type: ignore
 
 
-@pytest.mark.parametrize("kwargs, message", message_tests)
-def test_communicator_read(communicator: Communicator, kwargs, message):
-    communicator.connection._r.append(message)  # type: ignore
-    response = communicator.read()
-    assert response.receiver == kwargs.get('receiver').encode()
-    assert response.conversation_id == kwargs.get('conversation_id', cid)
-    assert response.sender == kwargs.get('sender', "").encode()
-    assert response.header_elements.message_id == kwargs.get('message_id', b"\x00\x00\x00")
-    assert response.data == kwargs.get("data")
+def test_poll(communicator: Communicator):
+    assert communicator.poll() == 0
 
 
-class Test_ask_raw:
-    request = Message(receiver=b"N1.receiver", data="whatever")
+class Test_ask_message:
+    request = Message(receiver=b"N1.receiver", data="whatever", conversation_id=cid)
     response = Message(receiver=b"N1.Test", sender=b"N1.receiver", data=["xyz"],
                        message_type=MessageTypes.JSON,
-                       conversation_id=request.conversation_id)
+                       conversation_id=cid)
 
     def test_ignore_ping(self, communicator: Communicator):
         ping_message = Message(receiver=b"N1.Test", sender=b"N1.COORDINATOR",
                                message_type=MessageTypes.JSON,
                                data={"id": 0, "method": "pong", "jsonrpc": "2.0"})
-        communicator.connection._r = [  # type: ignore
+        communicator.socket._r = [  # type: ignore
             ping_message.to_frames(),
             self.response.to_frames()]
-        communicator.ask_raw(self.request)
-        assert communicator.connection._s == [self.request.to_frames()]
+        communicator.ask_message(self.request)
+        assert communicator.socket._s == [self.request.to_frames()]
 
-    def test_sign_in(self, communicator: Communicator):
+    def test_sign_in(self, communicator: Communicator, fake_cid_generation):
         communicator.sign_in = MagicMock()  # type: ignore
         not_signed_in = Message(receiver="N1.Test", sender="N1.COORDINATOR",
                                 message_type=MessageTypes.JSON,
+                                conversation_id=cid,
                                 data={"id": None,
                                       "error": NOT_SIGNED_IN.model_dump(),
                                       "jsonrpc": "2.0"},
                                 )
-        communicator.connection._r = [  # type: ignore
+        communicator.socket._r = [  # type: ignore
             not_signed_in.to_frames(),
             self.response.to_frames()]
-        response = communicator.ask_raw(self.request)
-        print("result", response)
-        assert communicator.connection._s.pop(0) == self.request.to_frames()  # type: ignore
+        response = communicator.ask_message(self.request)
+        # assert that the message is sent once
+        assert communicator.socket._s.pop(0) == self.request.to_frames()  # type: ignore
+        # assert that it tries to sign in
         communicator.sign_in.assert_called()
-        assert communicator.connection._s == [self.request.to_frames()]
+        # assert that the message is called a second time
+        assert communicator.socket._s == [self.request.to_frames()]
+        # assert that the correct response is returned
+        assert response == self.response
 
     def test_ignore_wrong_response(self, communicator: Communicator,
                                    caplog: pytest.LogCaptureFixture):
@@ -189,18 +198,40 @@ class Test_ask_raw:
         caplog.set_level(10)
         m = Message(receiver="whatever", sender="s", message_type=MessageTypes.JSON,
                     data={'jsonrpc': "2.0"}).to_frames()
-        communicator.connection._r = [m, self.response.to_frames()]  # type: ignore
-        assert communicator.ask_raw(self.request) == self.response
-        assert caplog.records[-1].msg.startswith("Message with different conversation id received:")
+        communicator.socket._r = [m, self.response.to_frames()]  # type: ignore
+        assert communicator.ask_message(self.request) == self.response
+
+    def test_sign_in_fails_several_times(self, communicator: Communicator, fake_cid_generation):
+        not_signed_in = Message(receiver="communicator", sender="N1.COORDINATOR",
+                                message_type=MessageTypes.JSON,
+                                data={"id": None,
+                                      "error": NOT_SIGNED_IN.model_dump(),
+                                      "jsonrpc": "2.0"},
+                                ).to_frames()
+        communicator.sign_in = MagicMock()  # type: ignore
+        communicator.socket._r = [not_signed_in, not_signed_in]  # type: ignore
+        with pytest.raises(ConnectionRefusedError):
+            communicator.ask_message(self.request)
+
+    def test_ask_message_with_error(self, communicator: Communicator):
+        response = Message(receiver="communicator", sender="N1.COORDINATOR",
+                        message_type=MessageTypes.JSON, conversation_id=cid,
+                        data={"id": None,
+                                "error": NODE_UNKNOWN.model_dump(),
+                                "jsonrpc": "2.0"},
+                        )
+        communicator.socket._r = [response.to_frames()]  # type: ignore
+        with pytest.raises(JSONRPCError, match=NODE_UNKNOWN.message):
+            communicator.ask_message(Message("receiver", conversation_id=cid))
 
 
 def test_ask_rpc(communicator: Communicator, fake_cid_generation):
     received = Message(receiver=b"N1.Test", sender=b"N1.receiver",
                        conversation_id=cid)
     received.payload = [b"""{"jsonrpc": "2.0", "result": 123.45, "id": "1"}"""]
-    communicator.connection._r = [received.to_frames()]  # type: ignore
+    communicator.socket._r = [received.to_frames()]  # type: ignore
     response = communicator.ask_rpc(receiver="N1.receiver", method="test_method", some_arg=4)
-    assert communicator.connection._s == [
+    assert communicator.socket._s == [
         Message(b'N1.receiver', b'Test',
                 conversation_id=cid,
                 message_type=MessageTypes.JSON,
@@ -210,9 +241,35 @@ def test_ask_rpc(communicator: Communicator, fake_cid_generation):
 
 
 def test_communicator_sign_in(fake_cid_generation, communicator: Communicator):
-    communicator.connection._r = [  # type: ignore
+    communicator.socket._r = [  # type: ignore
         Message(b"N2.n", b"N2.COORDINATOR",
                 conversation_id=cid, message_type=MessageTypes.JSON,
                 data={"id": 1, "result": None, "jsonrpc": "2.0"}).to_frames()]
     communicator.sign_in()
     assert communicator.namespace == "N2"
+
+
+def test_get_capabilities(communicator: Communicator, fake_cid_generation):
+    communicator.socket._r = [  # type: ignore
+        Message("communicator", "sender", conversation_id=cid,
+                message_type=MessageTypes.JSON,
+                data={"id": 1, "result": 6, "jsonrpc": "2.0"}
+                ).to_frames()
+    ]
+    result = communicator.get_capabilities(receiver="rec")
+    sent = Message.from_frames(*communicator.socket._s.pop())  # type: ignore
+    assert sent.data == {"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}
+    assert result == 6
+
+
+def test_ask_json(communicator: Communicator, fake_cid_generation):
+    response = Message("communicator", sender="rec", conversation_id=cid,
+                       data="super response")
+    communicator.socket._r = [response.to_frames()]  # type: ignore
+    json_string = "[5, 6.7]"
+    # act
+    result = communicator.ask_json(receiver="rec", json_string=json_string)
+    # assert
+    sent = Message.from_frames(*communicator.socket._s.pop())  # type: ignore
+    assert sent.data == [5, 6.7]
+    assert result == b"super response"

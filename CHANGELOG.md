@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [unreleased]
+
+### Changed
+
+- Add `BaseCommunicator` as a base class for Communicator and MessageHandler (#48)
+
+### Removed
+
+- Remove `Coordinator.ask_raw` (#48)
+- Remove legacy subscription messages from extended message handler (#48)
+
+
 ## [0.1.0] - 2024-02-01
 
 ### Changed

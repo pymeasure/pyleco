@@ -32,10 +32,9 @@ import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
-from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message, MessageTypes
-from ..errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..core.rpc_generator import RPCGenerator
+from .base_communicator import BaseCommunicator
 from .log_levels import PythonLogLevels
 from .zmq_log_handler import ZmqLogHandler
 from .events import Event, SimpleEvent
@@ -45,7 +44,7 @@ from .events import Event, SimpleEvent
 heartbeat_interval = 10  # s
 
 
-class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
+class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
     """Maintain connection to the Coordinator and listen to incoming messages.
 
     This class is intended to run in a thread, maintain the connection to the coordinator
@@ -133,129 +132,18 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
         self.register_rpc_method(self.set_log_level)
         self.register_rpc_method(self.pong)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
-        self.close()
-
-    def close(self) -> None:
-        """Close the connection."""
-        self.socket.close(1)
-
     # Base communication
-    def sign_in(self) -> None:
-        string = self.rpc_generator.build_request_str(method="sign_in")
-        try:
-            msg = self.ask(b"COORDINATOR", data=string, message_type=MessageTypes.JSON)
-        except JSONRPCError as exc:
-            json_error = exc.rpc_error
-            if json_error.code == DUPLICATE_NAME.code:
-                self.log.warning("Sign in failed, the name is already used.")
-            else:
-                self.log.warning(f"Sign in failed, unknown error '{json_error}'.")
-        except TimeoutError:
-            self.log.error("Signing in timed out.")
-        else:
-            self.finish_sign_in(msg)
-
-    def heartbeat(self) -> None:
-        """Send a heartbeat to the router."""
-        self.log.debug("heartbeat")
-        self._send_message(Message(b"COORDINATOR"))
-
-    def sign_out(self) -> None:
-        try:
-            self.ask_rpc(b"COORDINATOR", method="sign_out")
-        except TimeoutError:
-            self.log.warning("Waiting for sign out response timed out.")
-        except Exception as exc:
-            self.log.exception("Signing out failed.", exc_info=exc)
-        else:
-            self.finish_sign_out()
-
-    def _send_message(self, message: Message) -> None:
-        """Send a message, supplying sender information."""
-        if not message.sender:
-            message.sender = self.full_name.encode()
-        frames = message.to_frames()
-        self.log.debug(f"Sending {frames}")
-        self.socket.send_multipart(frames)
-
-    def _send(self, receiver: Union[bytes, str], sender: Union[bytes, str] = b"",
-              data: Optional[Any] = None,
-              conversation_id: Optional[bytes] = None, **kwargs) -> None:
-        """Compose and send a message to a `receiver` with serializable `data`."""
-        try:
-            message = Message(receiver=receiver, sender=sender, data=data,
-                              conversation_id=conversation_id, **kwargs)
-        except Exception as exc:
-            self.log.exception(f"Composing message with data {data} failed.", exc_info=exc)
-            # TODO send an error message to the receiver?
-        else:
-            self._send_message(message)
-
     def send(self,
              receiver: Union[bytes, str],
              conversation_id: Optional[bytes] = None,
              data: Optional[Any] = None,
              **kwargs) -> None:
         """Send a message to a receiver with serializable `data`."""
-        self._send(receiver=receiver, data=data, conversation_id=conversation_id, **kwargs)
-
-    def send_message(self, message: Message) -> None:
-        self._send_message(message)
-
-    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
-        if self.socket.poll(int(timeout or self.timeout * 1000)):
-            return Message.from_frames(*self.socket.recv_multipart())
-        raise TimeoutError("Reading timed out")
-
-    def _read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
-                      ) -> Message:
-        if self._message_buffer:
-            for i, msg in enumerate(self._message_buffer):
-                cid = msg.conversation_id
-                if conversation_id == cid:
-                    self._requested_ids.discard(cid)
-                    return self._message_buffer.pop(i)
-                elif cid not in self._requested_ids and conversation_id is None:
-                    return self._message_buffer.pop(i)
-        stop = time.perf_counter() + (timeout or self.timeout)
-        while True:
-            msg = self._read_socket_message(timeout)
-            cid = msg.conversation_id
-            if conversation_id == cid:
-                self._requested_ids.discard(cid)
-                return msg
-            elif conversation_id is not None or cid in self._requested_ids:
-                self._message_buffer.append(msg)
-            else:
-                return msg
-            if time.perf_counter() > stop:
-                # inside the loop to do it at least once, even if timeout is 0
-                break
-        raise TimeoutError("Message not found.")
-
-    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
-                     ) -> Message:
-        msg = self._read_message(conversation_id=conversation_id, timeout=timeout)
-        if msg.sender_elements.name == b"COORDINATOR" and msg.payload:
-            try:
-                self.rpc_generator.get_result_from_response(msg.payload[0])
-            except JSONRPCError as exc:
-                code = exc.rpc_error.code
-                if code == NOT_SIGNED_IN.code:
-                    self.handle_not_signed_in()
-                raise
-        return msg
-
-    def ask_message(self, message: Message, timeout: Optional[float] = None
-                    ) -> Message:
-        self.send_message(message)
-        cid = message.conversation_id
-        # self._requested_ids.add(cid)
-        return self.read_message(conversation_id=cid, timeout=timeout)
+        try:
+            super().send(receiver=receiver, conversation_id=conversation_id, data=data, **kwargs)
+        except Exception as exc:
+            self.log.exception(f"Composing message with data {data} failed.", exc_info=exc)
+            # TODO send an error message to the receiver?
 
     # Continuous listening and message handling
     def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
@@ -323,19 +211,6 @@ class MessageHandler(CommunicatorProtocol, ExtendedComponentProtocol):
         if not msg.payload:
             return  # no payload, that means just a heartbeat
         self.handle_commands(msg)
-
-    def handle_not_signed_in(self) -> None:
-        self.namespace = None
-        self.sign_in()
-        self.log.warning("I was not signed in, signing in.")
-
-    def finish_sign_in(self, message: Message) -> None:
-        self.namespace = message.sender_elements.namespace.decode()
-        self.log.info(f"Signed in to Node '{self.namespace}'.")
-
-    def finish_sign_out(self) -> None:
-        self.log.info(f"Signed out from Node '{self.namespace}'.")
-        self.namespace = None
 
     def handle_commands(self, msg: Message) -> None:
         """Handle the list of commands in the message."""

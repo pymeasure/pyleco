@@ -341,15 +341,22 @@ class Test_handle_commands:
         # assert no error log entry.  TODO
 
     @pytest.mark.parametrize("data", (
-            "funny stuff",
-            {"jsonrpc": "2.0", "no method": 7}
+            {"jsonrpc": "2.0", "no method": 7},
+            ["jsonrpc", "2.0", "no method", 7],  # not a dict
     ))
-    def test_unknown_messages_raises_log(self, coordinator_hc: Coordinator,
-                                         caplog: pytest.LogCaptureFixture, data):
+    def test_invalid_json_does_not_raise_exception(self, coordinator_hc: Coordinator, data):
         coordinator_hc.handle_commands(b"",
                                        Message(receiver=b"COORDINATOR", sender=b"send",
                                                data=data, message_type=MessageTypes.JSON,))
-        assert caplog.records[-1].msg.startswith("Unknown message")
+        # assert that no error is raised
+
+    def test_invalid_json_message_raises_log(self, coordinator_hc: Coordinator,
+                                             caplog: pytest.LogCaptureFixture):
+        data = "funny stuff"
+        coordinator_hc.handle_commands(b"",
+                                       Message(receiver=b"COORDINATOR", sender=b"send",
+                                               data=data, message_type=MessageTypes.JSON,))
+        assert caplog.records[-1].msg.startswith("Invalid JSON message")
 
 
 class Test_sign_in:

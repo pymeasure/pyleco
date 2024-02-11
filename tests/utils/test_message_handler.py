@@ -99,14 +99,6 @@ class Test_setup_logging:
         assert handler.log == logging.getLogger("test.MessageHandler")
 
 
-def test_context_manager():
-    stored_handler = None
-    with MessageHandler(name="handler", context=FakeContext()) as handler:  # type: ignore
-        assert isinstance(handler, MessageHandler)  # assert enter
-        stored_handler = handler
-    assert stored_handler.socket.closed is True  # exit
-
-
 class Test_namespace_setter:
     def test_full_name_without_namespace(self, handler: MessageHandler):
         handler.namespace = None
@@ -194,9 +186,10 @@ class Test_finish_sign_in:
     @pytest.fixture
     def handler_fsi(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture):
         caplog.set_level(logging.INFO)
-        handler.finish_sign_in(message=Message(b"handler", b"N5.COORDINATOR",
-                                               message_type=MessageTypes.JSON, data={
-                                                   "id": 10, "result": None, "jsonrpc": "2.0"}))
+        handler.finish_sign_in(response_message=Message(
+            b"handler", b"N5.COORDINATOR",
+            message_type=MessageTypes.JSON,
+            data={"id": 10, "result": None, "jsonrpc": "2.0"}))
         return handler
 
     def test_namespace(self, handler_fsi: MessageHandler):

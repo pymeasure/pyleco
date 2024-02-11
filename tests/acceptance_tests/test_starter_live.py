@@ -66,8 +66,8 @@ def director():
     for thread in threads:
         thread.daemon = True
         thread.start()
-    director = StarterDirector(actor="starter", port=PORT)
     sleep(1)
+    director = StarterDirector(actor="starter", port=PORT)
     yield director
     log.info("Tearing down")
     stop_event.set()

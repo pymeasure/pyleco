@@ -86,12 +86,15 @@ class CommunicatorProtocol(Protocol):
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs),
             timeout=timeout)
 
+    def interpret_rpc_response(self, response_message: Message) -> Any:
+        return self.rpc_generator.get_result_from_response(response_message.payload[0])
+
     def ask_rpc(self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None,
                 **kwargs) -> Any:
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
         response = self.ask(receiver=receiver, data=string, message_type=MessageTypes.JSON,
                             timeout=timeout)
-        return self.rpc_generator.get_result_from_response(response.payload[0])
+        return self.interpret_rpc_response(response)
 
 
 class SubscriberProtocol(Protocol):
