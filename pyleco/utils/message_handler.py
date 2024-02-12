@@ -214,16 +214,17 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
     def handle_message(self, message: Message) -> None:
         if message.header_elements.message_type == MessageTypes.JSON:
-            self.handle_json_message(message=message)
+            response = self.process_json_message(message=message)
+            self.send_message(response)
         else:
             self.log.warning(f"Message from {message.sender!r} with unknown message type {message.header_elements.message_type} received: '{message.data}', {message.payload!r}.")  # noqa: E501
 
-    def handle_json_message(self, message: Message) -> None:
+    def process_json_message(self, message: Message) -> Message:
         self.log.info(f"Handling commands of {message}.")
         reply = self.rpc.process_request(message.payload[0])
         response = Message(message.sender, conversation_id=message.conversation_id,
                            message_type=MessageTypes.JSON, data=reply)
-        self.send_message(response)
+        return response
 
     def set_log_level(self, level: str) -> None:
         """Set the log level."""

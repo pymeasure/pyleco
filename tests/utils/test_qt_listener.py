@@ -74,3 +74,14 @@ class Test_handle_message:
         msg = Message("N.Pipe", "sender")
         qt_handler.handle_message(msg)
         assert qt_handler.signals.message._content == msg  # type: ignore
+
+    def test_local_method(self, qt_handler: QtPipeHandler):
+        msg = Message("handler", "sender",
+                      conversation_id=cid, message_type=MessageTypes.JSON,
+                      data={"jsonrpc": "2.0", "method": "pong", "id": 3})
+        qt_handler.handle_message(msg)
+        assert Message.from_frames(*qt_handler.socket._s[0]) == Message(  # type: ignore
+            "sender", "handler", conversation_id=cid, message_type=MessageTypes.JSON,
+            data={"jsonrpc": "2.0", "result": None, "id": 3}
+        )
+

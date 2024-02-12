@@ -57,7 +57,8 @@ class QtPipeHandler(PipeHandler):
                 pass
             else:
                 if method in self.local_methods:
-                    self.handle_json_message(message=message)
+                    response = self.process_json_message(message=message)
+                    self.send_message(response)
                     return
         # in all other cases:
         self.signals.message.emit(message)

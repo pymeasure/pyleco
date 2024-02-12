@@ -421,41 +421,32 @@ def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.Log
     assert caplog.records[-1].message.startswith("Message from b'sender'")
 
 
-class Test_handle_json_message:
-    msg: Message
-
-    @pytest.fixture
-    def handler_hjm(self, handler: MessageHandler) -> MessageHandler:
-        def _send_socket_message_fake(message: Message) -> None:
-            self.msg = message
-        handler._send_socket_message = _send_socket_message_fake  # type: ignore
-        return handler
-
-    def test_handle_rpc_request(self, handler_hjm: MessageHandler):
+class Test_process_json_message:
+    def test_handle_rpc_request(self, handler: MessageHandler):
         message = Message(receiver=handler_name, sender=remote_name,
                           data=Request(id=5, method="pong"),
                           conversation_id=cid, message_type=MessageTypes.JSON)
-        response = Message(receiver=remote_name, sender=handler_name,
+        response = Message(receiver=remote_name,
                            data=ResultResponse(id=5, result=None),
                            conversation_id=cid, message_type=MessageTypes.JSON)
-        handler_hjm.handle_json_message(message=message)
-        assert self.msg == response
+        result = handler.process_json_message(message=message)
+        assert result == response
 
-    def test_handle_json_not_request(self, handler_hjm: MessageHandler):
+    def test_handle_json_not_request(self, handler: MessageHandler):
         """Test, that a json message, which is not a request, is handled appropriately."""
         data = ResultResponse(id=5, result=None)  # some json, which is not a request.
-        response = Message(receiver=handler_name, sender=remote_name,
-                           data=data,
-                           conversation_id=cid, message_type=MessageTypes.JSON)
-        handler_hjm.handle_json_message(message=response)
-        error_message = Message(receiver=remote_name, sender=handler_name, conversation_id=cid,
+        message = Message(receiver=handler_name, sender=remote_name,
+                          data=data,
+                          conversation_id=cid, message_type=MessageTypes.JSON)
+        result = handler.process_json_message(message=message)
+        error_message = Message(receiver=remote_name, conversation_id=cid,
                                 message_type=MessageTypes.JSON,
                                 data=ErrorResponse(id=5, error=DataError(
                                     code=-32600,
                                     message="Invalid Request",
                                     data=data)))
         # assert
-        assert self.msg == error_message
+        assert result == error_message
 
 
 class Test_listen:
