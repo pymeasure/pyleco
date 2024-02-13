@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from json import JSONDecodeError
 import logging
 import time
 from typing import Any, Callable, Optional, Union
@@ -199,6 +200,7 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.log.info(f"Stop listen as '{self.name}'.")
         self.sign_out()
 
+    # Message handling in loop
     def read_and_handle_message(self) -> None:
         """Interpret incoming message, which have not been requested.
         """
@@ -214,10 +216,30 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
     def handle_message(self, message: Message) -> None:
         if message.header_elements.message_type == MessageTypes.JSON:
-            response = self.process_json_message(message=message)
-            self.send_message(response)
+            self.handle_json_message(message=message)
         else:
-            self.log.warning(f"Message from {message.sender!r} with unknown message type {message.header_elements.message_type} received: '{message.data}', {message.payload!r}.")  # noqa: E501
+            self.handle_unknown_message_type(message=message)
+
+    def handle_json_message(self, message: Message) -> None:
+        try:
+            data: dict[str, Any] = message.data  # type: ignore
+            keys = data.keys()
+        except (JSONDecodeError, AttributeError) as exc:
+            self.log.exception(f"Could not decode json message {message}", exc_info=exc)
+            return
+        if "method" in keys:
+            self.handle_json_request(message=message)
+            return
+        elif "error" in keys:
+            self.handle_json_error(message=message)
+        elif "result" in keys:
+            self.handle_json_result(message)
+        else:
+            self.log.error(f"Invalid JSON message received: {message}")
+
+    def handle_json_request(self, message: Message) -> None:
+        response = self.process_json_message(message=message)
+        self.send_message(response)
 
     def process_json_message(self, message: Message) -> Message:
         self.log.info(f"Handling commands of {message}.")
@@ -226,6 +248,19 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
                            message_type=MessageTypes.JSON, data=reply)
         return response
 
+    def handle_json_error(self, message: Message) -> None:
+        self.log.warning(f"Error message from {message.sender!r} received: {message}")
+
+    def handle_json_result(self, message: Message) -> None:
+        self.log.warning(f"Unsolicited message from {message.sender!r} received: '{message}'")
+
+    def handle_unknown_message_type(self, message: Message) -> None:
+        self.log.warning(
+                f"Message from {message.sender!r} with unknown message type "
+                f"{message.header_elements.message_type} received: '{message.data}', "
+                f"{message.payload!r}.")
+
+    # Methods offered via RPC
     def set_log_level(self, level: str) -> None:
         """Set the log level."""
         plevel = PythonLogLevels[level]

@@ -436,7 +436,7 @@ class Test_read_and_handle_message:
                                     message_type=MessageTypes.JSON,
                                     data=[]).to_frames()]
         handler.read_and_handle_message()
-        assert caplog.records[-1].msg.startswith("AttributeError")
+        assert caplog.records[-1].msg.startswith("Could not decode")
 
 
 def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.LogCaptureFixture):

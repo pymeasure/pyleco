@@ -34,6 +34,9 @@ from ..core.message import Message, MessageTypes
 from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
 
 
+NOT_SIGNED_IN_ERROR_CODE = str(NOT_SIGNED_IN.code).encode()
+
+
 class BaseCommunicator(CommunicatorProtocol, Protocol):
     """Abstract class of a Communicator with some logic.
     """
@@ -76,6 +79,7 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         string = self.rpc_generator.build_request_str(method="sign_in")
         try:
             msg = self.ask(b"COORDINATOR", data=string, message_type=MessageTypes.JSON)
+            self.interpret_rpc_response(msg)
         except JSONRPCError as exc:
             json_error = exc.rpc_error
             if json_error.code == DUPLICATE_NAME.code:
@@ -138,6 +142,7 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         stop = perf_counter() + (timeout or self.timeout)
         while True:
             msg = self._read_socket_message(timeout)
+            self.check_for_not_signed_in_error(message=msg)
             cid = msg.conversation_id
             if conversation_id == cid:
                 self._requested_ids.discard(cid)
@@ -151,24 +156,18 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
                 break
         raise TimeoutError("Message not found.")
 
-    def _read_message_raw(self, conversation_id: Optional[bytes] = None,
+    def check_for_not_signed_in_error(self, message: Message) -> None:
+        if (message.sender_elements.name == b"COORDINATOR"
+            and message.payload
+            and b"error" in message.payload[0]
+            and NOT_SIGNED_IN_ERROR_CODE in message.payload[0]):
+            self.handle_not_signed_in()
+
+    def read_message(self, conversation_id: Optional[bytes] = None,
                           timeout: Optional[float] = None) -> Message:
         message = self._find_buffer_message(conversation_id=conversation_id)
         if message is None:
             message = self._find_socket_message(conversation_id=conversation_id, timeout=timeout)
-        return message
-
-    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None,
-                     ) -> Message:
-        message = self._read_message_raw(conversation_id=conversation_id, timeout=timeout)
-        if message.sender_elements.name == b"COORDINATOR" and message.payload:
-            try:
-                self.rpc_generator.get_result_from_response(message.payload[0])
-            except JSONRPCError as exc:
-                code = exc.rpc_error.code
-                if code == NOT_SIGNED_IN.code:
-                    self.handle_not_signed_in()
-                raise
         return message
 
     def handle_not_signed_in(self) -> None:

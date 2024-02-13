@@ -313,10 +313,11 @@ class PipeHandler(ExtendedMessageHandler):
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
 
-    def _read_message_raw(self, conversation_id: Optional[bytes] = None,
+    def read_message(self, conversation_id: Optional[bytes] = None,
                           timeout: Optional[float] = None) -> Message:
         """Read a message using the thread safe buffer."""
         message = self._read_socket_message(timeout=timeout)
+        self.check_for_not_signed_in_error(message=message)
         if self.buffer.add_response_message(message):
             raise TimeoutError
         else:

@@ -25,10 +25,10 @@
 import pytest
 
 from pyleco.test import FakeCommunicator, FakeContext
+from pyleco.core.message import Message, MessageTypes
 
 try:
-    from pyleco.utils.qt_listener import (QtListener, Message, MessageTypes, QtPipeHandler,
-                                          ListenerSignals)
+    from pyleco.utils.qt_listener import QtListener, QtPipeHandler, ListenerSignals
 except ModuleNotFoundError:
     pytest.skip(reason="qtpy not installed.", allow_module_level=True)
 

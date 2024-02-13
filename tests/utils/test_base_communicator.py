@@ -266,22 +266,27 @@ class Test_read_message:
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_return_correct_message(self,
-                                    test: tuple[list[Message], list, Optional[bytes]],
+                                    test: tuple[list[Message], list[Message], Optional[bytes]],
                                     communicator: FakeBaseCommunicator):
         socket, buffer, cid0, *_ = test
-        communicator._r = socket  # type: ignore
-        communicator._message_buffer = buffer
-        communicator._requested_ids = {cid, }
-        # act and assert
-        assert communicator.read_message(conversation_id=cid0) == self.m1 if cid is None else self.mr  # noqa
-
-    @pytest.mark.parametrize("test", conf, ids=ids)
-    def test_correct_buffer_socket(self, test, communicator: FakeBaseCommunicator):
-        socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test
-        communicator._r = socket_in  # type: ignore
-        communicator._message_buffer = buffer_in
+        communicator._r = socket.copy()  # type: ignore
+        communicator._message_buffer = buffer.copy()
         communicator._requested_ids = {cid, }
         # act
+        result = communicator.read_message(conversation_id=cid0)
+        assert result == self.m1 if cid is None else self.mr
+
+    @pytest.mark.parametrize("test", conf, ids=ids)
+    def test_correct_buffer_socket(self,
+                                   test: tuple[list[Message], list[Message], Optional[bytes],
+                                               list[Message], list[Message]],
+                                   communicator: FakeBaseCommunicator):
+        socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test
+        communicator._r = socket_in.copy()  # type: ignore
+        communicator._message_buffer = buffer_in.copy()
+        communicator._requested_ids = {cid, }
+        # act
+        print(cid0, buffer_in)
         communicator.read_message(conversation_id=cid0)
         assert communicator._r == socket_out  # type: ignore
         assert communicator._message_buffer == buffer_out
