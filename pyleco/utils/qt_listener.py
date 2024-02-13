@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #
 
+from typing import Optional
+
 from qtpy.QtCore import QObject, Signal  # type: ignore
 from zmq import Context  # type: ignore
 
@@ -42,7 +44,7 @@ class QtPipeHandler(PipeHandler):
 
     local_methods = ["pong", "set_log_level"]
 
-    def __init__(self, name: str, signals: ListenerSignals, context: Context | None = None,
+    def __init__(self, name: str, signals: ListenerSignals, context: Optional[Context] = None,
                  **kwargs) -> None:
         self.signals = signals
         super().__init__(name, context, **kwargs)

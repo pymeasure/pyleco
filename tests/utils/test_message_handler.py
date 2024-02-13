@@ -36,9 +36,10 @@ from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
-from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME, ErrorResponse, DataError
+from pyleco.errors import (NOT_SIGNED_IN, DUPLICATE_NAME, NODE_UNKNOWN, RECEIVER_UNKNOWN,
+                           ErrorResponse, DataError)
 
-from pyleco.utils.message_handler import MessageHandler, SimpleEvent, JSONRPCError
+from pyleco.utils.message_handler import MessageHandler, SimpleEvent
 
 
 handler_name = "N1.handler"
@@ -352,67 +353,90 @@ class Test_ask_message:
         assert cid not in handler_asked._requested_ids
 
 
-def test_handle_message_handles_no_new_message(handler: MessageHandler):
-    handler._requested_ids.add(cid)
-    handler.socket._r = [  # type: ignore
-        Message(receiver=handler_name, sender=remote_name, conversation_id=cid).to_frames()]
-    # act
-    handler.read_and_handle_message()
-    # assert that no error is raised.
+class Test_read_and_handle_message:
+    def test_handle_message_handles_no_new_socket_message(self, handler: MessageHandler):
+        """Test, that the message handler does not raise an error without a new socket message."""
+        handler._requested_ids.add(cid)
+        handler.socket._r = [  # type: ignore
+            Message(receiver=handler_name, sender=remote_name, conversation_id=cid).to_frames()]
+        # act
+        handler.read_and_handle_message()
+        # assert that no error is raised.
 
+    def test_handle_message_ignores_heartbeats(self, handler: MessageHandler):
+        handler.handle_message = MagicMock()  # type: ignore
+        # empty message of heartbeat
+        handler.socket._r = [[VERSION_B, b"N1.handler", b"whatever", b";"]]  # type: ignore
+        handler.read_and_handle_message()
+        handler.handle_message.assert_not_called()
 
-def test_handle_message_ignores_heartbeats(handler: MessageHandler):
-    handler.handle_message = MagicMock()  # type: ignore
-    # empty message of heartbeat
-    handler.socket._r = [[VERSION_B, b"N1.handler", b"whatever", b";"]]  # type: ignore
-    handler.read_and_handle_message()
-    handler.handle_message.assert_not_called()
+    @pytest.mark.parametrize("i, out", (
+        (  # shutdown
+         [VERSION_B, b"N1.handler", b"N1.CB", b"conversation_id;mid" + bytes((MessageTypes.JSON,)),
+          serialize_data({"id": 5, "method": "shut_down", "jsonrpc": "2.0"})],
+         [VERSION_B, b"N1.CB", b"N1.handler", b"conversation_id;\x00\x00\x00\x00",
+          serialize_data({"id": 5, "result": None, "jsonrpc": "2.0"})]),
+        (  # pong
+         Message("N1.handler", "N1.COORDINATOR", conversation_id=cid,
+                 message_type=MessageTypes.JSON, data=Request(id=2, method="pong")
+                 ).to_frames(),
+         Message("N1.COORDINATOR", "N1.handler", conversation_id=cid,
+                 message_type=MessageTypes.JSON,
+                 data=ResultResponse(id=2, result=None)).to_frames()),
+    ))
+    def test_read_and_handle_message(self, handler: MessageHandler,
+                                     i: list[bytes], out: list[bytes]):
+        handler.socket._r = [i]  # type: ignore
+        handler.read_and_handle_message()
+        for j in range(len(out)):
+            if j == 3:
+                continue  # reply adds timestamp
+            assert handler.socket._s[0][j] == out[j]  # type: ignore
 
+    def test_handle_not_signed_in_message(self, handler: MessageHandler):
+        handler.sign_in = MagicMock()  # type: ignore
+        handler.socket._r = [Message(receiver="handler", sender="N1.COORDINATOR",  # type: ignore
+                                    message_type=MessageTypes.JSON,
+                                    data=ErrorResponse(id=5, error=NOT_SIGNED_IN),
+                                    ).to_frames()]
+        handler.read_and_handle_message()
+        assert handler.namespace is None
+        handler.sign_in.assert_called_once()
+        assert handler.full_name == "handler"
 
-@pytest.mark.parametrize("i, out", (
-    ([VERSION_B, b"N1.handler", b"N1.CB", b"conversation_id;mid" + bytes((MessageTypes.JSON,)),
-      serialize_data({"id": 5, "method": "shut_down", "jsonrpc": "2.0"})],
-     [VERSION_B, b"N1.CB", b"N1.handler", b"conversation_id;\x00\x00\x00\x00",
-      serialize_data({"id": 5, "result": None, "jsonrpc": "2.0"})]),
-))
-def test_read_and_handle_message(handler: MessageHandler, i, out):
-    handler.socket._r = [i]  # type: ignore
-    handler.read_and_handle_message()
-    for j in range(len(out)):
-        if j == 3:
-            continue  # reply adds timestamp
-        assert handler.socket._s[0][j] == out[j]  # type: ignore
+    def test_handle_node_unknown_message(self, handler: MessageHandler):
+        error = Message("N1.handler", "N1.COORDINATOR", message_type=MessageTypes.JSON,
+                        data=ErrorResponse(id=None, error=NODE_UNKNOWN))
+        handler._message_buffer.append(error)
+        handler.read_and_handle_message()
+        # assert that no error is raised and that no message is sent
+        assert handler.socket._s == []
 
+    def test_handle_receiver_unknown_message(self, handler: MessageHandler):
+        error = Message("N1.handler", "N1.COORDINATOR", message_type=MessageTypes.JSON,
+                        data=ErrorResponse(id=None, error=RECEIVER_UNKNOWN))
+        handler._message_buffer.append(error)
+        handler.read_and_handle_message()
+        # assert that no error is raised and that no message is sent
+        assert handler.socket._s == []
 
-def test_handle_not_signed_in_message(handler: MessageHandler):
-    handler.sign_in = MagicMock()  # type: ignore
-    handler.socket._r = [Message(receiver="handler", sender="N1.COORDINATOR",  # type: ignore
-                                 message_type=MessageTypes.JSON,
-                                 data=ErrorResponse(id=5, error=NOT_SIGNED_IN),
-                                 ).to_frames()]
-    with pytest.raises(JSONRPCError):
-        handler.read_message()
-    assert handler.namespace is None
-    handler.sign_in.assert_called_once()
-    assert handler.full_name == "handler"
+    def test_handle_ACK_does_not_change_Namespace(self, handler: MessageHandler):
+        """Test that an ACK does not change the Namespace, if it is already set."""
+        handler.socket._r = [Message(b"N3.handler", b"N3.COORDINATOR",  # type: ignore
+                                    message_type=MessageTypes.JSON,
+                                    data={"id": 3, "result": None, "jsonrpc": "2.0"}).to_frames()]
+        handler.namespace = "N1"
+        handler.read_and_handle_message()
+        assert handler.namespace == "N1"
 
-
-def test_handle_ACK_does_not_change_Namespace(handler: MessageHandler):
-    """Test that an ACK does not change the Namespace, if it is already set."""
-    handler.socket._r = [Message(b"N3.handler", b"N3.COORDINATOR",  # type: ignore
-                                 message_type=MessageTypes.JSON,
-                                 data={"id": 3, "result": None, "jsonrpc": "2.0"}).to_frames()]
-    handler.namespace = "N1"
-    handler.read_and_handle_message()
-    assert handler.namespace == "N1"
-
-
-def test_handle_corrupted_message(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
-    handler.socket._r = [Message(b"N3.handler", b"N3.COORDINATOR",  # type: ignore
-                                 message_type=MessageTypes.JSON,
-                                 data=[]).to_frames()]
-    handler.read_and_handle_message()
-    assert caplog.records[-1].msg.startswith("AttributeError")
+    def test_handle_corrupted_message(self, handler: MessageHandler,
+                                      caplog: pytest.LogCaptureFixture):
+        """An invalid message should not cause the message handler to crash."""
+        handler.socket._r = [Message(b"N3.handler", b"N3.COORDINATOR",  # type: ignore
+                                    message_type=MessageTypes.JSON,
+                                    data=[]).to_frames()]
+        handler.read_and_handle_message()
+        assert caplog.records[-1].msg.startswith("AttributeError")
 
 
 def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
