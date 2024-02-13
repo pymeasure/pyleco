@@ -1,21 +1,30 @@
 # CHANGELOG
 
-## [unreleased]
+## [0.2.0] - 2024-02-13
+
+_Several deprecated parts are removed and inner workings are changed._
 
 ### Changed
 
-- **Breaking:** change `MessageHandler.handle_commands` to `handle_message`
-- **Breaking:** change PipeHandler inner workings of handling messages.
-- Add `BaseCommunicator` as a base class for Communicator and MessageHandler (#48)
+- **Breaking:** change `MessageHandler.handle_commands` to `handle_message` ([#44](https://github.com/pymeasure/pyleco/pull/44))
+- **Breaking:** change PipeHandler inner workings of handling messages ([#44](https://github.com/pymeasure/pyleco/pull/44))
+- Add `BaseCommunicator` as a base class for Communicator and MessageHandler ([#48](https://github.com/pymeasure/pyleco/pull/48))
+- Refactor the Coordinator `handle_commands` ([#50](https://github.com/pymeasure/pyleco/pull/50))
 
 ### Added
 
-- Add the `Coordinator`, the `proxy_server`, and the `starter` as scripts to the command line
+- Add the `Coordinator`, the `proxy_server`, and the `starter` as scripts to the command line ([#53](https://github.com/pymeasure/pyleco/pull/53))
 
 ### Removed
 
 - **Breaking:** remove `Coordinator.ask_raw` (#48)
 - **Breaking:** remove legacy subscription messages from extended message handler (#48)
+
+### Fixed
+
+- Fix DataLogger to start a timer, even if not specified explicitly ([#51](https://github.com/pymeasure/pyleco/pull/51))
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.1.0...v.0.2.0
 
 
 ## [0.1.0] - 2024-02-01
@@ -55,6 +64,7 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.0
 [0.1.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.1.0
 [alpha-0.0.1]: https://github.com/pymeasure/pyleco/releases/tag/alpha-0.0.1
