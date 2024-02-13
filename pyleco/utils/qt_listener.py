@@ -22,45 +22,61 @@
 # THE SOFTWARE.
 #
 
+from typing import Optional
+
 from qtpy.QtCore import QObject, Signal  # type: ignore
 from zmq import Context  # type: ignore
 
-from ..core.message import Message, MessageTypes
+from ..core.message import Message
 from ..core.data_message import DataMessage
 from .listener import Listener, PipeHandler
 
 
 class ListenerSignals(QObject):
     """Signals for the Listener."""
-    dataReady = Signal(dict)
-    message = Signal(Message)
-    data_message = Signal(DataMessage)
+    # General
     name_changed = Signal(str)
+    # Control protocol
+    json_request_message = Signal(Message)
+    json_error_message = Signal(Message)
+    json_result_message = Signal(Message)
+    message = Signal(Message)  # emitted in the same cases as above messages.
+    # Data Protocol
+    dataReady = Signal(dict)
+    data_message = Signal(DataMessage)
 
 
 class QtPipeHandler(PipeHandler):
 
     local_methods = ["pong", "set_log_level"]
 
-    def __init__(self, name: str, signals: ListenerSignals, context: Context | None = None,
+    def __init__(self, name: str, signals: ListenerSignals, context: Optional[Context] = None,
                  **kwargs) -> None:
         self.signals = signals
         super().__init__(name, context, **kwargs)
 
-    def handle_message(self, message: Message) -> None:
-        if self.buffer.add_response_message(message):
-            return
-        elif message.header_elements.message_type == MessageTypes.JSON:
-            try:
-                method = message.data.get("method")  # type: ignore
-            except AttributeError:
-                pass
-            else:
-                if method in self.local_methods:
-                    response = self.process_json_message(message=message)
-                    self.send_message(response)
-                    return
+    def handle_json_request(self, message: Message) -> None:
+        try:
+            method = message.data.get("method")  # type: ignore
+        except AttributeError:
+            pass
+        else:
+            if method in self.local_methods:
+                super().handle_json_request(message=message)
+                return
         # in all other cases:
+        self.signals.message.emit(message)
+        self.signals.json_request_message.emit(message)
+
+    def handle_json_error(self, message: Message) -> None:
+        self.signals.message.emit(message)
+        self.signals.json_error_message.emit(message)
+
+    def handle_json_result(self, message: Message) -> None:
+        self.signals.message.emit(message)
+        self.signals.json_result_message.emit(message)
+
+    def handle_unknown_message_type(self, message: Message) -> None:
         self.signals.message.emit(message)
 
     def handle_subscription_data(self, data: dict) -> None:
