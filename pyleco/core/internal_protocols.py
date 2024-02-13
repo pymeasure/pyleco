@@ -27,7 +27,7 @@ These classes show pyleco's internal API of tools that talk with the LECO protoc
 
 They are not defined by LECO itself as it does not touch the message transfer.
 
-Any Component could use these tools in order to send and read messsages.
+Any Component could use these tools in order to send and read messages.
 For example a Director might use these tools to direct an Actor.
 """
 
@@ -47,6 +47,10 @@ class CommunicatorProtocol(Protocol):
     namespace: Optional[str] = None
     rpc_generator: RPCGenerator
     timeout: float = 1  # default reading timeout in seconds
+
+    @property
+    def full_name(self) -> str:
+        return self.name if self.namespace is None else ".".join((self.namespace, self.name))
 
     def sign_in(self) -> None: ...  # pragma: no cover
 
@@ -82,12 +86,15 @@ class CommunicatorProtocol(Protocol):
             receiver=receiver, conversation_id=conversation_id, data=data, **kwargs),
             timeout=timeout)
 
+    def interpret_rpc_response(self, response_message: Message) -> Any:
+        return self.rpc_generator.get_result_from_response(response_message.payload[0])
+
     def ask_rpc(self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None,
                 **kwargs) -> Any:
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
         response = self.ask(receiver=receiver, data=string, message_type=MessageTypes.JSON,
                             timeout=timeout)
-        return self.rpc_generator.get_result_from_response(response.payload[0])
+        return self.interpret_rpc_response(response)
 
 
 class SubscriberProtocol(Protocol):
@@ -96,6 +103,8 @@ class SubscriberProtocol(Protocol):
     def subscribe_single(self, topic: bytes) -> None: ...  # pragma: no cover
 
     def unsubscribe_single(self, topic: bytes) -> None: ...  # pragma: no cover
+
+    def unsubscribe_all(self) -> None: ...  # pragma: no cover
 
     def subscribe(self, topics: Union[str, Iterable[str]]) -> None:
         """Subscribe to a topic or list of topics."""

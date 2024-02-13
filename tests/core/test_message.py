@@ -213,5 +213,10 @@ def test_repr():
     assert repr(message) == r"Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')"
 
 
+def test_repr_without_sender():
+    message = Message.from_frames(b'V', b'rec', b'', b'cid;mid', b'data')
+    assert repr(message) == r"Message.from_frames(b'V', b'rec', b'', b'cid;mid', b'data')"
+
+
 def test_conversation_id_getter(message: Message):
     assert message.conversation_id == cid
