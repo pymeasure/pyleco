@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [0.2.1] - 2024-02-13
+
+### Fixed
+
+- Fix BaseCommunciator to hand over message, if it is an error message (#55)
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.2.0...v.0.2.1
+
+
 ## [0.2.0] - 2024-02-13
 
 _Several deprecated parts are removed and inner workings are changed._
@@ -64,7 +73,8 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.1
 [0.2.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.0
 [0.1.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.1.0
 [alpha-0.0.1]: https://github.com/pymeasure/pyleco/releases/tag/alpha-0.0.1
