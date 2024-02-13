@@ -203,28 +203,28 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         """Interpret incoming message, which have not been requested.
         """
         try:
-            msg = self.read_message(timeout=0)
+            message = self.read_message(timeout=0)
         except (TimeoutError, JSONRPCError):
             # only responses / errors arrived.
             return
-        self.log.debug(f"Handling message {msg}")
-        if not msg.payload:
+        self.log.debug(f"Handling message {message}")
+        if not message.payload:
             return  # no payload, that means just a heartbeat
-        self.handle_commands(msg)
+        self.handle_message(message=message)
 
-    def handle_commands(self, msg: Message) -> None:
-        """Handle the list of commands in the message."""
-        if msg.header_elements.message_type == MessageTypes.JSON:
-            if b'"method":' in msg.payload[0]:
-                self.log.info(f"Handling commands of {msg}.")
-                reply = self.rpc.process_request(msg.payload[0])
-                response = Message(msg.sender, conversation_id=msg.conversation_id,
-                                   message_type=MessageTypes.JSON, data=reply)
-                self.send_message(response)
-            else:
-                self.log.error(f"Unknown message from {msg.sender!r} received: {msg.payload[0]!r}")
+    def handle_message(self, message: Message) -> None:
+        if message.header_elements.message_type == MessageTypes.JSON:
+            response = self.process_json_message(message=message)
+            self.send_message(response)
         else:
-            self.log.warning(f"Message from {msg.sender!r} with unknown message type {msg.header_elements.message_type} received: '{msg.data}', {msg.payload!r}.")  # noqa: E501
+            self.log.warning(f"Message from {message.sender!r} with unknown message type {message.header_elements.message_type} received: '{message.data}', {message.payload!r}.")  # noqa: E501
+
+    def process_json_message(self, message: Message) -> Message:
+        self.log.info(f"Handling commands of {message}.")
+        reply = self.rpc.process_request(message.payload[0])
+        response = Message(message.sender, conversation_id=message.conversation_id,
+                           message_type=MessageTypes.JSON, data=reply)
+        return response
 
     def set_log_level(self, level: str) -> None:
         """Set the log level."""

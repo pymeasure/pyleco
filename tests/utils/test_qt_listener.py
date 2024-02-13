@@ -24,10 +24,11 @@
 
 import pytest
 
-from pyleco.test import FakeCommunicator
+from pyleco.test import FakeCommunicator, FakeContext
 
 try:
-    from pyleco.utils.qt_listener import QtListener, Message, MessageTypes
+    from pyleco.utils.qt_listener import (QtListener, Message, MessageTypes, QtPipeHandler,
+                                          ListenerSignals)
 except ModuleNotFoundError:
     pytest.skip(reason="qtpy not installed.", allow_module_level=True)
 
@@ -50,17 +51,37 @@ def qt_listener(signal) -> QtListener:
     return qt_listener
 
 
-class Test_finish_handle_commands:
-    def test_handle_valid_jsonrpc(self, qt_listener: QtListener):
+@pytest.fixture
+def qt_handler(signal) -> QtPipeHandler:
+    handler = QtPipeHandler(name="handler",
+                            context=FakeContext(),  # type: ignore
+                            signals=ListenerSignals())
+    handler.signals.message = signal
+    return handler
+
+
+class Test_handle_message:
+    def test_handle_valid_jsonrpc(self, qt_handler: QtPipeHandler):
         msg = Message("N.Pipe", "sender",
                       data={"jsonrpc": "2.0", "method": "abc", "id": 6},
                       message_type=MessageTypes.JSON,
                       conversation_id=cid,
                       )
-        qt_listener.finish_handle_commands(msg)
-        assert qt_listener.signals.message._content == msg  # type: ignore
+        qt_handler.handle_message(msg)
+        assert qt_handler.signals.message._content == msg  # type: ignore
 
-    def test_empty_message(self, qt_listener: QtListener):
+    def test_empty_message(self, qt_handler: QtPipeHandler):
         msg = Message("N.Pipe", "sender")
-        qt_listener.finish_handle_commands(msg)
-        assert qt_listener.signals.message._content == msg  # type: ignore
+        qt_handler.handle_message(msg)
+        assert qt_handler.signals.message._content == msg  # type: ignore
+
+    def test_local_method(self, qt_handler: QtPipeHandler):
+        msg = Message("handler", "sender",
+                      conversation_id=cid, message_type=MessageTypes.JSON,
+                      data={"jsonrpc": "2.0", "method": "pong", "id": 3})
+        qt_handler.handle_message(msg)
+        assert Message.from_frames(*qt_handler.socket._s[0]) == Message(  # type: ignore
+            "sender", "handler", conversation_id=cid, message_type=MessageTypes.JSON,
+            data={"jsonrpc": "2.0", "result": None, "id": 3}
+        )
+

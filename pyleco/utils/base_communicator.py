@@ -151,11 +151,16 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
                 break
         raise TimeoutError("Message not found.")
 
-    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None,
-                     ) -> Message:
+    def _read_message_raw(self, conversation_id: Optional[bytes] = None,
+                          timeout: Optional[float] = None) -> Message:
         message = self._find_buffer_message(conversation_id=conversation_id)
         if message is None:
             message = self._find_socket_message(conversation_id=conversation_id, timeout=timeout)
+        return message
+
+    def read_message(self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None,
+                     ) -> Message:
+        message = self._read_message_raw(conversation_id=conversation_id, timeout=timeout)
         if message.sender_elements.name == b"COORDINATOR" and message.payload:
             try:
                 self.rpc_generator.get_result_from_response(message.payload[0])
