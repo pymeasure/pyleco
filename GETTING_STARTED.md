@@ -19,8 +19,9 @@ As LECO consists in two parts, the control protocol and the data protocol, there
 1. The _Coordinator_ in [`coordinator.py`](pyleco/coordinators/coordinator.py) is the server of the control protocol.
 2. [`proxy_server.py`](pyleco/coordinators/proxy_server.py) contains the server of the data protocol.
 
-In order to start these Coordinators, just execute the files with python.
-For example, change directory in the folder of this file and execute `python3 pyleco/coordinators/coordinator.py` under linux or `py pyleco/coordinators/coordinator.py` under Windows with the Windows Launcher installed.
+In order to start these Coordinators, execute `coordinator` and `proxy_server` in a terminal.
+Alternatively, execute the corresponding files with python:
+for example, change directory in the folder of this getting started file and execute `python3 pyleco/coordinators/coordinator.py` under linux or `py pyleco/coordinators/coordinator.py` under Windows with the Windows Launcher installed.
 
 If you need settings which are different from the defaults, you can use command line parameters.
 The command line parameter `-h` or `--help` gives an overview of all available parameters.
@@ -37,7 +38,8 @@ It will start, if told to do so, the method `task` of a given file name in a sep
 That allows to specify several different tasks, for example each one controlling one measurement instrument, and to start them by sending a command to the starter.
 How this works exactly, is described below. 
 
-In order to start the starter itself, just execute its file with the path to the directory, for example `python3 pyleco/management/starter.py --directory ~/tasks` with the tasks being in the subfolder `tasks` of the home directory.
+In order to start the starter itself, execute `starter --directory ~/tasks` in a terminal with the tasks being in the subfolder `tasks` of the home directory.
+Alternatively, execute its file with the path to the directory, for example `python3 pyleco/management/starter.py --directory ~/tasks`. 
 
 #### Define a Task File
 

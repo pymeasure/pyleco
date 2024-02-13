@@ -8,6 +8,10 @@
 - **Breaking:** change PipeHandler inner workings of handling messages.
 - Add `BaseCommunicator` as a base class for Communicator and MessageHandler (#48)
 
+### Added
+
+- Add the `Coordinator`, the `proxy_server`, and the `starter` as scripts to the command line
+
 ### Removed
 
 - **Breaking:** remove `Coordinator.ask_raw` (#48)

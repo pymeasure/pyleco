@@ -55,7 +55,7 @@ For that purpose, you send a message which encodes exactly that (via jsonrpc): t
 ### Minimum Setup
 
 For a minimum setup, you need:
-* a Coordinator (just run `coordinator.py` file)
+* a Coordinator (just execute `coordinator` in your terminal or run the `coordinator.py` file with your Python interpreter)
 * one Component
 
 For example, you can use a `Communicator` instance to send/receive messages via LECO protocol.
