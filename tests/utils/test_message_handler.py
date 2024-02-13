@@ -429,6 +429,15 @@ class Test_read_and_handle_message:
         handler.read_and_handle_message()
         assert handler.namespace == "N1"
 
+    def test_handle_invalid_json_message(self, handler: MessageHandler,
+                                      caplog: pytest.LogCaptureFixture):
+        """An invalid message should not cause the message handler to crash."""
+        handler.socket._r = [Message(b"N3.handler", b"N3.COORDINATOR",  # type: ignore
+                                    message_type=MessageTypes.JSON,
+                                    data={"without": "method..."}).to_frames()]
+        handler.read_and_handle_message()
+        assert caplog.records[-1].msg.startswith("Invalid JSON message")
+
     def test_handle_corrupted_message(self, handler: MessageHandler,
                                       caplog: pytest.LogCaptureFixture):
         """An invalid message should not cause the message handler to crash."""
@@ -437,6 +446,7 @@ class Test_read_and_handle_message:
                                     data=[]).to_frames()]
         handler.read_and_handle_message()
         assert caplog.records[-1].msg.startswith("Could not decode")
+
 
 
 def test_handle_unknown_message_type(handler: MessageHandler, caplog: pytest.LogCaptureFixture):
