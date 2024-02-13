@@ -39,6 +39,11 @@ dev = [
 "Homepage" = "https://github.com/pymeasure/pyleco"
 "Bug Tracker" = "https://github.com/pymeasure/pyleco/issues"
 
+[project.scripts]
+coordinator = "pyleco.coordinators.coordinator:main"
+proxy_server = "pyleco.coordinators.proxy_server:main"
+starter = "pyleco.management.starter:main"
+
 [build-system]
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=7.0"]
 build-backend = "setuptools.build_meta"
