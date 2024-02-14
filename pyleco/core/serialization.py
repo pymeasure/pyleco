@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 import json
 from typing import Any, Optional, NamedTuple, Union
 
@@ -66,6 +66,18 @@ class MessageTypes(IntEnum):
     """The different message types, represented as an integer in the range [0, 255]."""
     NOT_DEFINED = 0
     JSON = 1
+
+
+class JsonContentTypes(IntFlag):
+    """Type of the JSON content."""
+    INVALID = 0
+    REQUEST = 1
+    RESPONSE = 2
+    RESULT = 4
+    ERROR = 8
+    BATCH = 16
+    RESULT_RESPONSE = RESPONSE + RESULT
+    ERROR_RESPONSE = RESPONSE + ERROR
 
 
 def create_header_frame(conversation_id: Optional[bytes] = None,
@@ -139,3 +151,28 @@ def deserialize_data(content: bytes) -> Any:
 def generate_conversation_id() -> bytes:
     """Generate a conversation_id."""
     return uuid7(as_type="bytes")  # type: ignore
+
+
+def _get_json_object_type(data: dict[str, Any]) -> JsonContentTypes:
+    if isinstance(data, dict):
+        if "method" in data.keys():
+            return JsonContentTypes.REQUEST
+        elif "result" in data.keys():
+            return JsonContentTypes.RESULT_RESPONSE
+        elif "error" in data.keys():
+            return JsonContentTypes.ERROR_RESPONSE
+    return JsonContentTypes.INVALID
+
+
+def get_json_content_type(data: Any) -> JsonContentTypes:
+    if isinstance(data, list):
+        content = JsonContentTypes.BATCH if data else JsonContentTypes.INVALID
+        for element in data:
+            element_typ = _get_json_object_type(element)
+            if element_typ == JsonContentTypes.INVALID:
+                return JsonContentTypes.INVALID
+            else:
+                content |= element_typ
+        return content
+    else:
+        return _get_json_object_type(data)
