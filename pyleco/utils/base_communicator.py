@@ -158,13 +158,13 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
 
     def check_for_not_signed_in_error(self, message: Message) -> None:
         if (message.sender_elements.name == b"COORDINATOR"
-            and message.payload
-            and b"error" in message.payload[0]
-            and NOT_SIGNED_IN_ERROR_CODE in message.payload[0]):
+                and message.payload
+                and b"error" in message.payload[0]
+                and NOT_SIGNED_IN_ERROR_CODE in message.payload[0]):
             self.handle_not_signed_in()
 
     def read_message(self, conversation_id: Optional[bytes] = None,
-                          timeout: Optional[float] = None) -> Message:
+                     timeout: Optional[float] = None) -> Message:
         message = self._find_buffer_message(conversation_id=conversation_id)
         if message is None:
             message = self._find_socket_message(conversation_id=conversation_id, timeout=timeout)
