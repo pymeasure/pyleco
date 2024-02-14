@@ -35,6 +35,7 @@ from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message, MessageTypes
 from ..core.rpc_generator import RPCGenerator
+from ..core.serialization import JsonContentTypes, get_json_content_type
 from .base_communicator import BaseCommunicator
 from .log_levels import PythonLogLevels
 from .zmq_log_handler import ZmqLogHandler
@@ -223,16 +224,15 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
     def handle_json_message(self, message: Message) -> None:
         try:
             data: dict[str, Any] = message.data  # type: ignore
-            keys = data.keys()
-        except (JSONDecodeError, AttributeError) as exc:
+        except (JSONDecodeError) as exc:
             self.log.exception(f"Could not decode json message {message}", exc_info=exc)
             return
-        if "method" in keys:
+        content = get_json_content_type(data)
+        if JsonContentTypes.REQUEST in content:
             self.handle_json_request(message=message)
-            return
-        elif "error" in keys:
+        elif JsonContentTypes.ERROR in content:
             self.handle_json_error(message=message)
-        elif "result" in keys:
+        elif JsonContentTypes.RESULT in content:
             self.handle_json_result(message)
         else:
             self.log.error(f"Invalid JSON message received: {message}")

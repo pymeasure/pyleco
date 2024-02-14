@@ -301,8 +301,8 @@ def test_remote_heartbeat(coordinator: Coordinator, fake_counting, sender):
 
 class Test_handle_commands:
     class SpecialCoordinator(Coordinator):
-        def handle_rpc_call(self, sender_identity: bytes, message: Message) -> None:
-            self._rpc = sender_identity, message
+        def handle_rpc_call(self, message: Message) -> None:
+            self._rpc = message
 
     @pytest.fixture
     def coordinator_hc(self) -> Coordinator:
@@ -327,7 +327,7 @@ class Test_handle_commands:
     ))
     def test_call_handle_rpc_call(self, coordinator_hc: Coordinator, identity, message):
         coordinator_hc.handle_commands(identity, message)
-        assert coordinator_hc._rpc == (identity, message)  # type: ignore
+        assert coordinator_hc._rpc == message  # type: ignore
 
     def test_log_error_response(self, coordinator_hc: Coordinator):
         pass  # TODO
@@ -339,6 +339,39 @@ class Test_handle_commands:
                                                data={"jsonrpc": "2.0", "result": None}))
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
+
+    def test_log_at_non_null_result(self, coordinator_hc: Coordinator,
+                                    caplog: pytest.LogCaptureFixture):
+        caplog.set_level(10)
+        coordinator_hc.handle_commands(b"",
+                                       Message(b"",
+                                               message_type=MessageTypes.JSON,
+                                               data={"jsonrpc": "2.0", "result": 5}))
+        assert not hasattr(coordinator_hc, "_rpc")
+        # assert no error log entry.  TODO
+        caplog.records[-1].msg.startswith("Unexpected result")
+
+    def test_pass_at_batch_of_null_results(self, coordinator_hc: Coordinator):
+        coordinator_hc.handle_commands(b"",
+                                       Message(b"",
+                                               message_type=MessageTypes.JSON,
+                                               data=[{"jsonrpc": "2.0", "result": None, "id": 1},
+                                                     {"jsonrpc": "2.0", "result": None, "id": 2}]
+                                               ))
+        assert not hasattr(coordinator_hc, "_rpc")
+        # assert no error log entry.  TODO
+
+    def test_log_at_batch_of_non_null_results(self, coordinator_hc: Coordinator,
+                                              caplog: pytest.LogCaptureFixture):
+        caplog.set_level(10)
+        coordinator_hc.handle_commands(b"",
+                                       Message(b"",
+                                               message_type=MessageTypes.JSON,
+                                               data=[{"jsonrpc": "2.0", "result": None, "id": 1},
+                                                     {"jsonrpc": "2.0", "result": 5, "id": 2}]
+                                               ))
+        assert not hasattr(coordinator_hc, "_rpc")
+        caplog.records[-1].msg.startswith("Unexpected result")
 
     @pytest.mark.parametrize("data", (
             {"jsonrpc": "2.0", "no method": 7},

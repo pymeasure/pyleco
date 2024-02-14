@@ -25,7 +25,7 @@
 from json import JSONDecodeError
 import logging
 from socket import gethostname
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from jsonrpcobjects.objects import ErrorResponse, Request, ParamsRequest
 from openrpc import RPCServer
@@ -35,6 +35,7 @@ if __name__ != "__main__":
     from ..core import COORDINATOR_PORT
     from ..utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
     from ..core.message import Message, MessageTypes
+    from ..core.serialization import get_json_content_type, JsonContentTypes
     from ..errors import CommunicationError
     from ..errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
     from ..utils.timers import RepeatingTimer
@@ -45,6 +46,7 @@ else:  # pragma: no cover
     from pyleco.core import COORDINATOR_PORT
     from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
     from pyleco.core.message import Message, MessageTypes
+    from pyleco.core.serialization import get_json_content_type, JsonContentTypes
     from pyleco.errors import CommunicationError
     from pyleco.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
     from pyleco.utils.timers import RepeatingTimer
@@ -318,33 +320,46 @@ class Coordinator:
         self.current_message = message
         self.current_identity = sender_identity
         if message.header_elements.message_type == MessageTypes.JSON:
-            try:
-                data = message.data
-            except JSONDecodeError:
-                log.error(f"Invalid JSON message from {message.sender!r} received: {message.payload[0]!r}")  # noqa
-                return
-            if isinstance(data, dict):
-                if error := data.get("error"):
-                    log.error(f"Error from {message.sender!r} received: {error}.")
-                    return
-                elif data.get("result", False) is None:
-                    return  # acknowledgement == heartbeat
-            try:
-                self.handle_rpc_call(sender_identity=sender_identity, message=message)
-            except Exception as exc:
-                log.exception(f"Invalid JSON-RPC message from {message.sender!r} received: {data}",
-                              exc_info=exc)
+            self.handle_json_commands(message=message)
         else:
             log.error(
                 f"Message from {message.sender!r} of unknown type received: {message.payload[0]!r}")
 
-    def handle_rpc_call(self, sender_identity: bytes, message: Message) -> None:
+    def handle_json_commands(self, message: Message) -> None:
+        try:
+            data: Union[list[dict[str, Any]], dict[str, Any]] = message.data  # type: ignore
+        except JSONDecodeError:
+            log.error(
+                f"Invalid JSON message from {message.sender!r} received: {message.payload[0]!r}")
+            return
+        json_type = get_json_content_type(data)
+        if JsonContentTypes.REQUEST in json_type:
+            try:
+                self.handle_rpc_call(message=message)
+            except Exception as exc:
+                log.exception(
+                    f"Invalid JSON-RPC message from {message.sender!r} received: {data}",
+                    exc_info=exc)
+        elif JsonContentTypes.RESULT_RESPONSE == json_type:
+            if data.get("result", False) is not None:  # type: ignore
+                log.info(f"Unexpeced result received: {data}")
+        elif JsonContentTypes.ERROR in json_type:
+            log.error(f"Error from {message.sender!r} received: {data}.")
+        elif JsonContentTypes.RESULT in json_type:
+            for element in data:
+                if element.get("result", False) is not None:  # type: ignore
+                    log.info(f"Unexpeced result received: {data}")
+        else:
+            log.error(
+                f"Invalid JSON RPC message from {message.sender!r} received: {message.payload[0]!r}")  # noqa
+
+    def handle_rpc_call(self, message: Message) -> None:
         reply = self.rpc.process_request(message.payload[0])
         sender_namespace = message.sender_elements.namespace
-        log.debug(f"Reply '{reply!r}' to {message.sender!r} at node {sender_namespace!r}.")
+        log.debug(f"Reply {reply!r} to {message.sender!r} at node {sender_namespace!r}.")
         if sender_namespace == self.namespace or sender_namespace == b"":
             self.send_main_sock_reply(
-                sender_identity=sender_identity,
+                sender_identity=self.current_identity,
                 original_message=message,
                 data=reply,
                 message_type=MessageTypes.JSON,

@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [0.2.2] - 2024-02-14
+
+### Fixed
+
+- Fix Communicator to distinguish correctly different json rpc messages ([#57](https://github.com/pymeasure/pyleco/issues/57))
+- Fix MessageHandler not distinguish correctly batch requests ([#56](https://github.com/pymeasure/pyleco/issues/56))
+- Bump setup-python action version to v5
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.2.1...v.0.2.2
+
+
 ## [0.2.1] - 2024-02-13
 
 ### Fixed
@@ -73,7 +84,8 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.2.1...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.2
 [0.2.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.1
 [0.2.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.0
 [0.1.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.1.0
