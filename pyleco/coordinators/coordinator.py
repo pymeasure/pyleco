@@ -341,19 +341,17 @@ class Coordinator:
                     f"Invalid JSON-RPC message from {message.sender!r} received: {data}",
                     exc_info=exc)
         elif JsonContentTypes.RESULT_RESPONSE == json_type:
-            if data.get("result", False) is None:  # type: ignore
-                pass  # acknowledgement == heartbeat
-        elif JsonContentTypes.ERROR_RESPONSE in json_type:
+            if data.get("result", False) is not None:  # type: ignore
+                log.info(f"Unexpeced result received: {data}")
+        elif JsonContentTypes.ERROR in json_type:
             log.error(f"Error from {message.sender!r} received: {data}.")
-        elif JsonContentTypes.RESULT_RESPONSE in json_type:  # batches
+        elif JsonContentTypes.RESULT in json_type:
             for element in data:
                 if element.get("result", False) is not None:  # type: ignore
                     log.info(f"Unexpeced result received: {data}")
-        elif json_type == JsonContentTypes.INVALID:
+        else:
             log.error(
                 f"Invalid JSON RPC message from {message.sender!r} received: {message.payload[0]!r}")  # noqa
-        else:
-            log.error(f"Unrecognized JSON RPC message {message.sender!r} received: {message.payload[0]!r}")  # noqa
 
     def handle_rpc_call(self, message: Message) -> None:
         reply = self.rpc.process_request(message.payload[0])

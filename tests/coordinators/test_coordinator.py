@@ -340,7 +340,18 @@ class Test_handle_commands:
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
 
-    def test_pass_at_batch_of_null_result(self, coordinator_hc: Coordinator):
+    def test_log_at_non_null_result(self, coordinator_hc: Coordinator,
+                                    caplog: pytest.LogCaptureFixture):
+        caplog.set_level(10)
+        coordinator_hc.handle_commands(b"",
+                                       Message(b"",
+                                               message_type=MessageTypes.JSON,
+                                               data={"jsonrpc": "2.0", "result": 5}))
+        assert not hasattr(coordinator_hc, "_rpc")
+        # assert no error log entry.  TODO
+        caplog.records[-1].msg.startswith("Unexpected result")
+
+    def test_pass_at_batch_of_null_results(self, coordinator_hc: Coordinator):
         coordinator_hc.handle_commands(b"",
                                        Message(b"",
                                                message_type=MessageTypes.JSON,
@@ -349,6 +360,18 @@ class Test_handle_commands:
                                                ))
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
+
+    def test_log_at_batch_of_non_null_results(self, coordinator_hc: Coordinator,
+                                              caplog: pytest.LogCaptureFixture):
+        caplog.set_level(10)
+        coordinator_hc.handle_commands(b"",
+                                       Message(b"",
+                                               message_type=MessageTypes.JSON,
+                                               data=[{"jsonrpc": "2.0", "result": None, "id": 1},
+                                                     {"jsonrpc": "2.0", "result": 5, "id": 2}]
+                                               ))
+        assert not hasattr(coordinator_hc, "_rpc")
+        caplog.records[-1].msg.startswith("Unexpected result")
 
     @pytest.mark.parametrize("data", (
             {"jsonrpc": "2.0", "no method": 7},
