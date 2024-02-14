@@ -128,7 +128,7 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
 
     def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
         """Read the next message from the socket, without further processing."""
-        if self.socket.poll(int(timeout or self.timeout * 1000)):
+        if self.socket.poll(int((timeout or self.timeout) * 1000)):
             return Message.from_frames(*self.socket.recv_multipart())
         raise TimeoutError("Reading timed out")
 
