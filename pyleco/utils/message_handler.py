@@ -192,9 +192,9 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         if self.socket in socks:
             self.read_and_handle_message()
             del socks[self.socket]
-        elif (now := time.perf_counter()) > self.next_beat:
+        elif time.perf_counter() > self.next_beat:
             self.heartbeat()
-            self.next_beat = now + heartbeat_interval
+            self.next_beat = time.perf_counter() + heartbeat_interval
         return socks
 
     def _listen_close(self, waiting_time: Optional[int] = None) -> None:

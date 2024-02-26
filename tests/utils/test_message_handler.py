@@ -37,7 +37,7 @@ from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
 from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME, NODE_UNKNOWN, RECEIVER_UNKNOWN
-from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse, DataError
+from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse
 from pyleco.json_utils.errors import JSONRPCError, INVALID_REQUEST
 
 from pyleco.utils.message_handler import MessageHandler, SimpleEvent

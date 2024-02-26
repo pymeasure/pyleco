@@ -239,7 +239,8 @@ class Directory:
         self.rpc_generator = RPCGenerator()
 
     def add_component(self, name: bytes, identity: bytes) -> None:
-        if (component := self._components.get(name)):
+        component = self._components.get(name)
+        if component:
             if component.identity == identity:
                 component.heartbeat = perf_counter()
             else:

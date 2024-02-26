@@ -94,8 +94,8 @@ def create_header_frame(conversation_id: Optional[bytes] = None,
     """
     if conversation_id is None:
         conversation_id = generate_conversation_id()
-    elif (length := len(conversation_id)) != 16:
-        raise ValueError(f"Length of 'conversation_id' is {length}, not 16 bytes.")
+    elif len(conversation_id) != 16:
+        raise ValueError(f"Length of 'conversation_id' is {len(conversation_id)}, not 16 bytes.")
     if message_id is None:
         message_id = b"\x00" * 3
     elif isinstance(message_id, int):
