@@ -49,12 +49,13 @@ class JsonObject:
 
     def model_dump_json(self) -> str:
         """Create a json representation."""
-        return json.dumps(self.model_dump(), separators=(',', ':'))
+        return json.dumps(self.model_dump(), separators=(",", ":"))
 
 
 @dataclass
 class Request(JsonObject):
     """Request the result of a remote call."""
+
     id: Union[int, str]
     method: str
     jsonrpc: str = "2.0"
@@ -63,6 +64,7 @@ class Request(JsonObject):
 @dataclass
 class ParamsRequest(JsonObject):
     """Request the result of a remote call with parameters."""
+
     id: Union[int, str]
     method: str
     params: Union[list, dict]
@@ -72,6 +74,7 @@ class ParamsRequest(JsonObject):
 @dataclass
 class Notification(JsonObject):
     """Do a remote call without requesting a response."""
+
     method: str
     jsonrpc: str = "2.0"
 
@@ -79,6 +82,7 @@ class Notification(JsonObject):
 @dataclass
 class ParamsNotification(JsonObject):
     """Do a remote call with parameters without requesting a response."""
+
     method: str
     params: Union[list, dict]
     jsonrpc: str = "2.0"
@@ -87,6 +91,7 @@ class ParamsNotification(JsonObject):
 @dataclass
 class ResultResponse(JsonObject):
     """A response containing a result."""
+
     id: Union[int, str]
     result: Any
     jsonrpc: str = "2.0"
@@ -94,14 +99,16 @@ class ResultResponse(JsonObject):
 
 @dataclass
 class Error(JsonObject):
-    """An error to be sent via an `ErrorResponse`."""
+    """An error to be sent via an :class:`ErrorResponse`."""
+
     code: int
     message: str
 
 
 @dataclass
 class DataError(JsonObject):
-    """An error with data, to be sent via an `ErrorResponse`."""
+    """An error with data, to be sent via an :class:`ErrorResponse`."""
+
     code: int
     message: str
     data: Any
@@ -110,6 +117,7 @@ class DataError(JsonObject):
 @dataclass
 class ErrorResponse(JsonObject):
     """A response containing an error."""
+
     id: Optional[Union[int, str]]
     error: ErrorType
     jsonrpc: str = "2.0"

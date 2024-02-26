@@ -39,13 +39,15 @@ INVALID_SERVER_RESPONSE = Error(code=-32000, message="Invalid response from serv
 
 class RPCGenerator:
     """This class can generate a JSONRPC request string and interpret the result string."""
+
     _id_counter: int = 1
 
     def build_request_str(self, method: str, *args, **kwargs) -> str:
         if args and kwargs:
             raise ValueError(
                 "You may not specify list of positional arguments "
-                "and give additional keyword arguments at the same time.")
+                "and give additional keyword arguments at the same time."
+            )
         id = self._id_counter
         self._id_counter += 1
         r: Union[Request, ParamsRequest]
