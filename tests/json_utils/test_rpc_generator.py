@@ -26,11 +26,11 @@ from typing import Union
 
 import pytest
 
-from jsonrpcobjects.objects import ErrorResponse
-from jsonrpcobjects.errors import JSONRPCError
+from pyleco.json_utils.json_objects import ErrorResponse
+from pyleco.json_utils.errors import JSONRPCError
 
 from pyleco.errors import NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME, RECEIVER_UNKNOWN
-from pyleco.core.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
+from pyleco.json_utils.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
 
 
 @pytest.fixture
@@ -53,12 +53,6 @@ def test_build_request_str(generator: RPCGenerator, method: str, args: tuple, kw
 def test_build_request_str_raises_error(generator: RPCGenerator):
     with pytest.raises(ValueError, match="same time"):
         generator.build_request_str("some_method", "argument", keyword="whatever")
-
-
-def test_clear_ids(generator: RPCGenerator):
-    generator._ids = {7: 7}
-    generator.clear_id_list()
-    assert generator._ids == {}
 
 
 @pytest.mark.parametrize("response, result", (

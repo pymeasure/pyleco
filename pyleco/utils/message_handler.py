@@ -28,15 +28,15 @@ import logging
 import time
 from typing import Any, Callable, Optional, Union
 
-from jsonrpcobjects.errors import JSONRPCError
 from openrpc import RPCServer
 import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message, MessageTypes
-from ..core.rpc_generator import RPCGenerator
 from ..core.serialization import JsonContentTypes, get_json_content_type
+from ..json_utils.errors import JSONRPCError
+from ..json_utils.rpc_generator import RPCGenerator
 from .base_communicator import BaseCommunicator
 from .log_levels import PythonLogLevels
 from .zmq_log_handler import ZmqLogHandler

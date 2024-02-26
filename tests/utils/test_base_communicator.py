@@ -32,7 +32,7 @@ import pytest
 
 from pyleco.test import FakeSocket
 from pyleco.core.message import Message, MessageTypes
-from pyleco.core.rpc_generator import RPCGenerator
+from pyleco.json_utils.rpc_generator import RPCGenerator
 from pyleco.errors import DUPLICATE_NAME, ErrorResponse
 
 from pyleco.utils.base_communicator import BaseCommunicator

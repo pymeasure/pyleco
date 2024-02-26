@@ -35,7 +35,7 @@ from __future__ import annotations
 from typing import Any, Optional, Protocol, Iterable, Union
 
 from .message import Message, MessageTypes
-from .rpc_generator import RPCGenerator
+from ..json_utils.rpc_generator import RPCGenerator
 
 
 class CommunicatorProtocol(Protocol):

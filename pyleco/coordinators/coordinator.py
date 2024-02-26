@@ -28,8 +28,6 @@ import logging
 from socket import gethostname
 from typing import Any, Optional, Union
 
-from jsonrpcobjects.objects import ErrorResponse, Request, ParamsRequest
-from openrpc import RPCServer
 import zmq
 
 if __name__ != "__main__":
@@ -39,6 +37,8 @@ if __name__ != "__main__":
     from ..core.serialization import get_json_content_type, JsonContentTypes
     from ..errors import CommunicationError
     from ..errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
+    from ..json_utils.json_objects import ErrorResponse, Request, ParamsRequest
+    from ..json_utils.rpc_server import RPCServer
     from ..utils.timers import RepeatingTimer
     from ..utils.zmq_log_handler import ZmqLogHandler
     from ..utils.events import Event, SimpleEvent
@@ -50,6 +50,8 @@ else:  # pragma: no cover
     from pyleco.core.serialization import get_json_content_type, JsonContentTypes
     from pyleco.errors import CommunicationError
     from pyleco.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
+    from pyleco.json_utils.json_objects import ErrorResponse, Request, ParamsRequest
+    from pyleco.json_utils.rpc_server import RPCServer
     from pyleco.utils.timers import RepeatingTimer
     from pyleco.utils.zmq_log_handler import ZmqLogHandler
     from pyleco.utils.events import Event, SimpleEvent
@@ -431,7 +433,7 @@ class Coordinator:
             )
         )
 
-    def add_nodes(self, nodes: dict) -> None:  # : Dict[str, str]
+    def add_nodes(self, nodes: dict) -> None:  # : dict[str, str]
         for node, address in nodes.items():
             node = node.encode()
             try:

@@ -27,7 +27,7 @@ from typing import Any, Optional, Sequence, Union
 
 from .core.message import Message
 from .core.internal_protocols import CommunicatorProtocol
-from .core.rpc_generator import RPCGenerator
+from .json_utils.rpc_generator import RPCGenerator
 
 
 class FakeContext:

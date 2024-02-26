@@ -24,7 +24,7 @@
 
 from typing import Any
 
-from jsonrpcobjects.objects import Error, DataError, ErrorResponse
+from .json_utils.json_objects import Error, DataError, ErrorResponse
 
 # JSON specification:
 # -32000 to -32099  Server error    reserved for implementation-defined server-errors
