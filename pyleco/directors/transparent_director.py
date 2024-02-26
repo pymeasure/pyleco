@@ -25,6 +25,7 @@
 from __future__ import annotations
 import logging
 from typing import Generic, Optional, TypeVar, Union
+from warnings import warn
 
 from .director import Director
 
@@ -117,15 +118,27 @@ class TransparentDirector(Director, Generic[Device]):
     It has a :attr:`device` attribute. Whenever you get/set an attribute of `device`, the Director
     will call the Actor and try to get/set the corresponding attribute of the Actor's device.
     If you want to add method calls, you might use the :class:`RemoteCall` Descriptor to add methods
-    to a subclass of :class:`TransparentDevice` and give that class to the `cls` parameter.
+    to a subclass of :class:`TransparentDevice` and give that class to the `device_class` parameter.
     For example :code:`method = RemoteCall()` in the class definition will make sure,
     that :code:`device.method(*args, **kwargs)` will be executed remotely.
 
-    :param cls: Subclass of :class:`TransparentDevice` to use as a device dummy.
+    :param actor: Name of the actor to direct.
+    :param device_class: Subclass of :class:`TransparentDevice` to use as a device dummy.
+    :param cls: see :code:`device_class`.
+
+        .. deprecated:: 0.3
+            Use :code:`device_class` instead.
     """
 
-    def __init__(self, actor: Optional[Union[bytes, str]] = None,
-                 cls: type[Device] = TransparentDevice,  # type: ignore[assignment]
-                 **kwargs):
+    def __init__(
+        self,
+        actor: Optional[Union[bytes, str]] = None,
+        device_class: type[Device] = TransparentDevice,  # type: ignore[assignment]
+        cls: Optional[type[Device]] = None,
+        **kwargs,
+    ):
         super().__init__(actor=actor, **kwargs)
-        self.device = cls(director=self)  # type: ignore[call-arg]
+        if cls is not None:
+            warn("Parameter `cls` is deprecated, use `device_class` instead.", FutureWarning)
+            device_class = cls
+        self.device = device_class(director=self)  # type: ignore[call-arg]

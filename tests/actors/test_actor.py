@@ -124,7 +124,7 @@ class TestProtocolImplemented:
     def static_test_methods_are_present(self):
         def testing(component: ExtendedActorProtocol):
             pass
-        testing(FakeActor(name="test", cls=FantasyInstrument))
+        testing(FakeActor(name="test", device_class=FantasyInstrument))  # type: ignore
 
     @pytest.fixture
     def component_methods(self, actor: Actor):
@@ -198,7 +198,8 @@ def test_register_device_method(actor: Actor):
 class Test_disconnect:
     @pytest.fixture
     def disconnected_actor(self):
-        actor = FakeActor("name", cls=FantasyInstrument, auto_connect={"adapter": MagicMock()})
+        actor = FakeActor("name", device_class=FantasyInstrument,
+                          auto_connect={"adapter": MagicMock()})
         actor._device = actor.device  # type: ignore
         actor.device.adapter.close = MagicMock()
         actor.disconnect()
@@ -215,7 +216,7 @@ class Test_disconnect:
 
 
 def test_exit_calls_disconnect():
-    with FakeActor("name", cls=FantasyInstrument) as actor:
+    with FakeActor("name", device_class=FantasyInstrument) as actor:
         actor.disconnect = MagicMock()
     actor.disconnect.assert_called_once()
 

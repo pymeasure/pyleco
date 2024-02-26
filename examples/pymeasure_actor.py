@@ -33,7 +33,7 @@ def readout(device: YAR, publisher: DataPublisher) -> None:
 def task(stop_event) -> None:
     """The task which is run by the starter."""
     # Initialize
-    with Actor(name="pymeasure_actor", cls=YAR, periodic_reading=interval) as actor:
+    with Actor(name="pymeasure_actor", device_class=YAR, periodic_reading=interval) as actor:
         actor.read_publish = readout  # define the regular readout function
         actor.connect(adapter)  # connect to the device
 
