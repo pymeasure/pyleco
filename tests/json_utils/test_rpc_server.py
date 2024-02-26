@@ -133,6 +133,7 @@ def test_process_response(rpc_server: RPCServer, rpc_generator: RPCGenerator):
     error = exc_info.value.rpc_error
     assert error.code == INVALID_REQUEST.code
     assert error.message == INVALID_REQUEST.message
+    # ignore the following test, which depends on the openrpc version
     # assert error.data == request.model_dump()  # type: ignore
 
 
