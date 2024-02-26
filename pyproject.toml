@@ -21,7 +21,7 @@ classifiers = [
 requires-python = ">=3.9"
 dependencies = [
   "pyzmq >= 22.3.0",
-  "openrpc >= 8.1.0",
+  "openrpc >= 8.1.0; python_version >= '3.9'",
   "uuid7 >= 0.1.0",
 ]
 
@@ -79,4 +79,6 @@ omit = [
     # Omit LECO definitions
     "pyleco/errors.py",
     "pyleco/core/leco_protocols.py",
+    # exclude import file
+    "pyleco/json_utils/rpc_server.py",
 ]
