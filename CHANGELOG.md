@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [unreleased]
+
+### Added
+
+- Add __future__.annotations to all files, which need it for annotations for Python 3.7/3.8.
+
+
 ## [0.2.2] - 2024-02-14
 
 ### Fixed

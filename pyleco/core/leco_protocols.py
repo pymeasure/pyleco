@@ -66,8 +66,9 @@ For unit test, that all the necessary methods are reachable via RPC, the followi
         raise AssertionError(f"Method {method} is not available.")
 """
 
+from __future__ import annotations
 try:
-    from enum import StrEnum
+    from enum import StrEnum  # type: ignore
 except ImportError:
     # For python<3.11
     from enum import Enum

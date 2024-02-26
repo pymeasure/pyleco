@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from json import JSONDecodeError
 import logging
 import time

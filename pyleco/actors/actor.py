@@ -21,6 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
+from __future__ import annotations
 
 from typing import Any, Callable, Generic, Optional, Sequence, TypeVar, Union
 

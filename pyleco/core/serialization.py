@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from enum import IntEnum, IntFlag
 import json
 from typing import Any, Optional, NamedTuple, Union
