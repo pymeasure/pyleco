@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from sys import version_info
 import warnings
 
 # Maximally flexible approach to obtain version numbers, based on this approach:
@@ -33,19 +34,22 @@ try:
     # Alternatively, we could use a dummy dev module that is never packaged whose presence signals
     # that we are in an editable install/repo, see https://github.com/pycalphad/pycalphad/pull/341
     import setuptools_scm  # type: ignore
-    __version__ = setuptools_scm.get_version(root='..', relative_to=__file__)
+    __version__ = setuptools_scm.get_version(root="..", relative_to=__file__)
     del setuptools_scm
 except (ImportError, LookupError):  # pragma: no cover
     # Setuptools_scm was not found, or it could not find a version, so use installation metadata.
-    from importlib.metadata import version, PackageNotFoundError
-    try:
-        __version__ = version("pyleco")
-        # Alternatively, if the current approach is too slow, we could add
-        # 'write_to = "pyleco/_version.py"' in pyproject.toml and use the generated file here:
-        # from ._version import version as __version__
-    except PackageNotFoundError:
-        warnings.warn('Could not find pyleco version, it does not seem to be installed. '
-                      'Either install it (editable or full) or install setuptools_scm')
-        __version__ = '0.0.0'
-    finally:
-        del version, PackageNotFoundError
+    if version_info.minor < 9:
+        __version__ = "0.0.0"
+    else:
+        from importlib.metadata import version, PackageNotFoundError
+        try:
+            __version__ = version("pyleco")
+            # Alternatively, if the current approach is too slow, we could add
+            # 'write_to = "pyleco/_version.py"' in pyproject.toml and use the generated file here:
+            # from ._version import version as __version__
+        except PackageNotFoundError:
+            warnings.warn('Could not find pyleco version, it does not seem to be installed. '
+                        'Either install it (editable or full) or install setuptools_scm')
+            __version__ = '0.0.0'
+        finally:
+            del version, PackageNotFoundError
