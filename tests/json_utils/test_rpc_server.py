@@ -35,7 +35,7 @@ try:
     # Load openrpc server for comparison, if available.
     from openrpc import RPCServer as RPCServerOpen
 except ModuleNotFoundError:
-    rpc_server_classes = [RPCServer]
+    rpc_server_classes: list = [RPCServer]
 else:
     rpc_server_classes = [RPCServer, RPCServerOpen]
 
