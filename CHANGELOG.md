@@ -8,6 +8,7 @@ _Use self defined objects instead of jsonrpc2-objects and jsonrpc2-pyclient._
 
 - Rename `cls` parameter to `device_class` in `Actor` and `TransparentDirector`.
 - Substitute `jsonrpc2-objects` and `jsonrpc2-pyclient` by self written objects.
+- Python requirement lowered to Python 3.8
 
 ### Added
 
