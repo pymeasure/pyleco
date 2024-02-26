@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: System :: Networking",
 ]
 
-requires-python = ">=3.8"
+requires-python = ">=3.7"
 dependencies = [
   "pyzmq >= 22.3.0",
   "openrpc >= 8.1.0; python_version >= '3.9'",
