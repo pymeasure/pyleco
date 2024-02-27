@@ -23,6 +23,7 @@
 #
 
 import logging
+from sys import version_info
 import time
 
 from unittest.mock import MagicMock
@@ -142,6 +143,8 @@ class TestProtocolImplemented:
         raise AssertionError(f"Method {method} is not available.")
 
 
+@pytest.mark.skipif(version_info.minor < 9,
+                    reason="It is deprecated, because it does not work for python<3.9.")
 def test_deprecated_cls_argument():
     with pytest.warns(FutureWarning, match="`cls` is deprecated"):
         actor = FakeActor("test", cls=FantasyInstrument, auto_connect={'adapter': MagicMock()},
