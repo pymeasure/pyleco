@@ -112,7 +112,8 @@ class ExtendedActorProtocol(ExtendedComponentProtocol, PollingActorProtocol, Pro
 
 @pytest.fixture()
 def actor() -> FakeActor:
-    actor = FakeActor("test", FantasyInstrument, auto_connect={'adapter': MagicMock()}, port=1234,
+    actor = FakeActor("test", FantasyInstrument, auto_connect={'adapter': MagicMock()},
+                      port=1234,
                       protocol="inproc")
     actor.next_beat = float("inf")
     return actor
@@ -139,6 +140,19 @@ class TestProtocolImplemented:
             if m.get('name') == method:
                 return
         raise AssertionError(f"Method {method} is not available.")
+
+
+def test_deprecated_cls_argument():
+    with pytest.warns(FutureWarning, match="`cls` is deprecated"):
+        actor = FakeActor("test", cls=FantasyInstrument, auto_connect={'adapter': MagicMock()},
+                          port=1234,
+                          protocol="inproc")
+        assert actor.device_class == FantasyInstrument
+
+
+def test_device_class_or_cls_is_necessary():
+    with pytest.raises(ValueError, match="`device_class`"):
+        FakeActor("test", protocol="inproc")
 
 
 def test_get_properties(actor: Actor):

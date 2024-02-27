@@ -75,7 +75,7 @@ class Actor(MessageHandler, Generic[Device]):
     def __init__(
         self,
         name: str,
-        device_class: type[Device],
+        device_class: Optional[type[Device]] = None,
         periodic_reading: float = -1,
         auto_connect: Optional[dict] = None,
         context: Optional[zmq.Context] = None,
@@ -87,6 +87,9 @@ class Actor(MessageHandler, Generic[Device]):
         if cls is not None:
             warn("Parameter `cls` is deprecated, use `device_class` instead.", FutureWarning)
             device_class = cls
+        if device_class is None:
+            # Keep this check as long as device_class is optional due to deprecated cls parameter
+            raise ValueError("You have to specify a `device_class`!")
         self.device_class = device_class
 
         # Pipe for the periodic readout timer
@@ -186,7 +189,10 @@ class Actor(MessageHandler, Generic[Device]):
 
     def stop_timer(self) -> None:
         """Stop the readout timer."""
-        self.timer.cancel()
+        try:
+            self.timer.cancel()
+        except AttributeError:
+            pass
 
     def start_polling(self, polling_interval: Optional[float] = None) -> None:
         self.start_timer(interval=polling_interval)
