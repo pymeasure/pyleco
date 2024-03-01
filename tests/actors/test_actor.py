@@ -23,6 +23,7 @@
 #
 
 import logging
+from sys import version_info
 import time
 
 from unittest.mock import MagicMock
@@ -112,7 +113,8 @@ class ExtendedActorProtocol(ExtendedComponentProtocol, PollingActorProtocol, Pro
 
 @pytest.fixture()
 def actor() -> FakeActor:
-    actor = FakeActor("test", FantasyInstrument, auto_connect={'adapter': MagicMock()}, port=1234,
+    actor = FakeActor("test", FantasyInstrument, auto_connect={'adapter': MagicMock()},
+                      port=1234,
                       protocol="inproc")
     actor.next_beat = float("inf")
     return actor
@@ -124,7 +126,7 @@ class TestProtocolImplemented:
     def static_test_methods_are_present(self):
         def testing(component: ExtendedActorProtocol):
             pass
-        testing(FakeActor(name="test", cls=FantasyInstrument))
+        testing(FakeActor(name="test", device_class=FantasyInstrument))  # type: ignore
 
     @pytest.fixture
     def component_methods(self, actor: Actor):
@@ -139,6 +141,21 @@ class TestProtocolImplemented:
             if m.get('name') == method:
                 return
         raise AssertionError(f"Method {method} is not available.")
+
+
+@pytest.mark.skipif(version_info.minor < 9,
+                    reason="It is deprecated, because it does not work for python<3.9.")
+def test_deprecated_cls_argument():
+    with pytest.warns(FutureWarning, match="`cls` is deprecated"):
+        actor = FakeActor("test", cls=FantasyInstrument, auto_connect={'adapter': MagicMock()},
+                          port=1234,
+                          protocol="inproc")
+        assert actor.device_class == FantasyInstrument
+
+
+def test_device_class_or_cls_is_necessary():
+    with pytest.raises(ValueError, match="`device_class`"):
+        FakeActor("test", protocol="inproc")
 
 
 def test_get_properties(actor: Actor):
@@ -198,7 +215,8 @@ def test_register_device_method(actor: Actor):
 class Test_disconnect:
     @pytest.fixture
     def disconnected_actor(self):
-        actor = FakeActor("name", cls=FantasyInstrument, auto_connect={"adapter": MagicMock()})
+        actor = FakeActor("name", device_class=FantasyInstrument,
+                          auto_connect={"adapter": MagicMock()})
         actor._device = actor.device  # type: ignore
         actor.device.adapter.close = MagicMock()
         actor.disconnect()
@@ -215,7 +233,7 @@ class Test_disconnect:
 
 
 def test_exit_calls_disconnect():
-    with FakeActor("name", cls=FantasyInstrument) as actor:
+    with FakeActor("name", device_class=FantasyInstrument) as actor:
         actor.disconnect = MagicMock()
     actor.disconnect.assert_called_once()
 

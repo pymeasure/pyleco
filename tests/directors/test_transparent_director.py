@@ -53,7 +53,7 @@ class FantasyDevice(TransparentDevice):
 
 @pytest.fixture
 def director() -> TransparentDirector:
-    director = FakeDirector(cls=FantasyDevice,
+    director = FakeDirector(device_class=FantasyDevice,
                             communicator=FakeCommunicator(name="Communicator"))  # type: ignore
     return director
 

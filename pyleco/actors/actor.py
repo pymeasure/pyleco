@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 from typing import Any, Callable, Generic, Optional, Sequence, TypeVar, Union
+from warnings import warn
 
 import zmq
 
@@ -57,22 +58,39 @@ class Actor(MessageHandler, Generic[Device]):
     is available via RPC as well.
 
     :param str name: Name to listen to and to publish values with.
-    :param class cls: Instrument class.
+    :param class device_class: Instrument class.
     :param int port: Port number to connect to.
     :param periodic_reading: Interval between periodic readouts in s.
     :param dict auto_connect: Kwargs to automatically connect to the device.
+    :param class cls: See :code:`device_class`.
+
+        .. deprecated:: 0.3
+            Deprecated, use :code:`device_class` instead.
+
     :param \\**kwargs: Keywoard arguments for the general message handling.
     """
 
     device: Device
 
-    def __init__(self, name: str, cls: type[Device], periodic_reading: float = -1,
-                 auto_connect: Optional[dict] = None,
-                 context: Optional[zmq.Context] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        name: str,
+        device_class: Optional[type[Device]] = None,
+        periodic_reading: float = -1,
+        auto_connect: Optional[dict] = None,
+        context: Optional[zmq.Context] = None,
+        cls: Optional[type[Device]] = None,
+        **kwargs,
+    ):
         context = context or zmq.Context.instance()
         super().__init__(name=name, context=context, **kwargs)
-        self.cls = cls
+        if cls is not None:
+            warn("Parameter `cls` is deprecated, use `device_class` instead.", FutureWarning)
+            device_class = cls
+        if device_class is None:
+            # Keep this check as long as device_class is optional due to deprecated cls parameter
+            raise ValueError("You have to specify a `device_class`!")
+        self.device_class = device_class
 
         # Pipe for the periodic readout timer
         self.pipe: zmq.Socket = context.socket(zmq.PAIR)
@@ -171,7 +189,10 @@ class Actor(MessageHandler, Generic[Device]):
 
     def stop_timer(self) -> None:
         """Stop the readout timer."""
-        self.timer.cancel()
+        try:
+            self.timer.cancel()
+        except AttributeError:
+            pass
 
     def start_polling(self, polling_interval: Optional[float] = None) -> None:
         self.start_timer(interval=polling_interval)
@@ -198,7 +219,7 @@ class Actor(MessageHandler, Generic[Device]):
         """Connect to the device with the given arguments and keyword arguments."""
         # TODO read auto_connect?
         self.log.info("Connecting")
-        self.device = self.cls(*args, **kwargs)
+        self.device = self.device_class(*args, **kwargs)
         self.start_timer()
 
     def disconnect(self) -> None:

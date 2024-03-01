@@ -70,7 +70,7 @@ def task(stop_event) -> None:
     """The task which is run by the starter."""
     with Actor(
         name="fiberAmp",  # you can access it under this name
-        cls=YAR,  # the class to instantiate later on
+        device_class=YAR,  # the class to instantiate later on
     ) as actor:
         actor.connect(adapter)  # create an instance `actor.device = YAR(adapter)`
 

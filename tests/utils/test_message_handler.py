@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 import logging
 from unittest.mock import MagicMock
 import time
@@ -36,7 +37,8 @@ from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
 from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME, NODE_UNKNOWN, RECEIVER_UNKNOWN
-from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse, DataError
+from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse
+from pyleco.json_utils.errors import JSONRPCError, INVALID_REQUEST
 
 from pyleco.utils.message_handler import MessageHandler, SimpleEvent
 
@@ -480,14 +482,14 @@ class Test_process_json_message:
                           data=data,
                           conversation_id=cid, message_type=MessageTypes.JSON)
         result = handler.process_json_message(message=message)
-        error_message = Message(receiver=remote_name, conversation_id=cid,
-                                message_type=MessageTypes.JSON,
-                                data=ErrorResponse(id=5, error=DataError(
-                                    code=-32600,
-                                    message="Invalid Request",
-                                    data=data)))
-        # assert
-        assert result == error_message
+        assert result.receiver == remote_name.encode()
+        assert result.conversation_id == cid
+        assert result.header_elements.message_type == MessageTypes.JSON
+        with pytest.raises(JSONRPCError) as exc_info:
+            handler.rpc_generator.get_result_from_response(result.data)  # type: ignore
+        error = exc_info.value.rpc_error
+        assert error.code == INVALID_REQUEST.code
+        assert error.message == INVALID_REQUEST.message
 
 
 class Test_listen:

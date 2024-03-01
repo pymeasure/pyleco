@@ -33,7 +33,7 @@ from pyleco.json_utils.errors import ServerError, InvalidRequest, INVALID_REQUES
 
 try:
     # Load openrpc server for comparison, if available.
-    from openrpc import RPCServer as RPCServerOpen
+    from openrpc import RPCServer as RPCServerOpen  # type: ignore
 except ModuleNotFoundError:
     rpc_server_classes: list = [RPCServer]
 else:
@@ -133,6 +133,7 @@ def test_process_response(rpc_server: RPCServer, rpc_generator: RPCGenerator):
     error = exc_info.value.rpc_error
     assert error.code == INVALID_REQUEST.code
     assert error.message == INVALID_REQUEST.message
+    # ignore the following test, which depends on the openrpc version
     # assert error.data == request.model_dump()  # type: ignore
 
 

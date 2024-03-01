@@ -39,7 +39,8 @@ def task(stop_event: Event) -> None:
     while stop_event.wait(.5):
         sleep(.1)
     return
-    with Actor(name="pymeasure_actor", cls=FakeInstrument, periodic_reading=-1) as actor:
+    with Actor(name="pymeasure_actor", device_class=FakeInstrument,
+               periodic_reading=-1) as actor:
         actor.connect()  # connect to the device
 
         # Continuous loop
