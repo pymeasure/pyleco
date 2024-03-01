@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from enum import Enum
 from threading import get_ident, Condition
 from typing import Any, Callable, Optional, Union
@@ -314,7 +315,7 @@ class PipeHandler(ExtendedMessageHandler):
         self.socket.send_multipart(frames)
 
     def read_message(self, conversation_id: Optional[bytes] = None,
-                          timeout: Optional[float] = None) -> Message:
+                     timeout: Optional[float] = None) -> Message:
         """Read a message using the thread safe buffer."""
         message = self._read_socket_message(timeout=timeout)
         self.check_for_not_signed_in_error(message=message)

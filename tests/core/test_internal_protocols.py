@@ -24,11 +24,10 @@
 
 import pytest
 
-from jsonrpcobjects.errors import JSONRPCError
-
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.test import FakeCommunicator
+from pyleco.json_utils.errors import JSONRPCError
 
 cid = b"conversation_id;"
 

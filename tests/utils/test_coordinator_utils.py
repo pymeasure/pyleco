@@ -22,13 +22,13 @@
 # THE SOFTWARE.
 #
 
-from jsonrpcobjects.objects import Request, ResultResponse, ErrorResponse
 import pytest
 
 from pyleco.test import FakeContext
 from pyleco.core.message import Message, MessageTypes
 from pyleco.errors import CommunicationError, NOT_SIGNED_IN, DUPLICATE_NAME
 from pyleco.utils.coordinator_utils import ZmqNode, ZmqMultiSocket, Node, Directory, FakeNode
+from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse
 
 
 class TestZmqMultiSocket:

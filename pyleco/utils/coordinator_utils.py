@@ -22,20 +22,21 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 import logging
 from time import perf_counter
 from typing import Protocol, Optional, Union
 
-from jsonrpcobjects.objects import ErrorResponse, Request
 import zmq
 
 from ..core import COORDINATOR_PORT
 from ..errors import CommunicationError, NOT_SIGNED_IN, DUPLICATE_NAME
 from ..core.message import Message, MessageTypes
 from ..core.serialization import deserialize_data
-from ..core.rpc_generator import RPCGenerator
+from ..json_utils.rpc_generator import RPCGenerator
+from ..json_utils.json_objects import ErrorResponse, Request
 
 
 log = logging.getLogger(__name__)

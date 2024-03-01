@@ -31,10 +31,11 @@ Any Component could use these tools in order to send and read messages.
 For example a Director might use these tools to direct an Actor.
 """
 
+from __future__ import annotations
 from typing import Any, Optional, Protocol, Iterable, Union
 
 from .message import Message, MessageTypes
-from .rpc_generator import RPCGenerator
+from ..json_utils.rpc_generator import RPCGenerator
 
 
 class CommunicatorProtocol(Protocol):

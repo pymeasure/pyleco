@@ -22,10 +22,11 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from typing import Any, Optional, Union
 
 import pytest
-from jsonrpcobjects.objects import Request
+from pyleco.json_utils.json_objects import Request
 
 from pyleco.core import serialization
 from pyleco.core.serialization import JsonContentTypes, get_json_content_type

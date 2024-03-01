@@ -27,7 +27,6 @@ from unittest.mock import MagicMock
 import time
 from typing import Optional
 
-from jsonrpcobjects.objects import Request, ResultResponse
 import pytest
 
 from pyleco.core import VERSION_B
@@ -36,8 +35,8 @@ from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
-from pyleco.errors import (NOT_SIGNED_IN, DUPLICATE_NAME, NODE_UNKNOWN, RECEIVER_UNKNOWN,
-                           ErrorResponse, DataError)
+from pyleco.errors import NOT_SIGNED_IN, DUPLICATE_NAME, NODE_UNKNOWN, RECEIVER_UNKNOWN
+from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse, DataError
 
 from pyleco.utils.message_handler import MessageHandler, SimpleEvent
 

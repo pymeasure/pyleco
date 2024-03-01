@@ -22,20 +22,21 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from json import JSONDecodeError
 import logging
 import time
 from typing import Any, Callable, Optional, Union
 
-from jsonrpcobjects.errors import JSONRPCError
-from openrpc import RPCServer
 import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message, MessageTypes
-from ..core.rpc_generator import RPCGenerator
 from ..core.serialization import JsonContentTypes, get_json_content_type
+from ..json_utils.errors import JSONRPCError
+from ..json_utils.rpc_generator import RPCGenerator
+from ..json_utils.rpc_server import RPCServer
 from .base_communicator import BaseCommunicator
 from .log_levels import PythonLogLevels
 from .zmq_log_handler import ZmqLogHandler
@@ -62,13 +63,19 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
     :param protocol: Connection protocol.
     :param log: Logger instance whose logs should be published. Defaults to `getLogger("__main__")`.
     """
+
     name: str
 
-    def __init__(self, name: str,
-                 host: str = "localhost", port: int = COORDINATOR_PORT, protocol: str = "tcp",
-                 log: Optional[logging.Logger] = None,
-                 context: Optional[zmq.Context] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        name: str,
+        host: str = "localhost",
+        port: int = COORDINATOR_PORT,
+        protocol: str = "tcp",
+        log: Optional[logging.Logger] = None,
+        context: Optional[zmq.Context] = None,
+        **kwargs,
+    ):
         self.name = name
         self._namespace: Union[str, None] = None
         self._full_name: str = name
@@ -79,8 +86,9 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.register_rpc_methods()
 
         self.setup_logging(log=log)
-        self.setup_socket(host=host, port=port, protocol=protocol,
-                          context=context or zmq.Context.instance())
+        self.setup_socket(
+            host=host, port=port, protocol=protocol, context=context or zmq.Context.instance()
+        )
 
         super().__init__(**kwargs)
 
@@ -135,11 +143,13 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.register_rpc_method(self.pong)
 
     # Base communication
-    def send(self,
-             receiver: Union[bytes, str],
-             conversation_id: Optional[bytes] = None,
-             data: Optional[Any] = None,
-             **kwargs) -> None:
+    def send(
+        self,
+        receiver: Union[bytes, str],
+        conversation_id: Optional[bytes] = None,
+        data: Optional[Any] = None,
+        **kwargs,
+    ) -> None:
         """Send a message to a receiver with serializable `data`."""
         try:
             super().send(receiver=receiver, conversation_id=conversation_id, data=data, **kwargs)
@@ -181,8 +191,9 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.next_beat = time.perf_counter() + heartbeat_interval
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
-                             ) -> dict[zmq.Socket, int]:
+    def _listen_loop_element(
+        self, poller: zmq.Poller, waiting_time: Optional[int]
+    ) -> dict[zmq.Socket, int]:
         """Check the socks for incoming messages and handle them.
 
         :param waiting_time: Timeout of the poller in ms.
@@ -203,8 +214,7 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
     # Message handling in loop
     def read_and_handle_message(self) -> None:
-        """Interpret incoming message, which have not been requested.
-        """
+        """Interpret incoming message, which have not been requested."""
         try:
             message = self.read_message(timeout=0)
         except (TimeoutError, JSONRPCError):
@@ -224,7 +234,7 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
     def handle_json_message(self, message: Message) -> None:
         try:
             data: dict[str, Any] = message.data  # type: ignore
-        except (JSONDecodeError) as exc:
+        except JSONDecodeError as exc:
             self.log.exception(f"Could not decode json message {message}", exc_info=exc)
             return
         content = get_json_content_type(data)
@@ -244,8 +254,12 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
     def process_json_message(self, message: Message) -> Message:
         self.log.info(f"Handling commands of {message}.")
         reply = self.rpc.process_request(message.payload[0])
-        response = Message(message.sender, conversation_id=message.conversation_id,
-                           message_type=MessageTypes.JSON, data=reply)
+        response = Message(
+            message.sender,
+            conversation_id=message.conversation_id,
+            message_type=MessageTypes.JSON,
+            data=reply,
+        )
         return response
 
     def handle_json_error(self, message: Message) -> None:
@@ -256,9 +270,10 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
     def handle_unknown_message_type(self, message: Message) -> None:
         self.log.warning(
-                f"Message from {message.sender!r} with unknown message type "
-                f"{message.header_elements.message_type} received: '{message.data}', "
-                f"{message.payload!r}.")
+            f"Message from {message.sender!r} with unknown message type "
+            f"{message.header_elements.message_type} received: '{message.data}', "
+            f"{message.payload!r}."
+        )
 
     # Methods offered via RPC
     def set_log_level(self, level: str) -> None:

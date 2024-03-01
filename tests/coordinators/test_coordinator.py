@@ -22,18 +22,19 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from jsonrpcobjects.objects import Request, ErrorResponse
 
+from pyleco.json_utils.json_objects import Request, ErrorResponse
 from pyleco.errors import (NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME, RECEIVER_UNKNOWN,
                            generate_error_with_data)
 from pyleco.core import VERSION_B
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.leco_protocols import ExtendedComponentProtocol, Protocol, CoordinatorProtocol
 from pyleco.utils.coordinator_utils import FakeMultiSocket, FakeNode
-from pyleco.core.rpc_generator import RPCGenerator
+from pyleco.json_utils.rpc_generator import RPCGenerator
 from pyleco.test import FakeContext
 from pyleco.utils.events import SimpleEvent
 

@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## [unreleased]
+
+_Use self defined objects instead of jsonrpc2-objects and jsonrpc2-pyclient._
+
+### Changed
+
+- Substitute `jsonrpc2-objects` and `jsonrpc2-pyclient` by self written objects.
+
+### Added
+
+- Add __future__.annotations to all files, which need it for annotations for Python 3.7/3.8.
+- Add self written `RPCServer` as alternative to openrpc package.
+
+
 ## [0.2.2] - 2024-02-14
 
 ### Fixed

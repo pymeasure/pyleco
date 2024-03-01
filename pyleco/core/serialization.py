@@ -22,18 +22,20 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from enum import IntEnum, IntFlag
 import json
 from typing import Any, Optional, NamedTuple, Union
 
 from uuid_extensions import uuid7  # type: ignore  #  as long as uuid does not yet support UUIDv7
-from jsonrpcobjects.objects import (Request,
-                                    ParamsRequest,
-                                    ResultResponse,
-                                    ErrorResponse,
-                                    Notification,
-                                    ParamsNotification,
-                                    )
+from ..json_utils.json_objects import (
+    Request,
+    ParamsRequest,
+    ResultResponse,
+    ErrorResponse,
+    Notification,
+    ParamsNotification,
+)
 
 
 json_objects = (

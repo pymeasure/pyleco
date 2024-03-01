@@ -22,16 +22,17 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 import logging
 from time import perf_counter
 from typing import Optional, Protocol
 
-from jsonrpcobjects.errors import JSONRPCError
 import zmq
 
 from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message, MessageTypes
 from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
+from ..json_utils.errors import JSONRPCError
 
 
 NOT_SIGNED_IN_ERROR_CODE = str(NOT_SIGNED_IN.code).encode()

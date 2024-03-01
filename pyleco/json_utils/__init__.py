@@ -21,30 +21,3 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-
-from typing import Any
-
-from .json_utils.json_objects import Error, DataError, ErrorResponse
-
-# JSON specification:
-# -32000 to -32099  Server error    reserved for implementation-defined server-errors
-
-# TODO define valid error codes: Proposal:
-# general error: -32000
-# Routing errors (Coordinator) between -32090 and -32099
-NOT_SIGNED_IN = Error(code=-32090, message="You did not sign in!")
-DUPLICATE_NAME = Error(code=-32091, message="The name is already taken.")
-NODE_UNKNOWN = Error(code=-32092, message="Node is not known.")
-RECEIVER_UNKNOWN = Error(code=-32093, message="Receiver is not in addresses list.")
-
-
-def generate_error_with_data(error: Error, data: Any) -> DataError:
-    return DataError(code=error.code, message=error.message, data=data)
-
-
-class CommunicationError(ConnectionError):
-    """Something went wrong, send an `error_msg` to the recipient."""
-
-    def __init__(self, text: str, error_payload: ErrorResponse, *args: Any) -> None:
-        super().__init__(text, *args)
-        self.error_payload = error_payload

@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 import logging
 from time import perf_counter
 from typing import Optional, Union
@@ -31,7 +32,7 @@ import zmq
 from ..errors import NOT_SIGNED_IN
 from ..core import COORDINATOR_PORT
 from ..core.message import Message, MessageTypes
-from ..core.rpc_generator import RPCGenerator
+from ..json_utils.rpc_generator import RPCGenerator
 from .base_communicator import BaseCommunicator
 
 

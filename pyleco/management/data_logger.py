@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 from typing import Union, Sequence
 
 import datetime

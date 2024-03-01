@@ -34,6 +34,7 @@ E.g. in "tasks/test1.py" for task "test1".
 Created on Thu Dec 15 09:31:04 2022 by Benedikt Moneke
 """
 
+from __future__ import annotations
 from enum import IntFlag
 from importlib import import_module, reload
 import logging
