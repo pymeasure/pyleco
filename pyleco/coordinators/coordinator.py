@@ -105,13 +105,16 @@ class Coordinator:
         self.full_name = self.namespace + b".COORDINATOR"
         log.info(f"Start Coordinator of node {self.namespace!r} at port '{port}'.")
         self.address = f"{host or gethostname()}:{port}"
-        self.directory = Directory(namespace=self.namespace, full_name=self.full_name,
-                                   address=self.address)
+        self.directory = Directory(
+            namespace=self.namespace, full_name=self.full_name, address=self.address
+        )
         self.global_directory: dict[bytes, list[str]] = {}  # All Components
         self.timeout = timeout
-        self.cleaner = RepeatingTimer(interval=cleaning_interval,
-                                      function=self.remove_expired_addresses,
-                                      args=(expiration_time,))
+        self.cleaner = RepeatingTimer(
+            interval=cleaning_interval,
+            function=self.remove_expired_addresses,
+            args=(expiration_time,),
+        )
 
         self.cleaner.start()
 
@@ -167,13 +170,10 @@ class Coordinator:
             log.info(f"Coordinator {self.full_name!r} closed.")
             self.closed = True
 
-    def create_message(self, receiver: bytes, data: Optional[Union[bytes, str, object]] = None,
-                       **kwargs) -> Message:
-        return Message(
-            receiver=receiver,
-            sender=self.full_name,
-            data=data,
-            **kwargs)
+    def create_message(
+        self, receiver: bytes, data: Optional[Union[bytes, str, object]] = None, **kwargs
+    ) -> Message:
+        return Message(receiver=receiver, sender=self.full_name, data=data, **kwargs)
 
     def send_message(self, receiver: bytes, data: Optional[object] = None, **kwargs) -> None:
         """Send a message with any socket, including routing.
@@ -222,8 +222,9 @@ class Coordinator:
             self.sock.send_message(identity, message)
         self.publish_directory_update()
 
-    def routing(self, coordinators: Optional[list[str]] = None, stop_event: Optional[Event] = None
-                ) -> None:
+    def routing(
+        self, coordinators: Optional[list[str]] = None, stop_event: Optional[Event] = None
+    ) -> None:
         """Route all messages.
 
         Connect to Coordinators at the beginning.
@@ -233,8 +234,9 @@ class Coordinator:
         # Connect to Coordinators.
         if coordinators is not None:
             for coordinator in coordinators:
-                self.directory.add_node_sender(node=ZmqNode(context=self.context),
-                                               address=coordinator, namespace=b"")
+                self.directory.add_node_sender(
+                    node=ZmqNode(context=self.context), address=coordinator, namespace=b""
+                )
         # Route messages until told to stop.
         self.stop_event = stop_event or SimpleEvent()
         while not self.stop_event.is_set():
@@ -262,7 +264,8 @@ class Coordinator:
         """
         log.debug(
             f"From identity {sender_identity!r}, from {message.sender!r}, to {message.receiver!r},"
-            f" header {message.header!r}, cid {message.conversation_id!r}, '{message.payload}'.")
+            f" header {message.header!r}, cid {message.conversation_id!r}, '{message.payload}'."
+        )
         # Update heartbeat
         if sender_identity:
             try:
@@ -326,14 +329,16 @@ class Coordinator:
             self.handle_json_commands(message=message)
         else:
             log.error(
-                f"Message from {message.sender!r} of unknown type received: {message.payload[0]!r}")
+                f"Message from {message.sender!r} of unknown type received: {message.payload[0]!r}"
+            )
 
     def handle_json_commands(self, message: Message) -> None:
         try:
             data: Union[list[dict[str, Any]], dict[str, Any]] = message.data  # type: ignore
         except JSONDecodeError:
             log.error(
-                f"Invalid JSON message from {message.sender!r} received: {message.payload[0]!r}")
+                f"Invalid JSON message from {message.sender!r} received: {message.payload[0]!r}"
+            )
             return
         json_type = get_json_content_type(data)
         if JsonContentTypes.REQUEST in json_type:
@@ -342,7 +347,8 @@ class Coordinator:
             except Exception as exc:
                 log.exception(
                     f"Invalid JSON-RPC message from {message.sender!r} received: {data}",
-                    exc_info=exc)
+                    exc_info=exc,
+                )
         elif JsonContentTypes.RESULT_RESPONSE == json_type:
             if data.get("result", False) is not None:  # type: ignore
                 log.info(f"Unexpeced result received: {data}")
@@ -354,7 +360,8 @@ class Coordinator:
                     log.info(f"Unexpeced result received: {data}")
         else:
             log.error(
-                f"Invalid JSON RPC message from {message.sender!r} received: {message.payload[0]!r}")  # noqa
+                f"Invalid JSON RPC message from {message.sender!r} received: {message.payload[0]!r}"
+            )  # noqa
 
     def handle_rpc_call(self, message: Message) -> None:
         reply = self.rpc.process_request(message.payload[0])
@@ -437,8 +444,9 @@ class Coordinator:
         for node, address in nodes.items():
             node = node.encode()
             try:
-                self.directory.add_node_sender(ZmqNode(context=self.context),
-                                               address=address, namespace=node)
+                self.directory.add_node_sender(
+                    ZmqNode(context=self.context), address=address, namespace=node
+                )
             except ValueError:
                 pass  # already connected
 
@@ -475,13 +483,12 @@ class Coordinator:
                 receiver=b".".join((node, b"COORDINATOR")),
                 message_type=MessageTypes.JSON,
                 data=[
+                    ParamsRequest(id=5, method="add_nodes", params={"nodes": nodes}).model_dump(),
                     ParamsRequest(
-                        id=5, method="add_nodes",
-                        params={"nodes": nodes}).model_dump(),
-                    ParamsRequest(
-                        id=6, method="record_components",
-                        params={"components": components}).model_dump(),
-                ])
+                        id=6, method="record_components", params={"components": components}
+                    ).model_dump(),
+                ],
+            )
 
 
 def main() -> None:
@@ -489,8 +496,12 @@ def main() -> None:
     from pyleco.utils.parser import parser, parse_command_line_parameters  # noqa: F811
 
     # Define parser
-    parser.add_argument("-c", "--coordinators", default="",
-                        help="connect to this comma separated list of coordinators")
+    parser.add_argument(
+        "-c",
+        "--coordinators",
+        default="",
+        help="connect to this comma separated list of coordinators",
+    )
     parser.add_argument("--namespace", help="set the Node's namespace")
     parser.add_argument("-p", "--port", type=int, help="port number to bind to")
 
@@ -499,7 +510,7 @@ def main() -> None:
     kwargs = parse_command_line_parameters(logger=gLog, parser=parser, logging_default=logging.INFO)
     if len(log.handlers) <= 1:
         log.addHandler(logging.StreamHandler())
-    cos = kwargs.pop('coordinators', "")
+    cos = kwargs.pop("coordinators", "")
     coordinators = cos.replace(" ", "").split(",")
 
     # Run the Coordinator

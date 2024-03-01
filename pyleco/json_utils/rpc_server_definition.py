@@ -37,9 +37,13 @@ log.addHandler(logging.NullHandler())
 
 
 class RPCServer:
-    def __init__(self, title: Optional[str] = None, version: Optional[str] = None,
-                 debug: bool = False,
-                 **kwargs) -> None:
+    def __init__(
+        self,
+        title: Optional[str] = None,
+        version: Optional[str] = None,
+        debug: bool = False,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.title = title or "RPC Server"
         self._version = version or "0.1.0"
@@ -48,11 +52,14 @@ class RPCServer:
 
     def method(self, name: Optional[str] = None, **kwargs) -> Callable[[Callable], None]:
         if name is None:
+
             def method_registrar(method: Callable) -> None:
                 return self._register_method(name=method.__name__, method=method)
         else:
+
             def method_registrar(method: Callable) -> None:
                 return self._register_method(name=name, method=method)
+
         return method_registrar
 
     def _register_method(self, name: str, method: Callable) -> None:
@@ -68,7 +75,7 @@ class RPCServer:
                     if result is not None:
                         results.append(result.model_dump())
                 if results:
-                    return json.dumps(results, separators=(',', ':'))
+                    return json.dumps(results, separators=(",", ":"))
                 else:
                     return None
             elif isinstance(json_data, dict):
@@ -78,27 +85,33 @@ class RPCServer:
                 else:
                     return None
             else:
-                return ErrorResponse(id=None,
-                                     error=generate_error_with_data(INVALID_REQUEST, json_data),
-                                     ).model_dump_json()
+                return ErrorResponse(
+                    id=None,
+                    error=generate_error_with_data(INVALID_REQUEST, json_data),
+                ).model_dump_json()
         except Exception as exc:
             log.exception(f"{type(exc).__name__}:", exc_info=exc)
             return ErrorResponse(id=None, error=INTERNAL_ERROR).model_dump_json()
 
-    def _process_single_request(self, request: dict[str, Any]
-                                ) -> Union[ResultResponse, ErrorResponse, None]:
+    def _process_single_request(
+        self, request: dict[str, Any]
+    ) -> Union[ResultResponse, ErrorResponse, None]:
         id_ = None
         try:
             id_ = request.get("id")
             method_name = request.get("method")
             if method_name is None:
-                return ErrorResponse(id=id_,
-                                     error=generate_error_with_data(INVALID_REQUEST, data=request))
+                return ErrorResponse(
+                    id=id_, error=generate_error_with_data(INVALID_REQUEST, data=request)
+                )
             params = request.get("params")
             method = self._rpc_methods[method_name]
             if isinstance(params, dict):
                 result = method(**params)
-            elif isinstance(params, list, ):
+            elif isinstance(
+                params,
+                list,
+            ):
                 result = method(*params)
             else:
                 result = method()
