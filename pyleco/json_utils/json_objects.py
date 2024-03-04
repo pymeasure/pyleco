@@ -113,6 +113,10 @@ class DataError(JsonObject):
     message: str
     data: Any
 
+    @classmethod
+    def from_error(cls, error: Error, data: Any) -> DataError:
+        return cls(code=error.code, message=error.message, data=data)
+
 
 @dataclass
 class ErrorResponse(JsonObject):
