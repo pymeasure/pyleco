@@ -27,9 +27,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyleco.json_utils.json_objects import Request, ErrorResponse
-from pyleco.errors import (NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME, RECEIVER_UNKNOWN,
-                           generate_error_with_data)
+from pyleco.json_utils.json_objects import Request, ErrorResponse, DataError
+from pyleco.json_utils.errors import NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME, RECEIVER_UNKNOWN
 from pyleco.core import VERSION_B
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.leco_protocols import ExtendedComponentProtocol, Protocol, CoordinatorProtocol
@@ -250,14 +249,14 @@ def test_reading_fails(coordinator: Coordinator, caplog: pytest.LogCaptureFixtur
     ([b"321", VERSION_B, b"x", b"send", b"conversation_id;mid0", b""],
      [b"321", VERSION_B, b"send", b"N1.COORDINATOR", b"conversation_id;\x00\x00\x00\x01",
       ErrorResponse(id=None,
-                    error=generate_error_with_data(RECEIVER_UNKNOWN,
-                                                   "x")).model_dump_json().encode()]),
+                    error=DataError.from_error(RECEIVER_UNKNOWN,
+                                               "x")).model_dump_json().encode()]),
     # unknown receiver node:
     ([b"321", VERSION_B, b"N3.CB", b"N1.send", b"conversation_id;mid0"],
      [b"321", VERSION_B, b"N1.send", b"N1.COORDINATOR", b"conversation_id;\x00\x00\x00\x01",
       ErrorResponse(id=None,
-                    error=generate_error_with_data(NODE_UNKNOWN,
-                                                   "N3")).model_dump_json().encode()]),
+                    error=DataError.from_error(NODE_UNKNOWN,
+                                               "N3")).model_dump_json().encode()]),
     # sender (without namespace) did not sign in:
     ([b"1", VERSION_B, b"rec", b"unknownSender", b"conversation_id;mid0"],
      [b"1", VERSION_B, b"unknownSender", b"N1.COORDINATOR", b"conversation_id;\x00\x00\x00\x01",

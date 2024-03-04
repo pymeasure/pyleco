@@ -31,8 +31,7 @@ import zmq
 
 from ..core.internal_protocols import CommunicatorProtocol
 from ..core.message import Message, MessageTypes
-from ..errors import DUPLICATE_NAME, NOT_SIGNED_IN
-from ..json_utils.errors import JSONRPCError
+from ..json_utils.errors import JSONRPCError, DUPLICATE_NAME, NOT_SIGNED_IN
 
 
 NOT_SIGNED_IN_ERROR_CODE = str(NOT_SIGNED_IN.code).encode()

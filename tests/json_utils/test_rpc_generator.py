@@ -27,9 +27,9 @@ from typing import Union
 import pytest
 
 from pyleco.json_utils.json_objects import ErrorResponse
-from pyleco.json_utils.errors import JSONRPCError
+from pyleco.json_utils.errors import (JSONRPCError, NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME,
+                                      RECEIVER_UNKNOWN)
 
-from pyleco.errors import NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME, RECEIVER_UNKNOWN
 from pyleco.json_utils.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
 
 

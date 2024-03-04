@@ -29,10 +29,10 @@ from typing import Optional, Union
 
 import zmq
 
-from ..errors import NOT_SIGNED_IN
 from ..core import COORDINATOR_PORT
 from ..core.message import Message, MessageTypes
 from ..json_utils.rpc_generator import RPCGenerator
+from ..json_utils.errors import NOT_SIGNED_IN
 from .base_communicator import BaseCommunicator
 
 

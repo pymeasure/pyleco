@@ -32,12 +32,12 @@ import zmq
 
 if __name__ != "__main__":
     from ..core import COORDINATOR_PORT
-    from ..utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
+    from ..utils.coordinator_utils import CommunicationError, Directory, ZmqNode, ZmqMultiSocket,\
+        MultiSocket
     from ..core.message import Message, MessageTypes
     from ..core.serialization import get_json_content_type, JsonContentTypes
-    from ..errors import CommunicationError
-    from ..errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
-    from ..json_utils.json_objects import ErrorResponse, Request, ParamsRequest
+    from ..json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
+    from ..json_utils.json_objects import ErrorResponse, Request, ParamsRequest, DataError
     from ..json_utils.rpc_server import RPCServer
     from ..utils.timers import RepeatingTimer
     from ..utils.zmq_log_handler import ZmqLogHandler
@@ -45,12 +45,12 @@ if __name__ != "__main__":
     from ..utils.log_levels import PythonLogLevels
 else:  # pragma: no cover
     from pyleco.core import COORDINATOR_PORT
-    from pyleco.utils.coordinator_utils import Directory, ZmqNode, ZmqMultiSocket, MultiSocket
+    from pyleco.utils.coordinator_utils import CommunicationError, Directory, ZmqNode,\
+          ZmqMultiSocket, MultiSocket
     from pyleco.core.message import Message, MessageTypes
     from pyleco.core.serialization import get_json_content_type, JsonContentTypes
-    from pyleco.errors import CommunicationError
-    from pyleco.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN, generate_error_with_data
-    from pyleco.json_utils.json_objects import ErrorResponse, Request, ParamsRequest
+    from pyleco.json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
+    from pyleco.json_utils.json_objects import ErrorResponse, Request, ParamsRequest, DataError
     from pyleco.json_utils.rpc_server import RPCServer
     from pyleco.utils.timers import RepeatingTimer
     from pyleco.utils.zmq_log_handler import ZmqLogHandler
@@ -288,12 +288,12 @@ class Coordinator:
         else:
             self._deliver_remotely(message=message, receiver_namespace=receiver_namespace)
 
-    def _deliver_locally(self, message, receiver_name):
+    def _deliver_locally(self, message: Message, receiver_name: bytes) -> None:
         try:
             receiver_identity = self.directory.get_component_id(name=receiver_name)
         except ValueError:
             log.error(f"Receiver '{message.receiver}' is not in the addresses list.")
-            error = generate_error_with_data(RECEIVER_UNKNOWN, data=message.receiver.decode())
+            error = DataError.from_error(RECEIVER_UNKNOWN, data=message.receiver.decode())
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,
@@ -303,11 +303,11 @@ class Coordinator:
         else:
             self.sock.send_message(receiver_identity, message)
 
-    def _deliver_remotely(self, message, receiver_namespace) -> None:
+    def _deliver_remotely(self, message: Message, receiver_namespace: bytes) -> None:
         try:
             self.directory.send_node_message(namespace=receiver_namespace, message=message)
         except ValueError:
-            error = generate_error_with_data(NODE_UNKNOWN, data=receiver_namespace.decode())
+            error = DataError.from_error(NODE_UNKNOWN, data=receiver_namespace.decode())
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,

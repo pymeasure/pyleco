@@ -28,13 +28,10 @@ import logging
 from typing import Any, Union
 
 from .json_objects import Request, ParamsRequest, DataError, Error, ResultResponse
-from .errors import ServerError, get_exception_by_code, JSONRPCError
+from .errors import ServerError, get_exception_by_code, JSONRPCError, INVALID_SERVER_RESPONSE
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
-
-
-INVALID_SERVER_RESPONSE = Error(code=-32000, message="Invalid response from server.")
 
 
 class RPCGenerator:
@@ -59,7 +56,7 @@ class RPCGenerator:
 
     def get_result_from_response(self, data: Union[bytes, str, dict]) -> Any:
         """Get the result of that object or raise an error."""
-        # copied and modified from jsonrpc2-pyclient
+        # copied from jsonrpc2-pyclient and modified
         try:
             # Parse string to JSON.
             if not isinstance(data, dict):
