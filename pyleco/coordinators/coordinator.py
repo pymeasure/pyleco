@@ -292,7 +292,7 @@ class Coordinator:
         try:
             receiver_identity = self.directory.get_component_id(name=receiver_name)
         except ValueError:
-            log.error(f"Receiver '{message.receiver}' is not in the addresses list.")
+            log.error(f"Receiver '{message.receiver!r}' is not in the addresses list.")
             error = DataError.from_error(RECEIVER_UNKNOWN, data=message.receiver.decode())
             self.send_message(
                 receiver=message.sender,
