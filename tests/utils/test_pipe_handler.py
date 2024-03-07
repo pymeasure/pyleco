@@ -30,7 +30,7 @@ import zmq
 from pyleco.core.message import Message
 from pyleco.test import FakeContext
 
-from pyleco.utils.pipe_handler import MessageBuffer, PipeHandler, CommunicatorPipe
+from pyleco.utils.pipe_handler import LockedMessageBuffer, PipeHandler, CommunicatorPipe
 
 cid = b"conversation_id;"  # conversation_id
 header = b"".join((cid, b"mid", b"\x00"))
@@ -42,24 +42,24 @@ other = Message(b"r", b"s", conversation_id=b"conversation_id9", message_id=b"mi
 
 
 @pytest.fixture
-def message_buffer() -> MessageBuffer:
-    message_buffer = MessageBuffer()
-    message_buffer._buffer = [msg]
+def message_buffer() -> LockedMessageBuffer:
+    message_buffer = LockedMessageBuffer()
+    message_buffer._messages = [msg]
     return message_buffer
 
 
 # Test MessageBuffer
-def test_add_conversation_id(message_buffer: MessageBuffer):
+def test_add_conversation_id(message_buffer: LockedMessageBuffer):
     message_buffer.add_conversation_id(conversation_id=cid)
-    assert cid in message_buffer._cids
+    assert cid in message_buffer._requested_ids
 
 
 class Test_add_response_message_successful:
     @pytest.fixture
-    def message_buffer_added(self) -> MessageBuffer:
+    def message_buffer_added(self) -> LockedMessageBuffer:
         # Arrange
-        mb = MessageBuffer()
-        assert mb._buffer == []
+        mb = LockedMessageBuffer()
+        assert mb._messages == []
         mb.add_conversation_id(cid)
         # Act
         self.return_value = mb.add_response_message(msg)
@@ -71,40 +71,40 @@ class Test_add_response_message_successful:
     def test_msg_in_buffer(self, message_buffer_added):
         assert message_buffer_added._buffer == [msg]
 
-    def test_cid_cleared(self, message_buffer_added: MessageBuffer):
-        assert message_buffer_added._cids == []
+    def test_cid_cleared(self, message_buffer_added: LockedMessageBuffer):
+        assert message_buffer_added._requested_ids == []
 
 
 def test_add_fails_without_previous_cid():
-    empty_message_buffer = MessageBuffer()
+    empty_message_buffer = LockedMessageBuffer()
     assert empty_message_buffer.add_response_message(message=msg) is False
-    assert empty_message_buffer._buffer == []
+    assert empty_message_buffer._messages == []
 
 
 class Test_check_message_in_buffer:
     @pytest.fixture
-    def message_buffer_cmib(self, message_buffer: MessageBuffer):
+    def message_buffer_cmib(self, message_buffer: LockedMessageBuffer):
         predicate = message_buffer._predicate_generator(cid)
         message_buffer._predicate = predicate  # type: ignore
         return message_buffer
 
-    def test_message_is_in_first_place(self, message_buffer_cmib: MessageBuffer):
+    def test_message_is_in_first_place(self, message_buffer_cmib: LockedMessageBuffer):
         assert message_buffer_cmib._predicate() is True  # type: ignore
         assert message_buffer_cmib._result == msg
-        assert message_buffer_cmib._buffer == []
+        assert message_buffer_cmib._messages == []
 
-    def test_no_suitable_message_in_buffer(self, message_buffer: MessageBuffer):
+    def test_no_suitable_message_in_buffer(self, message_buffer: LockedMessageBuffer):
         predicate = message_buffer._predicate_generator(conversation_id=b"other_cid")
         assert predicate() is False
         assert not hasattr(message_buffer, "_result")
-        assert message_buffer._buffer != []
+        assert message_buffer._messages != []
 
-    def test_msg_somewhere_in_buffer(self, message_buffer_cmib: MessageBuffer):
+    def test_msg_somewhere_in_buffer(self, message_buffer_cmib: LockedMessageBuffer):
         o2 = Message(b"r", b"s", conversation_id=b"conversation_id9", message_id=b"mi7")
-        message_buffer_cmib._buffer = [other, msg, o2]
+        message_buffer_cmib._messages = [other, msg, o2]
         assert message_buffer_cmib._predicate() is True  # type:ignore
         assert message_buffer_cmib._result == msg
-        assert message_buffer_cmib._buffer == [other, o2]
+        assert message_buffer_cmib._messages == [other, o2]
 
 
 @pytest.mark.parametrize("buffer", (
@@ -113,26 +113,26 @@ class Test_check_message_in_buffer:
         [other, msg],  # msg is in the second and last place of the buffer
         [other, msg, other]  # msg is in the middle of the buffer
     ))
-def test_retrieve_message_success(message_buffer: MessageBuffer, buffer):
-    message_buffer._buffer = buffer
+def test_retrieve_message_success(message_buffer: LockedMessageBuffer, buffer):
+    message_buffer._messages = buffer
     original_length = len(buffer)
-    assert message_buffer.retrieve_message(cid) == msg
-    assert len(message_buffer._buffer) == original_length - 1
+    assert message_buffer.wait_for_message(cid) == msg
+    assert len(message_buffer._messages) == original_length - 1
 
 
 @pytest.mark.parametrize("buffer", (
         [],  # no message in buffer
         [other],  # other message in buffer
     ))
-def test_retrieve_message_fail(message_buffer: MessageBuffer, buffer):
-    message_buffer._buffer = buffer
+def test_retrieve_message_fail(message_buffer: LockedMessageBuffer, buffer):
+    message_buffer._messages = buffer
     with pytest.raises(TimeoutError):
-        message_buffer.retrieve_message(conversation_id=cid, timeout=0.01)
+        message_buffer.wait_for_message(conversation_id=cid, timeout=0.01)
 
 
 @pytest.mark.parametrize("length", (1, 3, 7))
-def test_length_of_buffer(message_buffer: MessageBuffer, length: int):
-    message_buffer._buffer = length * [msg]
+def test_length_of_buffer(message_buffer: LockedMessageBuffer, length: int):
+    message_buffer._messages = length * [msg]
     assert len(message_buffer) == length
 
 
@@ -169,7 +169,7 @@ class Test_PipeHandler_read_message:
         # act
         with pytest.raises(TimeoutError):
             pipe_handler.read_message()
-        assert pipe_handler.buffer.retrieve_message(message.conversation_id) == message
+        assert pipe_handler.buffer.wait_for_message(message.conversation_id) == message
 
     def test_handle_request(self, pipe_handler: PipeHandler, caplog: pytest.LogCaptureFixture):
         """Message is not a response and should be handled by the MessageHandler."""
@@ -248,7 +248,7 @@ def test_communicator_ask_message(pipe_handler_pipe: PipeHandler, communicator: 
     # assert
     assert read == response
     pipe_handler_pipe._send_frames.assert_called_once_with(frames=message.to_frames())
-    assert cid in pipe_handler_pipe.buffer._cids
+    assert cid in pipe_handler_pipe.buffer._requested_ids
 
 
 def test_communicator_sign_in(communicator: CommunicatorPipe):

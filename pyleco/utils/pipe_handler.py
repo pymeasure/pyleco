@@ -30,6 +30,7 @@ from typing import Any, Callable, Optional, Union
 import zmq
 
 from .extended_message_handler import ExtendedMessageHandler
+from .base_communicator import MessageBuffer
 from ..core.message import Message, MessageTypes
 from ..core.internal_protocols import CommunicatorProtocol, SubscriberProtocol
 from ..core.serialization import generate_conversation_id
@@ -44,7 +45,7 @@ class PipeCommands(bytes, Enum):
     LOCAL_COMMAND = b"LOC"
 
 
-class MessageBuffer:
+class LockedMessageBuffer(MessageBuffer):
     """Buffer messages thread safe for later reading by the application.
 
     With the method :meth:`add_conversation_id` a conversation_id is stored to indicate, that the
@@ -63,49 +64,57 @@ class MessageBuffer:
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-
-        # Storage for returning asked messages
-        self._buffer: list[Message] = []
         self._buffer_lock = Condition()
-        self._cids: list[bytes] = []  # List of conversation_ids of asked questions.
 
     def add_conversation_id(self, conversation_id: bytes) -> None:
-        """Add the conversation_id of a sent message."""
+        """Add the conversation_id of a sent message in order to buffer the response."""
         with self._buffer_lock:
-            self._cids.append(conversation_id)
+            super().add_conversation_id(conversation_id=conversation_id)
 
-    def add_response_message(self, message: Message) -> bool:
-        """Add a message to the buffer, if it is a requested response.
-
-        :return: whether the message was added to the buffer.
-        """
+    def remove_conversation_id(self, conversation_id: bytes) -> None:
         with self._buffer_lock:
-            if message.conversation_id in self._cids:
-                self._buffer.append(message)
-                self._cids.remove(message.conversation_id)
-                self._buffer_lock.notify_all()
-                return True
-            else:
-                return False
+            super().remove_conversation_id(conversation_id=conversation_id)
+
+    def add_message(self, message: Message):
+        with self._buffer_lock:
+            super().add_message(message)
+            self._buffer_lock.notify_all()
+
+    # def add_response_message(self, message: Message) -> bool:
+    #     """Add a message to the buffer, if it is a requested response.
+
+    #     :return: whether the message was added to the buffer.
+    #     """
+    #     with self._buffer_lock:
+    #         if message.conversation_id in self._requested_ids:
+    #             self._messages.append(message)
+    #             self._requested_ids.remove(message.conversation_id)
+    #             self._buffer_lock.notify_all()
+    #             return True
+    #         else:
+    #             return False
+
+    def retrieve_message(self, conversation_id: Optional[bytes]) -> Optional[Message]:
+        """Retrieve the requested message or the next free one for `None`."""
+        with self._buffer_lock:
+            return super().retrieve_message(conversation_id=conversation_id)
 
     def _predicate_generator(self, conversation_id: bytes) -> Callable[[], bool]:
         def check_message_in_buffer() -> bool:
-            for (i, message) in enumerate(self._buffer):
+            for (i, message) in enumerate(self._messages):
                 if message.conversation_id == conversation_id:
-                    del self._buffer[i]
+                    del self._messages[i]
+                    self._requested_ids.discard(conversation_id)
                     self._result = message
                     return True
             return False
         return check_message_in_buffer
 
-    def retrieve_message(self, conversation_id: bytes, timeout: float = 1) -> Message:
+    def wait_for_message(self, conversation_id: bytes, timeout: float = 1) -> Message:
         """Retrieve a message with a certain `conversation_id`.
 
-        Try to read up to `tries` messages, waiting each time up to `timeout`.
-
         :param conversation_id: Conversation_id of the message to retrieve.
-        :param tries: *Deprecated* How many messages or timeouts should be read.
-        :param timeout: Timeout in seconds for a single trial.
+        :param timeout: Timeout in seconds.
         """
         with self._buffer_lock:
             found = self._buffer_lock.wait_for(
@@ -115,9 +124,6 @@ class MessageBuffer:
                 return self._result
         # No result found:
         raise TimeoutError("Reading timed out.")
-
-    def __len__(self):
-        return len(self._buffer)
 
 
 class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
@@ -129,7 +135,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
     def __init__(self,
                  handler: ExtendedMessageHandler,
                  pipe_port: int,
-                 buffer: MessageBuffer,
+                 buffer: LockedMessageBuffer,
                  context: Optional[zmq.Context] = None,
                  timeout: float = 1,
                  **kwargs):
@@ -173,7 +179,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
                      ) -> Message:
         if conversation_id is None:
             raise ValueError("You have to request a message with its conversation_id.")
-        return self.buffer.retrieve_message(conversation_id=conversation_id,
+        return self.buffer.wait_for_message(conversation_id=conversation_id,
                                             timeout=self.timeout if timeout is None else timeout,
                                             )
 
@@ -245,7 +251,7 @@ class PipeHandler(ExtendedMessageHandler):
         self.internal_pipe: zmq.Socket = context.socket(zmq.PULL)
         self.pipe_port = self.internal_pipe.bind_to_random_port("inproc://listenerPipe",
                                                                 min_port=12345)
-        self.buffer = MessageBuffer()
+        self.buffer = LockedMessageBuffer()
         self._communicators = {}
 
     def close(self) -> None:
@@ -314,22 +320,19 @@ class PipeHandler(ExtendedMessageHandler):
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
 
-    def read_message(self, conversation_id: Optional[bytes] = None,
-                     timeout: Optional[float] = None) -> Message:
-        """Read a message using the thread safe buffer."""
-        message = self._read_socket_message(timeout=timeout)
-        self.check_for_not_signed_in_error(message=message)
-        if self.buffer.add_response_message(message):
-            raise TimeoutError
-        else:
-            return message
-
     # Local messages
     def handle_local_request(self, conversation_id: bytes, rpc: bytes) -> None:
         result = self.rpc.process_request(data=rpc)
-        self.buffer.add_response_message(Message("comm", sender="ego", data=result,
-                                                 message_type=MessageTypes.JSON,
-                                                 conversation_id=conversation_id))
+        self.buffer.add_conversation_id(conversation_id)
+        self.buffer.add_message(
+            Message(
+                "comm",
+                sender="ego",
+                data=result,
+                message_type=MessageTypes.JSON,
+                conversation_id=conversation_id,
+            )
+        )
 
     # Thread safe methods for access from other threads
     def create_communicator(self, **kwargs) -> CommunicatorPipe:
