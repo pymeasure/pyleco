@@ -28,8 +28,7 @@ import logging
 from typing import Any, Callable, Optional, Union
 
 from .errors import INTERNAL_ERROR, SERVER_ERROR, INVALID_REQUEST
-from .json_objects import ResultResponse, ErrorResponse
-from ..errors import generate_error_with_data
+from .json_objects import ResultResponse, ErrorResponse, DataError
 
 
 log = logging.getLogger(__name__)
@@ -87,7 +86,7 @@ class RPCServer:
             else:
                 return ErrorResponse(
                     id=None,
-                    error=generate_error_with_data(INVALID_REQUEST, json_data),
+                    error=DataError.from_error(INVALID_REQUEST, json_data),
                 ).model_dump_json()
         except Exception as exc:
             log.exception(f"{type(exc).__name__}:", exc_info=exc)
@@ -102,7 +101,7 @@ class RPCServer:
             method_name = request.get("method")
             if method_name is None:
                 return ErrorResponse(
-                    id=id_, error=generate_error_with_data(INVALID_REQUEST, data=request)
+                    id=id_, error=DataError.from_error(INVALID_REQUEST, data=request)
                 )
             params = request.get("params")
             method = self._rpc_methods[method_name]

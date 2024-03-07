@@ -22,34 +22,12 @@
 # THE SOFTWARE.
 #
 
-from typing import Any
-from warnings import warn
-
-from .json_utils.json_objects import Error, DataError, ErrorResponse
-
-from .json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME, NODE_UNKNOWN, RECEIVER_UNKNOWN  # noqa
+from pyleco.json_utils.json_objects import Error
+from pyleco.json_utils.errors import JSONRPCError
 
 
-warn("The `pyleco.errors` module is deprecated, use the objects from the `pyleco.json_utils` "
-     "subpackage instead.", FutureWarning)
-
-
-def generate_error_with_data(error: Error, data: Any) -> DataError:
-    """Generate a DataError from an Error.
-
-    .. deprecated:: 0.3
-        Use `DataError.from_error` instead.
-    """
-    return DataError.from_error(error=error, data=data)
-
-
-class CommunicationError(ConnectionError):
-    """Something went wrong, send an `error_msg` to the recipient.
-
-    .. deprecated:: 0.3
-        Use the definition in `communicator_utils` module instead.
-    """
-
-    def __init__(self, text: str, error_payload: ErrorResponse, *args: Any) -> None:
-        super().__init__(text, *args)
-        self.error_payload = error_payload
+def test_JsonRPCError():
+    error = Error(5, "abc")
+    exc = JSONRPCError(error)
+    assert exc.rpc_error == error
+    assert exc.args[0] == "5: abc"

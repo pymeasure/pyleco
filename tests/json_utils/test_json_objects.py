@@ -75,3 +75,11 @@ def test_error_with_data():
     data_error = json_objects.DataError(code=5, message="whatever", data="abc")
     error_response = json_objects.ErrorResponse(id=7, error=data_error)
     assert error_response.model_dump_json() == '{"id":7,"error":{"code":5,"message":"whatever","data":"abc"},"jsonrpc":"2.0"}'  # noqa
+
+
+def test_generate_data_error_from_error():
+    error = json_objects.Error(code=5, message="abc")
+    data_error = json_objects.DataError.from_error(error, "data")
+    assert data_error.code == error.code
+    assert data_error.message == error.message
+    assert data_error.data == "data"

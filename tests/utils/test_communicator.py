@@ -28,9 +28,8 @@ import pytest
 
 from pyleco.core import VERSION_B
 from pyleco.core.message import Message, MessageTypes
-from pyleco.errors import NOT_SIGNED_IN, NODE_UNKNOWN
 from pyleco.core.serialization import serialize_data
-from pyleco.json_utils.errors import JSONRPCError
+from pyleco.json_utils.errors import JSONRPCError, NOT_SIGNED_IN, NODE_UNKNOWN
 
 from pyleco.utils.communicator import Communicator
 from pyleco.test import FakeSocket, FakeContext

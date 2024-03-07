@@ -8,12 +8,18 @@ _Use self defined objects instead of jsonrpc2-objects and jsonrpc2-pyclient._
 
 - Rename `cls` parameter to `device_class` in `Actor` and `TransparentDirector`.
 - Substitute `jsonrpc2-objects` and `jsonrpc2-pyclient` by self written objects.
+- Move error definitions from `pyleco.errors` to `pyleco.json_utils.errors`.
+- Move `pyleco.errors.CommunicationError` to `pyleco.json_utils.errors`.
+- Deprecate `generate_error_with_data` in favor of `DataError.from_error` class method.
 - Python requirement lowered to Python 3.8
 
 ### Added
 
 - Add __future__.annotations to all files, which need it for annotations for Python 3.7/3.8.
 - Add self written `RPCServer` as alternative to openrpc package.
+
+### Deprecated
+- Deprecate `pyleco.errors` in favor of `json_utils.errors` and `json_utils.json_objects`.
 
 
 ## [0.2.2] - 2024-02-14
