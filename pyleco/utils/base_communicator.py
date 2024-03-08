@@ -51,17 +51,19 @@ class MessageBuffer:
         self._requested_ids.add(conversation_id)
 
     def remove_conversation_id(self, conversation_id: bytes) -> None:
+        """Remove a conversation_id from the requested ids."""
         self._requested_ids.discard(conversation_id)
 
     def add_message(self, message: Message):
+        """Add a message to the buffer."""
         self._messages.append(message)
 
     def is_cid_requested(self, conversation_id: bytes) -> bool:
         """Check whether this conversation_id is requested by someone."""
         return conversation_id in self._requested_ids
 
-    def retrieve_message(self, conversation_id: Optional[bytes]) -> Optional[Message]:
-        """Retrieve the requested message or the next free one for `None`."""
+    def retrieve_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
+        """Retrieve the requested message or the next free one for `conversation_id=None`."""
         for i, msg in enumerate(self._messages):
             cid = msg.conversation_id
             if conversation_id == cid:
@@ -176,6 +178,8 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
                 self.message_buffer.add_message(msg)
             elif conversation_id is None:
                 return msg
+            else:
+                self.message_buffer.add_message(msg)
             if perf_counter() > stop:
                 # inside the loop to do it at least once, even if timeout is 0
                 break

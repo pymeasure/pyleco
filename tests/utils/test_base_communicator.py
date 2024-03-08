@@ -36,7 +36,7 @@ from pyleco.json_utils.rpc_generator import RPCGenerator
 from pyleco.json_utils.errors import DUPLICATE_NAME
 from pyleco.json_utils.json_objects import ErrorResponse
 
-from pyleco.utils.base_communicator import BaseCommunicator
+from pyleco.utils.base_communicator import BaseCommunicator, MessageBuffer
 
 
 cid = b"conversation_id;"
@@ -75,8 +75,66 @@ class FakeBaseCommunicator(BaseCommunicator):
 
 
 @pytest.fixture
+def buffer() -> MessageBuffer:
+    return MessageBuffer()
+
+
+@pytest.fixture
 def communicator() -> FakeBaseCommunicator:
     return FakeBaseCommunicator()
+
+
+m1 = Message(receiver="N1.communicator", sender="xy")  # some message
+mr = Message(receiver="N1.communicator", sender="xy", conversation_id=cid)  # requested message
+m2 = Message(receiver="N1.communicator", sender="xy")  # another message
+
+
+def test_cid_in_buffer(buffer: MessageBuffer):
+    assert buffer.is_cid_requested(cid) is False
+    buffer.add_conversation_id(cid)
+    assert buffer.is_cid_requested(cid) is True
+    buffer.remove_conversation_id(cid)
+    assert buffer.is_cid_requested(cid) is False
+
+
+def test_remove_cid_without_cid_raises_no_exception(buffer: MessageBuffer):
+    buffer.remove_conversation_id(cid)
+    # assert that no error is raised
+
+
+def test_retrieve_requested_message(buffer: MessageBuffer):
+    buffer.add_conversation_id(cid)
+    buffer.add_message(m1)
+    buffer.add_message(mr)
+    buffer.add_message(m2)
+    ret = buffer.retrieve_message(cid)
+    assert ret == mr
+    assert buffer.is_cid_requested(cid) is False
+
+
+def test_retrieve_free_message(buffer: MessageBuffer):
+    buffer.add_conversation_id(cid)
+    buffer.add_message(mr)
+    buffer.add_message(m2)
+    ret = buffer.retrieve_message()
+    assert ret == m2
+
+
+def test_free_message_not_found(buffer: MessageBuffer):
+    buffer.add_message(mr)
+    buffer.add_conversation_id(cid)
+    assert buffer.retrieve_message(None) is None
+
+
+def test_requested_message_not_found(buffer: MessageBuffer):
+    buffer.add_message(m1)
+    assert buffer.retrieve_message(cid) is None
+
+
+def test_buffer_len(buffer: MessageBuffer):
+    assert len(buffer) == 0
+    buffer.add_message(m1)
+    assert len(buffer) == 1
 
 
 def test_close(communicator: FakeBaseCommunicator):
@@ -230,10 +288,6 @@ def test_finish_sign_out(communicator: FakeBaseCommunicator):
 
 
 class Test_read_message:
-    m1 = Message(receiver="N1.communicator", sender="xy")  # some message
-    mr = Message(receiver="N1.communicator", sender="xy", conversation_id=cid)  # requested message
-    m2 = Message(receiver="N1.communicator", sender="xy")  # another message
-
     conf: list[tuple[list[Message], list[Message], Optional[bytes], list[Message], list[Message],
                      str]] = [
         # socket_in, buffer_in, cid, socket_out, buffer_out, test_id
@@ -252,19 +306,19 @@ class Test_read_message:
     ids = [test[-1] for test in conf]
 
     def test_return_message_from_socket(self, communicator: FakeBaseCommunicator):
-        communicator._r = [self.m1]  # type: ignore
-        assert communicator.read_message() == self.m1
+        communicator._r = [m1]  # type: ignore
+        assert communicator.read_message() == m1
 
     def test_return_message_from_buffer(self, communicator: FakeBaseCommunicator):
-        communicator._message_buffer.append(self.m1)
-        assert communicator.read_message() == self.m1
+        communicator.message_buffer.add_message(m1)
+        assert communicator.read_message() == m1
         # assert that no error is raised
 
     def test_cid_not_longer_in_requested_ids(self, communicator: FakeBaseCommunicator):
-        communicator._requested_ids.add(cid)
-        communicator._message_buffer.append(self.mr)
+        communicator.message_buffer.add_conversation_id(cid)
+        communicator.message_buffer.add_message(mr)
         communicator.read_message(conversation_id=cid)
-        assert cid not in communicator._requested_ids
+        assert communicator.message_buffer.is_cid_requested(cid) is False
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_return_correct_message(self,
@@ -272,11 +326,12 @@ class Test_read_message:
                                     communicator: FakeBaseCommunicator):
         socket, buffer, cid0, *_ = test
         communicator._r = socket.copy()  # type: ignore
-        communicator._message_buffer = buffer.copy()
-        communicator._requested_ids = {cid, }
+        for m in buffer:
+            communicator.message_buffer.add_message(m)
+        communicator.message_buffer.add_conversation_id(cid)
         # act
         result = communicator.read_message(conversation_id=cid0)
-        assert result == self.m1 if cid is None else self.mr
+        assert result == m1 if cid is None else mr
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_correct_buffer_socket(self,
@@ -285,23 +340,23 @@ class Test_read_message:
                                    communicator: FakeBaseCommunicator):
         socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test
         communicator._r = socket_in.copy()  # type: ignore
-        communicator._message_buffer = buffer_in.copy()
-        communicator._requested_ids = {cid, }
+        for m in buffer_in:
+            communicator.message_buffer.add_message(m)
+        communicator.message_buffer.add_conversation_id(cid)
         # act
-        print(cid0, buffer_in)
         communicator.read_message(conversation_id=cid0)
         assert communicator._r == socket_out  # type: ignore
-        assert communicator._message_buffer == buffer_out
+        assert communicator.message_buffer._messages == buffer_out
 
     def test_timeout_zero_works(self, communicator: FakeBaseCommunicator):
-        communicator._r = [self.m1]  # type: ignore
+        communicator._r = [m1]  # type: ignore
         communicator.read_message(timeout=0)
         # assert that no error is raised
 
     def test_timeout_error(self, communicator: FakeBaseCommunicator):
         def waiting(*args, **kwargs):
             time.sleep(.1)
-            return self.m1
+            return m1
         communicator._read_socket_message = waiting  # type: ignore[assignment]
         with pytest.raises(TimeoutError):
             communicator.read_message(conversation_id=cid, timeout=0)
@@ -324,7 +379,7 @@ class Test_ask_message:
         assert self.expected_response == self.response
 
     def test_no_cid_in_requested_cids_list(self, communicator_asked: FakeBaseCommunicator):
-        assert cid not in communicator_asked._requested_ids
+        assert communicator_asked.message_buffer.is_cid_requested(cid) is False
 
 
 class Test_handle_not_signed_in:
