@@ -79,8 +79,6 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.name = name
         self._namespace: Union[str, None] = None
         self._full_name: str = name
-        self._message_buffer: list[Message] = []
-        self._requested_ids: set[bytes] = set()
         self.rpc = RPCServer(title=name)
         self.rpc_generator = RPCGenerator()
         self.register_rpc_methods()
@@ -91,6 +89,7 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         )
 
         super().__init__(**kwargs)
+        self.setup_message_buffer()
 
     @property
     def namespace(self) -> Union[str, None]:
