@@ -12,6 +12,7 @@ _Use self defined objects instead of jsonrpc2-objects and jsonrpc2-pyclient._
 - Move `pyleco.errors.CommunicationError` to `pyleco.json_utils.errors`.
 - Deprecate `generate_error_with_data` in favor of `DataError.from_error` class method.
 - Python requirement lowered to Python 3.8
+- Rework the message buffer in the base communicator and harmonize with pipe handler's buffer.
 
 ### Added
 
@@ -20,6 +21,7 @@ _Use self defined objects instead of jsonrpc2-objects and jsonrpc2-pyclient._
 
 ### Deprecated
 - Deprecate `pyleco.errors` in favor of `json_utils.errors` and `json_utils.json_objects`.
+- Deprecate to use `CommunicatorPipe.buffer`, use `message_buffer` instead.
 
 
 ## [0.2.2] - 2024-02-14
