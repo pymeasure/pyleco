@@ -296,7 +296,7 @@ class Test_read_message:
         handler.message_buffer.add_conversation_id(cid)
         handler.message_buffer.add_message(self.mr)
         handler.read_message(conversation_id=cid)
-        assert handler.message_buffer.is_cid_requested(cid) is False
+        assert handler.message_buffer.is_conversation_id_requested(cid) is False
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_return_correct_message(self,
@@ -353,7 +353,7 @@ class Test_ask_message:
         assert self.expected_response == self.response
 
     def test_no_cid_in_requested_cids_list(self, handler_asked: MessageHandler):
-        assert handler_asked.message_buffer.is_cid_requested(cid) is False
+        assert handler_asked.message_buffer.is_conversation_id_requested(cid) is False
 
 
 class Test_read_and_handle_message:

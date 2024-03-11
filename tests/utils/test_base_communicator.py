@@ -90,11 +90,11 @@ m2 = Message(receiver="N1.communicator", sender="xy")  # another message
 
 
 def test_cid_in_buffer(buffer: MessageBuffer):
-    assert buffer.is_cid_requested(cid) is False
+    assert buffer.is_conversation_id_requested(cid) is False
     buffer.add_conversation_id(cid)
-    assert buffer.is_cid_requested(cid) is True
+    assert buffer.is_conversation_id_requested(cid) is True
     buffer.remove_conversation_id(cid)
-    assert buffer.is_cid_requested(cid) is False
+    assert buffer.is_conversation_id_requested(cid) is False
 
 
 def test_remove_cid_without_cid_raises_no_exception(buffer: MessageBuffer):
@@ -109,7 +109,7 @@ def test_retrieve_requested_message(buffer: MessageBuffer):
     buffer.add_message(m2)
     ret = buffer.retrieve_message(cid)
     assert ret == mr
-    assert buffer.is_cid_requested(cid) is False
+    assert buffer.is_conversation_id_requested(cid) is False
 
 
 def test_retrieve_free_message(buffer: MessageBuffer):
@@ -318,7 +318,7 @@ class Test_read_message:
         communicator.message_buffer.add_conversation_id(cid)
         communicator.message_buffer.add_message(mr)
         communicator.read_message(conversation_id=cid)
-        assert communicator.message_buffer.is_cid_requested(cid) is False
+        assert communicator.message_buffer.is_conversation_id_requested(cid) is False
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_return_correct_message(self,
@@ -379,7 +379,7 @@ class Test_ask_message:
         assert self.expected_response == self.response
 
     def test_no_cid_in_requested_cids_list(self, communicator_asked: FakeBaseCommunicator):
-        assert communicator_asked.message_buffer.is_cid_requested(cid) is False
+        assert communicator_asked.message_buffer.is_conversation_id_requested(cid) is False
 
 
 class Test_handle_not_signed_in:

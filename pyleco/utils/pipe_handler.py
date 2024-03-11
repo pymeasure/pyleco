@@ -89,7 +89,7 @@ class LockedMessageBuffer(MessageBuffer):
         :return: whether the message was added to the buffer.
         """
         warn("`add_response_message` is deprecated, use `add_message` instead.", FutureWarning)
-        if self.is_cid_requested(message.conversation_id):
+        if self.is_conversation_id_requested(message.conversation_id):
             self.add_message(message)
             return True
         else:

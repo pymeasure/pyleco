@@ -54,13 +54,13 @@ class MessageBuffer:
         """Remove a conversation_id from the requested ids."""
         self._requested_ids.discard(conversation_id)
 
+    def is_conversation_id_requested(self, conversation_id: bytes) -> bool:
+        """Check whether this conversation_id is requested by someone."""
+        return conversation_id in self._requested_ids
+
     def add_message(self, message: Message):
         """Add a message to the buffer."""
         self._messages.append(message)
-
-    def is_cid_requested(self, conversation_id: bytes) -> bool:
-        """Check whether this conversation_id is requested by someone."""
-        return conversation_id in self._requested_ids
 
     def retrieve_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
         """Retrieve the requested message or the next free one for `conversation_id=None`."""
@@ -174,7 +174,7 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
             if cid == conversation_id:
                 self.message_buffer.remove_conversation_id(conversation_id=cid)
                 return msg
-            elif self.message_buffer.is_cid_requested(conversation_id=cid):
+            elif self.message_buffer.is_conversation_id_requested(conversation_id=cid):
                 self.message_buffer.add_message(msg)
             elif conversation_id is None:
                 return msg
