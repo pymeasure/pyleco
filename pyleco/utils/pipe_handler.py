@@ -72,10 +72,12 @@ class LockedMessageBuffer(MessageBuffer):
             super().add_conversation_id(conversation_id=conversation_id)
 
     def remove_conversation_id(self, conversation_id: bytes) -> None:
+        """Remove a conversation_id from the requested ids."""
         with self._buffer_lock:
             super().remove_conversation_id(conversation_id=conversation_id)
 
     def add_message(self, message: Message):
+        """Add a message to the buffer."""
         with self._buffer_lock:
             super().add_message(message)
             self._buffer_lock.notify_all()
@@ -96,7 +98,7 @@ class LockedMessageBuffer(MessageBuffer):
             return False
 
     def retrieve_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
-        """Retrieve the requested message or the next free one for `None`."""
+        """Retrieve the requested message or the next free one for `conversation_id=None`."""
         with self._buffer_lock:
             return super().retrieve_message(conversation_id=conversation_id)
 
@@ -108,7 +110,7 @@ class LockedMessageBuffer(MessageBuffer):
         return check_message_in_buffer
 
     def wait_for_message(self, conversation_id: bytes, timeout: float = 1) -> Message:
-        """Retrieve a message with a certain `conversation_id`.
+        """Retrieve a message with a certain `conversation_id` waiting `timeout` seconds.
 
         :param conversation_id: Conversation_id of the message to retrieve.
         :param timeout: Timeout in seconds.
@@ -323,7 +325,6 @@ class PipeHandler(ExtendedMessageHandler):
     # Local messages
     def handle_local_request(self, conversation_id: bytes, rpc: bytes) -> None:
         result = self.rpc.process_request(data=rpc)
-        self.message_buffer.add_conversation_id(conversation_id)
         self.message_buffer.add_message(
             Message(
                 "comm",

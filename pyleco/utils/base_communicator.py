@@ -171,7 +171,7 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
             msg = self._read_socket_message(timeout)
             self.check_for_not_signed_in_error(message=msg)
             cid = msg.conversation_id
-            if cid == conversation_id:
+            if conversation_id == cid:
                 self.message_buffer.remove_conversation_id(conversation_id=cid)
                 return msg
             elif self.message_buffer.is_conversation_id_requested(conversation_id=cid):
