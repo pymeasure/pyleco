@@ -102,10 +102,12 @@ class LockedMessageBuffer(MessageBuffer):
         with self._buffer_lock:
             return super().retrieve_message(conversation_id=conversation_id)
 
+    def _retrieve_message_without_lock(self, conversation_id: Optional[bytes]) -> Optional[Message]:
+        return super().retrieve_message(conversation_id=conversation_id)
+
     def _predicate_generator(self, conversation_id: bytes) -> Callable[[], Optional[Message]]:
         def check_message_in_buffer() -> Optional[Message]:
-            # use verbose super call, as it is necessary for the generated method
-            return super(LockedMessageBuffer, self).retrieve_message(
+            return self._retrieve_message_without_lock(
                 conversation_id=conversation_id)
         return check_message_in_buffer
 
@@ -253,8 +255,10 @@ class PipeHandler(ExtendedMessageHandler):
         self.internal_pipe: zmq.Socket = context.socket(zmq.PULL)
         self.pipe_port = self.internal_pipe.bind_to_random_port("inproc://listenerPipe",
                                                                 min_port=12345)
-        self.message_buffer = LockedMessageBuffer()
         self._communicators = {}
+
+    def setup_message_buffer(self) -> None:
+        self.message_buffer = LockedMessageBuffer()
 
     def close(self) -> None:
         self.internal_pipe.close(1)
