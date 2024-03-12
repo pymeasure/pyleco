@@ -26,10 +26,12 @@ from __future__ import annotations
 from enum import Enum
 from threading import get_ident, Condition
 from typing import Any, Callable, Optional, Union
+from warnings import warn
 
 import zmq
 
 from .extended_message_handler import ExtendedMessageHandler
+from .base_communicator import MessageBuffer
 from ..core.message import Message, MessageTypes
 from ..core.internal_protocols import CommunicatorProtocol, SubscriberProtocol
 from ..core.serialization import generate_conversation_id
@@ -44,7 +46,7 @@ class PipeCommands(bytes, Enum):
     LOCAL_COMMAND = b"LOC"
 
 
-class MessageBuffer:
+class LockedMessageBuffer(MessageBuffer):
     """Buffer messages thread safe for later reading by the application.
 
     With the method :meth:`add_conversation_id` a conversation_id is stored to indicate, that the
@@ -59,65 +61,70 @@ class MessageBuffer:
     check, whether that message fits the conversation_id.
     This is repeated until the suiting response is found or a limit is reached.
     """
-    _result: Message
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-
-        # Storage for returning asked messages
-        self._buffer: list[Message] = []
         self._buffer_lock = Condition()
-        self._cids: list[bytes] = []  # List of conversation_ids of asked questions.
 
     def add_conversation_id(self, conversation_id: bytes) -> None:
-        """Add the conversation_id of a sent message."""
+        """Add the conversation_id of a sent message in order to buffer the response."""
         with self._buffer_lock:
-            self._cids.append(conversation_id)
+            super().add_conversation_id(conversation_id=conversation_id)
+
+    def remove_conversation_id(self, conversation_id: bytes) -> None:
+        """Remove a conversation_id from the requested ids."""
+        with self._buffer_lock:
+            super().remove_conversation_id(conversation_id=conversation_id)
+
+    def add_message(self, message: Message):
+        """Add a message to the buffer."""
+        with self._buffer_lock:
+            super().add_message(message)
+            self._buffer_lock.notify_all()
 
     def add_response_message(self, message: Message) -> bool:
         """Add a message to the buffer, if it is a requested response.
 
+        .. deprecated:: 0.3
+            Use :meth:`add_message` instead.
+
         :return: whether the message was added to the buffer.
         """
-        with self._buffer_lock:
-            if message.conversation_id in self._cids:
-                self._buffer.append(message)
-                self._cids.remove(message.conversation_id)
-                self._buffer_lock.notify_all()
-                return True
-            else:
-                return False
-
-    def _predicate_generator(self, conversation_id: bytes) -> Callable[[], bool]:
-        def check_message_in_buffer() -> bool:
-            for (i, message) in enumerate(self._buffer):
-                if message.conversation_id == conversation_id:
-                    del self._buffer[i]
-                    self._result = message
-                    return True
+        warn("`add_response_message` is deprecated, use `add_message` instead.", FutureWarning)
+        if self.is_conversation_id_requested(message.conversation_id):
+            self.add_message(message)
+            return True
+        else:
             return False
+
+    def retrieve_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
+        """Retrieve the requested message or the next free one for `conversation_id=None`."""
+        with self._buffer_lock:
+            return super().retrieve_message(conversation_id=conversation_id)
+
+    def _retrieve_message_without_lock(self, conversation_id: Optional[bytes]) -> Optional[Message]:
+        return super().retrieve_message(conversation_id=conversation_id)
+
+    def _predicate_generator(self, conversation_id: bytes) -> Callable[[], Optional[Message]]:
+        def check_message_in_buffer() -> Optional[Message]:
+            return self._retrieve_message_without_lock(
+                conversation_id=conversation_id)
         return check_message_in_buffer
 
-    def retrieve_message(self, conversation_id: bytes, timeout: float = 1) -> Message:
-        """Retrieve a message with a certain `conversation_id`.
-
-        Try to read up to `tries` messages, waiting each time up to `timeout`.
+    def wait_for_message(self, conversation_id: bytes, timeout: float = 1) -> Message:
+        """Retrieve a message with a certain `conversation_id` waiting `timeout` seconds.
 
         :param conversation_id: Conversation_id of the message to retrieve.
-        :param tries: *Deprecated* How many messages or timeouts should be read.
-        :param timeout: Timeout in seconds for a single trial.
+        :param timeout: Timeout in seconds.
         """
         with self._buffer_lock:
-            found = self._buffer_lock.wait_for(
+            result = self._buffer_lock.wait_for(
                 self._predicate_generator(conversation_id=conversation_id),
                 timeout=timeout)
-            if found:
-                return self._result
+            if result:
+                return result
         # No result found:
         raise TimeoutError("Reading timed out.")
-
-    def __len__(self):
-        return len(self._buffer)
 
 
 class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
@@ -129,7 +136,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
     def __init__(self,
                  handler: ExtendedMessageHandler,
                  pipe_port: int,
-                 buffer: MessageBuffer,
+                 message_buffer: LockedMessageBuffer,
                  context: Optional[zmq.Context] = None,
                  timeout: float = 1,
                  **kwargs):
@@ -139,7 +146,8 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         self.socket: zmq.Socket = context.socket(zmq.PAIR)
         self.socket.connect(f"inproc://listenerPipe:{pipe_port}")
         self.rpc_generator = handler.rpc_generator
-        self.buffer = buffer
+        self.message_buffer = message_buffer
+        self.buffer = self.message_buffer  # for backward compatibility
         self.timeout = timeout
 
     # CommunicatorProtocol
@@ -173,12 +181,13 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
                      ) -> Message:
         if conversation_id is None:
             raise ValueError("You have to request a message with its conversation_id.")
-        return self.buffer.retrieve_message(conversation_id=conversation_id,
-                                            timeout=self.timeout if timeout is None else timeout,
-                                            )
+        return self.message_buffer.wait_for_message(
+            conversation_id=conversation_id,
+            timeout=self.timeout if timeout is None else timeout,
+        )
 
     def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
-        self.buffer.add_conversation_id(message.conversation_id)
+        self.message_buffer.add_conversation_id(message.conversation_id)
         self.send_message(message=message)
         return self.read_message(conversation_id=message.conversation_id, timeout=timeout)
 
@@ -205,7 +214,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
     def _send_handler(self, method: str, **kwargs) -> bytes:
         cid = generate_conversation_id()
         message_string = self.rpc_generator.build_request_str(method=method, **kwargs)
-        self.buffer.add_conversation_id(cid)
+        self.message_buffer.add_conversation_id(cid)
         self._send_pipe_message(PipeCommands.LOCAL_COMMAND, cid, message_string.encode())
         return cid
 
@@ -236,6 +245,7 @@ class PipeHandler(ExtendedMessageHandler):
 
     :attr name_changing_methods: List of methods which are called, whenever the full_name changes.
     """
+    message_buffer: LockedMessageBuffer
     _communicators: dict[int, CommunicatorPipe]
     _on_name_change_methods: set[Callable[[str], None]] = set()
 
@@ -245,8 +255,10 @@ class PipeHandler(ExtendedMessageHandler):
         self.internal_pipe: zmq.Socket = context.socket(zmq.PULL)
         self.pipe_port = self.internal_pipe.bind_to_random_port("inproc://listenerPipe",
                                                                 min_port=12345)
-        self.buffer = MessageBuffer()
         self._communicators = {}
+
+    def setup_message_buffer(self) -> None:
+        self.message_buffer = LockedMessageBuffer()
 
     def close(self) -> None:
         self.internal_pipe.close(1)
@@ -314,27 +326,23 @@ class PipeHandler(ExtendedMessageHandler):
         self.log.debug(f"Sending {frames}")
         self.socket.send_multipart(frames)
 
-    def read_message(self, conversation_id: Optional[bytes] = None,
-                     timeout: Optional[float] = None) -> Message:
-        """Read a message using the thread safe buffer."""
-        message = self._read_socket_message(timeout=timeout)
-        self.check_for_not_signed_in_error(message=message)
-        if self.buffer.add_response_message(message):
-            raise TimeoutError
-        else:
-            return message
-
     # Local messages
     def handle_local_request(self, conversation_id: bytes, rpc: bytes) -> None:
         result = self.rpc.process_request(data=rpc)
-        self.buffer.add_response_message(Message("comm", sender="ego", data=result,
-                                                 message_type=MessageTypes.JSON,
-                                                 conversation_id=conversation_id))
+        self.message_buffer.add_message(
+            Message(
+                "comm",
+                sender="ego",
+                data=result,
+                message_type=MessageTypes.JSON,
+                conversation_id=conversation_id,
+            )
+        )
 
     # Thread safe methods for access from other threads
     def create_communicator(self, **kwargs) -> CommunicatorPipe:
         """Create a communicator wherever you want to access the pipe handler."""
-        com = CommunicatorPipe(buffer=self.buffer, pipe_port=self.pipe_port,
+        com = CommunicatorPipe(message_buffer=self.message_buffer, pipe_port=self.pipe_port,
                                handler=self,
                                **kwargs)
         self._communicators[get_ident()] = com

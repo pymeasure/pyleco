@@ -37,21 +37,59 @@ from ..json_utils.errors import JSONRPCError, DUPLICATE_NAME, NOT_SIGNED_IN
 NOT_SIGNED_IN_ERROR_CODE = str(NOT_SIGNED_IN.code).encode()
 
 
+class MessageBuffer:
+    _messages: list[Message]
+    _requested_ids: set[bytes]
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._messages = []
+        self._requested_ids = set()
+
+    def add_conversation_id(self, conversation_id: bytes) -> None:
+        """Add a conversation_id such that its response has to be recalled by name."""
+        self._requested_ids.add(conversation_id)
+
+    def remove_conversation_id(self, conversation_id: bytes) -> None:
+        """Remove a conversation_id from the requested ids."""
+        self._requested_ids.discard(conversation_id)
+
+    def is_conversation_id_requested(self, conversation_id: bytes) -> bool:
+        """Check whether this conversation_id is requested by someone."""
+        return conversation_id in self._requested_ids
+
+    def add_message(self, message: Message):
+        """Add a message to the buffer."""
+        self._messages.append(message)
+
+    def retrieve_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
+        """Retrieve the requested message or the next free one for `conversation_id=None`."""
+        for i, msg in enumerate(self._messages):
+            cid = msg.conversation_id
+            if conversation_id == cid:
+                self._requested_ids.discard(cid)
+                return self._messages.pop(i)
+            elif cid not in self._requested_ids and conversation_id is None:
+                return self._messages.pop(i)
+        return None
+
+    def __len__(self):
+        return len(self._messages)
+
+
 class BaseCommunicator(CommunicatorProtocol, Protocol):
     """Abstract class of a Communicator with some logic.
     """
 
     socket: zmq.Socket
-    _message_buffer: list[Message]
-    _requested_ids: set[bytes]
     log: logging.Logger
     namespace: Optional[str]
+    message_buffer: MessageBuffer
 
     # Setup methods for call in init
     def setup_message_buffer(self) -> None:
         """Create the message buffer variables."""
-        self._message_buffer = []
-        self._requested_ids = set()
+        self.message_buffer = MessageBuffer()
 
     def close(self) -> None:
         """Close the connection."""
@@ -115,20 +153,9 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         self.namespace = None
 
     # Reading messages with buffer
-    def _find_buffer_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
-        """Find a message in the buffer."""
-        for i, msg in enumerate(self._message_buffer):
-            cid = msg.conversation_id
-            if conversation_id == cid:
-                self._requested_ids.discard(cid)
-                return self._message_buffer.pop(i)
-            elif cid not in self._requested_ids and conversation_id is None:
-                return self._message_buffer.pop(i)
-        return None
-
     def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
         """Read the next message from the socket, without further processing."""
-        if self.socket.poll(int((timeout or self.timeout) * 1000)):
+        if self.socket.poll(int((timeout if timeout is not None else self.timeout) * 1000)):
             return Message.from_frames(*self.socket.recv_multipart())
         raise TimeoutError("Reading timed out")
 
@@ -139,18 +166,20 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
 
         :param conversation_id: Conversation ID to filter for, or next free message if None.
         """
-        stop = perf_counter() + (timeout or self.timeout)
+        stop = perf_counter() + (timeout if timeout is not None else self.timeout)
         while True:
             msg = self._read_socket_message(timeout)
             self.check_for_not_signed_in_error(message=msg)
             cid = msg.conversation_id
             if conversation_id == cid:
-                self._requested_ids.discard(cid)
+                self.message_buffer.remove_conversation_id(conversation_id=cid)
                 return msg
-            elif conversation_id is not None or cid in self._requested_ids:
-                self._message_buffer.append(msg)
+            elif self.message_buffer.is_conversation_id_requested(conversation_id=cid):
+                self.message_buffer.add_message(msg)
+            elif conversation_id is None:
+                return msg
             else:
-                return msg
+                self.message_buffer.add_message(msg)
             if perf_counter() > stop:
                 # inside the loop to do it at least once, even if timeout is 0
                 break
@@ -165,7 +194,7 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
 
     def read_message(self, conversation_id: Optional[bytes] = None,
                      timeout: Optional[float] = None) -> Message:
-        message = self._find_buffer_message(conversation_id=conversation_id)
+        message = self.message_buffer.retrieve_message(conversation_id=conversation_id)
         if message is None:
             message = self._find_socket_message(conversation_id=conversation_id, timeout=timeout)
         return message

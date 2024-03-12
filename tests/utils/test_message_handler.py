@@ -288,15 +288,15 @@ class Test_read_message:
         assert handler.read_message() == self.m1
 
     def test_return_message_from_buffer(self, handler: MessageHandler):
-        handler._message_buffer.append(self.m1)
+        handler.message_buffer.add_message(self.m1)
         assert handler.read_message() == self.m1
         # assert that no error is raised
 
     def test_cid_not_longer_in_requested_ids(self, handler: MessageHandler):
-        handler._requested_ids.add(cid)
-        handler._message_buffer.append(self.mr)
+        handler.message_buffer.add_conversation_id(cid)
+        handler.message_buffer.add_message(self.mr)
         handler.read_message(conversation_id=cid)
-        assert cid not in handler._requested_ids
+        assert handler.message_buffer.is_conversation_id_requested(cid) is False
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_return_correct_message(self,
@@ -304,8 +304,9 @@ class Test_read_message:
                                     handler: MessageHandler):
         socket, buffer, cid0, *_ = test
         handler.socket._r = [m.to_frames() for m in socket]  # type: ignore
-        handler._message_buffer = buffer
-        handler._requested_ids = {cid, }
+        for m in buffer:
+            handler.message_buffer.add_message(m)
+        handler.message_buffer.add_conversation_id(cid)
         # act and assert
         assert handler.read_message(conversation_id=cid0) == self.m1 if cid is None else self.mr
 
@@ -313,12 +314,13 @@ class Test_read_message:
     def test_correct_buffer_socket(self, test, handler: MessageHandler):
         socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test
         handler.socket._r = [m.to_frames() for m in socket_in]  # type: ignore
-        handler._message_buffer = buffer_in
-        handler._requested_ids = {cid, }
+        for m in buffer_in:
+            handler.message_buffer.add_message(m)
+        handler.message_buffer.add_conversation_id(cid)
         # act
         handler.read_message(conversation_id=cid0)
         assert handler.socket._r == [m.to_frames() for m in socket_out]  # type: ignore
-        assert handler._message_buffer == buffer_out
+        assert handler.message_buffer._messages == buffer_out
 
     def test_timeout_zero_works(self, handler: MessageHandler):
         handler.socket._r = [self.m1.to_frames()]  # type: ignore
@@ -351,13 +353,13 @@ class Test_ask_message:
         assert self.expected_response == self.response
 
     def test_no_cid_in_requested_cids_list(self, handler_asked: MessageHandler):
-        assert cid not in handler_asked._requested_ids
+        assert handler_asked.message_buffer.is_conversation_id_requested(cid) is False
 
 
 class Test_read_and_handle_message:
     def test_handle_message_handles_no_new_socket_message(self, handler: MessageHandler):
         """Test, that the message handler does not raise an error without a new socket message."""
-        handler._requested_ids.add(cid)
+        handler.message_buffer.add_conversation_id(cid)
         handler.socket._r = [  # type: ignore
             Message(receiver=handler_name, sender=remote_name, conversation_id=cid).to_frames()]
         # act
@@ -408,7 +410,7 @@ class Test_read_and_handle_message:
     def test_handle_node_unknown_message(self, handler: MessageHandler):
         error = Message("N1.handler", "N1.COORDINATOR", message_type=MessageTypes.JSON,
                         data=ErrorResponse(id=None, error=NODE_UNKNOWN))
-        handler._message_buffer.append(error)
+        handler.message_buffer.add_message(error)
         handler.read_and_handle_message()
         # assert that no error is raised and that no message is sent
         assert handler.socket._s == []
@@ -416,7 +418,7 @@ class Test_read_and_handle_message:
     def test_handle_receiver_unknown_message(self, handler: MessageHandler):
         error = Message("N1.handler", "N1.COORDINATOR", message_type=MessageTypes.JSON,
                         data=ErrorResponse(id=None, error=RECEIVER_UNKNOWN))
-        handler._message_buffer.append(error)
+        handler.message_buffer.add_message(error)
         handler.read_and_handle_message()
         # assert that no error is raised and that no message is sent
         assert handler.socket._s == []

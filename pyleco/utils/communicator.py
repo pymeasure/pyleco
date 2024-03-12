@@ -80,11 +80,10 @@ class Communicator(BaseCommunicator):
             self.open()
         self.name = name
         self.namespace = None
-        self._message_buffer: list[Message] = []
-        self._requested_ids: set[bytes] = set()
         self._last_beat: float = 0
         self.rpc_generator = RPCGenerator()
         super().__init__(**kwargs)
+        self.setup_message_buffer()
 
     def open(self, context: Optional[zmq.Context] = None) -> None:
         """Open the connection."""
