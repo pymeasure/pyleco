@@ -30,7 +30,8 @@ import zmq
 from pyleco.core.message import Message
 from pyleco.test import FakeContext
 
-from pyleco.utils.pipe_handler import LockedMessageBuffer, PipeHandler, CommunicatorPipe
+from pyleco.utils.pipe_handler import LockedMessageBuffer, PipeHandler, CommunicatorPipe,\
+    PipeCommands
 
 cid = b"conversation_id;"  # conversation_id
 header = b"".join((cid, b"mid", b"\x00"))
@@ -124,9 +125,28 @@ def test_length_of_buffer(message_buffer: LockedMessageBuffer, length: int):
     assert len(message_buffer) == length
 
 
+# Test CommunicatorPipe
+class Test_CommunicatorPipe_send_pipe:
+    def test_send_pipe_message(self, communicator: CommunicatorPipe):
+        communicator.socket.send_multipart = MagicMock()  # type: ignore[method-assign]
+        communicator._send_pipe_message(PipeCommands.LOCAL_COMMAND, b"abc")
+        # assert
+        communicator.socket.send_multipart.assert_called_once_with(
+            (PipeCommands.LOCAL_COMMAND, b"abc")
+        )
+
+    def test_raise_ConnectionError_on_zmq_error(self, communicator: CommunicatorPipe):
+        communicator.socket.send_multipart = MagicMock(  # type: ignore[method-assign]
+            side_effect=zmq.ZMQError(128, "not a socket")
+        )
+        # act
+        with pytest.raises(ConnectionRefusedError):
+            communicator._send_pipe_message(PipeCommands.LOCAL_COMMAND, b"c")
+
+
 # Test PipeHandler
 @pytest.fixture
-def pipe_handler():
+def pipe_handler() -> PipeHandler:
     """With fake contexts, that is with a broken pipe."""
     pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
     return pipe_handler
@@ -144,7 +164,7 @@ def pipe_handler_pipe():
 
 
 @pytest.fixture
-def communicator(pipe_handler_pipe: PipeHandler):
+def communicator(pipe_handler_pipe: PipeHandler) -> CommunicatorPipe:
     """Communicator of `pipe_handler_pipe`."""
     return pipe_handler_pipe.get_communicator()
 
