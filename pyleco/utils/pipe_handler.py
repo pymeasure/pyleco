@@ -170,7 +170,11 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         return self.handler.full_name
 
     def _send_pipe_message(self, typ: PipeCommands, *content: bytes) -> None:
-        self.socket.send_multipart((typ, *content))
+        try:
+            self.socket.send_multipart((typ, *content))
+        except zmq.ZMQError as exc:
+            raise ConnectionRefusedError(f"Connection to the handler refused with '{exc}', "
+                                         "probably the handler stopped.")
 
     def send_message(self, message: Message) -> None:
         if not message.sender:
@@ -262,6 +266,7 @@ class PipeHandler(ExtendedMessageHandler):
 
     def close(self) -> None:
         self.internal_pipe.close(1)
+        self.close_all_communicators()
         super().close()
 
     def set_full_name(self, full_name: str) -> None:
@@ -355,3 +360,7 @@ class PipeHandler(ExtendedMessageHandler):
             return self.create_communicator(**kwargs)
         else:
             return com
+
+    def close_all_communicators(self) -> None:
+        for communicator in self._communicators.values():
+            communicator.close()

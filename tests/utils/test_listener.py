@@ -25,8 +25,9 @@
 import pytest
 
 from pyleco.test import FakeCommunicator
+from pyleco.core.message import Message
 
-from pyleco.utils.listener import Listener
+from pyleco.utils.listener import Listener, CommunicatorPipe
 
 
 @pytest.fixture
@@ -38,3 +39,30 @@ def listener() -> Listener:
 
 def test_communicator_name_is_returned(listener: Listener):
     assert listener.name == "N.Pipe"
+
+
+class Test_communicator_closed_at_stopped_listener():
+    @pytest.fixture(scope="class")
+    def communicator(self) -> CommunicatorPipe:
+        # scope is class as starting the listener takes some time
+        listener = Listener(name="test")
+        listener.start_listen()
+        communicator = listener.communicator
+        listener.stop_listen()
+        return communicator
+
+    def test_socket_closed(self, communicator: CommunicatorPipe):
+        assert communicator.socket.closed is True
+
+    def test_internal_method(self, communicator: CommunicatorPipe):
+        """A method which is handled in the handler and not sent from the handler via LECO."""
+        with pytest.raises(ConnectionRefusedError):
+            communicator.ask_handler("pong")
+
+    def test_sending_messages(self, communicator: CommunicatorPipe):
+        with pytest.raises(ConnectionRefusedError):
+            communicator.send_message(Message("rec", "send"))
+
+    def test_changing_name(self, communicator: CommunicatorPipe):
+        with pytest.raises(ConnectionRefusedError):
+            communicator.name = "abc"

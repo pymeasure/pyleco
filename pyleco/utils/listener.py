@@ -146,7 +146,7 @@ class Listener:
                 log.debug("Stopping listener thread.")
                 self.stop_event.set()
                 self.thread.join()
-                self.communicator.close()
+                self.message_handler.close()
                 log.removeHandler(self.message_handler.log_handler)
                 if self.logger is not None:
                     self.logger.removeHandler(self.message_handler.log_handler)

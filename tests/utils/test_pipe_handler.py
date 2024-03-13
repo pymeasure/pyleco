@@ -149,6 +149,13 @@ def communicator(pipe_handler_pipe: PipeHandler):
     return pipe_handler_pipe.get_communicator()
 
 
+def test_close_closes_all_communicators(
+    pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe
+):
+    pipe_handler_pipe.close()
+    assert communicator.socket.closed is True
+
+
 class Test_PipeHandler_read_message:
     def test_handle_response(self, pipe_handler: PipeHandler):
         message = Message("rec", "send")
@@ -193,6 +200,11 @@ class Test_get_communicator:
     def test_second_call_returns_same_communicator(self, pipe_handler_setup: PipeHandler):
         com2 = pipe_handler_setup.get_communicator()
         assert com2 == pipe_handler_setup.external_pipe  # type: ignore
+
+
+def test_close_all_communicators(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
+    pipe_handler_pipe.close_all_communicators()
+    assert communicator.socket.closed is True
 
 
 def test_communicator_send_message(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
