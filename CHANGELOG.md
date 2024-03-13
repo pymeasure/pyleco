@@ -1,18 +1,19 @@
 # CHANGELOG
 
-## [unreleased]
+## [0.3.0] 2024-03-13
 
 _Use self defined objects instead of jsonrpc2-objects and jsonrpc2-pyclient._
 
 ### Changed
 
 - Rename `cls` parameter to `device_class` in `Actor` and `TransparentDirector`.
-- Substitute `jsonrpc2-objects` and `jsonrpc2-pyclient` by self written objects.
-- Move error definitions from `pyleco.errors` to `pyleco.json_utils.errors`.
-- Move `pyleco.errors.CommunicationError` to `pyleco.json_utils.errors`.
-- Deprecate `generate_error_with_data` in favor of `DataError.from_error` class method.
-- Python requirement lowered to Python 3.8
-- Rework the message buffer in the base communicator and harmonize with pipe handler's buffer.
+- Substitute `jsonrpc2-objects` and `jsonrpc2-pyclient` by self written objects ([#65](https://github.com/pymeasure/pyleco/pull/65))
+- Move error definitions from `pyleco.errors` to `pyleco.json_utils.errors` ([#63](https://github.com/pymeasure/pyleco/pull/63))
+- Move `pyleco.errors.CommunicationError` to `pyleco.json_utils.errors` ([#63](https://github.com/pymeasure/pyleco/pull/63))
+- Deprecate `generate_error_with_data` in favor of `DataError.from_error` class method ([#63](https://github.com/pymeasure/pyleco/pull/63))
+- Python requirement lowered to Python 3.8 ([#64](https://github.com/pymeasure/pyleco/pull/64))
+- Rework the message buffer in the base communicator and harmonize with pipe handler's buffer ([#66](https://github.com/pymeasure/pyleco/pull/66))
+- Bump CI actions versions for node.js 20 ([#62](https://github.com/pymeasure/pyleco/pull/62))
 
 ### Added
 
@@ -20,8 +21,15 @@ _Use self defined objects instead of jsonrpc2-objects and jsonrpc2-pyclient._
 - Add self written `RPCServer` as alternative to openrpc package.
 
 ### Deprecated
+
 - Deprecate `pyleco.errors` in favor of `json_utils.errors` and `json_utils.json_objects`.
 - Deprecate to use `CommunicatorPipe.buffer`, use `message_buffer` instead.
+
+### Fixed
+
+- Fix Listener's communcator did not know, when listening stopped ([#67](https://github.com/pymeasure/pyleco/pull/67))
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.2.2...v0.3.0
 
 
 ## [0.2.2] - 2024-02-14
@@ -108,7 +116,8 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.2.2...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.0
 [0.2.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.2
 [0.2.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.1
 [0.2.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.0
