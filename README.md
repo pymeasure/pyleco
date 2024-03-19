@@ -11,6 +11,7 @@ These things might change, if LECO defines them differently.
 
 [![codecov](https://codecov.io/gh/pymeasure/pyleco/graph/badge.svg?token=9OB3GWDLRB)](https://codecov.io/gh/pymeasure/pyleco)
 [![pypi release](https://img.shields.io/pypi/v/pyleco.svg)](https://pypi.org/project/pyleco/)
+[![DOI](https://zenodo.org/badge/594982645.svg)](https://zenodo.org/doi/10.5281/zenodo.10837366)
 [![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
 
 For a tutorial on how to get started, see [GETTING_STARTED.md](https://github.com/pymeasure/pyleco/blob/main/GETTING_STARTED.md).
