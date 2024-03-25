@@ -38,10 +38,11 @@ from pyleco.test import FakeContext
 from pyleco.utils.events import SimpleEvent
 
 from pyleco.coordinators.coordinator import Coordinator
+from pyleco.coordinators import coordinator as coordinator_module  # type: ignore
 
 
 @pytest.fixture
-def coordinator():
+def coordinator() -> Coordinator:
     coordinator = Coordinator(namespace="N1", host="N1host", cleaning_interval=1e5,
                               context=FakeContext(),  # type: ignore
                               multi_socket=FakeMultiSocket()
@@ -61,24 +62,24 @@ def coordinator():
     return coordinator
 
 
-def fake_perf_counter():
+def fake_perf_counter() -> float:
     return 0.
 
 
 @pytest.fixture()
-def fake_counting(monkeypatch):
+def fake_counting(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("pyleco.utils.coordinator_utils.perf_counter", fake_perf_counter)
 
 
 cid = b"conversation_id;"
 
 
-def fake_generate_cid():
+def fake_generate_cid() -> bytes:
     return cid
 
 
 @pytest.fixture(autouse=True)
-def fake_cid_generation(monkeypatch):
+def fake_cid_generation(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("pyleco.core.serialization.generate_conversation_id", fake_generate_cid)
 
 
@@ -109,9 +110,24 @@ class TestCoordinatorImplementsProtocol:
         raise AssertionError(f"Method {method} is not available.")
 
 
-def test_coordinator_set_namespace_from_hostname():
-    coordinator = Coordinator(context=FakeContext())  # type: ignore
-    assert isinstance(coordinator.namespace, bytes)
+class Test_coordinator_set_namespace_from_hostname:
+    @pytest.fixture
+    def namespace(self) -> bytes:
+        coordinator = Coordinator(context=FakeContext())  # type: ignore
+        return coordinator.namespace
+
+    def test_namespace_is_bytes(self, namespace):
+        assert isinstance(namespace, bytes)
+
+    def test_namespace_without_periods(self, namespace):
+        assert b"." not in namespace
+
+    def test_namespace_from_hostname_with_periods(self, monkeypatch: pytest.MonkeyPatch):
+        def fake_gethostname() -> str:
+            return "hostname.domain.tld"
+        monkeypatch.setattr(coordinator_module, "gethostname", fake_gethostname)
+        coordinator = Coordinator(context=FakeContext())  # type: ignore
+        assert coordinator.namespace == b"hostname"
 
 
 def test_coordinator_set_namespace_bytes():
