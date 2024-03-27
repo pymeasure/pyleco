@@ -95,7 +95,7 @@ class Coordinator:
         **kwargs,
     ) -> None:
         if namespace is None:
-            self.namespace = gethostname().encode()
+            self.namespace = gethostname().split(".")[0].encode()
         elif isinstance(namespace, str):
             self.namespace = namespace.encode()
         elif isinstance(namespace, bytes):
