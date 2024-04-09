@@ -81,9 +81,9 @@ def test_start_collecting_starts_timer(data_logger: DataLogger):
     # arrange
     data_logger.trigger_timeout = 1000
     # act
-    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER)
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=500)
     # assert
-    assert data_logger.timer.interval == 1000
+    assert data_logger.timer.interval == 500
     # cleanup
     data_logger.timer.cancel()
 
@@ -91,8 +91,9 @@ def test_start_collecting_starts_timer(data_logger: DataLogger):
 def test_start_collecting_starts_timer_even_second_time(data_logger: DataLogger):
     """Even a second time, without explicit trigger type, the timer should be started."""
     # arrange
-    data_logger.trigger_timeout = 1000
-    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER)  # first time, to set type
+    data_logger.trigger_timeout = 500
+    # first time, to set type
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)
     data_logger.stop_collecting()
     assert not hasattr(data_logger, "timer")  # no timer left
     # act
@@ -224,8 +225,7 @@ def test_set_publisher_name(data_logger: DataLogger):
 class Test_start_timer_trigger:
     @pytest.fixture
     def data_logger_stt(self, data_logger: DataLogger):
-        data_logger.trigger_timeout = 1000
-        data_logger.start_timer_trigger()
+        data_logger.start_timer_trigger(1000)
         yield data_logger
         data_logger.timer.cancel()
 
@@ -342,10 +342,23 @@ class Test_save_data:
         path = Path(data_logger_sd.directory) / data_logger_sd.last_save_name
         return path.with_suffix(".json").read_text()
 
-    @pytest.mark.xfail(True, reason="Not yet date recognition implemented.")
     def test_output(self, saved_file: str):
-        # TODO make date comparison work.
-        assert saved_file == """["", {"time": [], "test": [], "2": [], "N1.sender.var": []}, {"units": {}, "today": "2023-11-27", "file_name": "2023_11_27T15_07_06", "logger_name": "DataLoggerN", "configuration": {"trigger": "variable", "triggerVariable": "test", "trigger_variable": "test", "valuing_mode": "mean", "valueRepeat": false, "value_repeating": false, "variables": "time test 2 N1.sender.var"}}]"""  # noqa
+        today_string = self.today.isoformat()
+        assert saved_file == "".join(
+            (
+                """["", {"time": [], "test": [], "2": [], "N1.sender.var": []}, """,
+                '''{"units": {}, "today": "''',
+                today_string,
+                '''", "file_name": "''',
+                self.file_name,
+                """", "logger_name": "DataLoggerN", """,
+                """"configuration": {"trigger_type": "variable", "trigger_timeout": 10, """,
+                """"trigger_variable": "test", "valuing_mode": "average", """,
+                """"value_repeating": false, """,
+                """"variables": ["time", "test", "2", "N1.sender.var"], """,
+                """"units": {}}}]""",
+            )
+        )
 
     def test_json_content(self, saved_file: str):
         today_string = self.today.isoformat()

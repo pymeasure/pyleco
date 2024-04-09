@@ -236,14 +236,14 @@ class DataLogger(ExtendedMessageHandler):
         self.today = datetime.datetime.now(datetime.timezone.utc).date()
         self.trigger_type = trigger_type or self._last_trigger_type
         self._last_trigger_type = self.trigger_type
-        if self.trigger_type == TriggerTypes.TIMER:
-            self.start_timer_trigger()
         if trigger_timeout is not None:
             self.trigger_timeout = trigger_timeout
         if trigger_variable is not None:
             self.trigger_variable = trigger_variable
         if value_repeating is not None:
             self.value_repeating = value_repeating
+        if self.trigger_type == TriggerTypes.TIMER:
+            self.start_timer_trigger(timeout=self.trigger_timeout)
         self.set_valuing_mode(valuing_mode=valuing_mode)
         self.setup_variables(self.lists.keys() if variables is None else variables)
         self.units = units if units else {}
@@ -277,8 +277,8 @@ class DataLogger(ExtendedMessageHandler):
         self.lists = {}
         self.last_datapoint = {}
 
-    def start_timer_trigger(self) -> None:
-        self.timer = RepeatingTimer(self.trigger_timeout, self.make_datapoint)
+    def start_timer_trigger(self, timeout: float) -> None:
+        self.timer = RepeatingTimer(timeout, self.make_datapoint)
         self.timer.start()
 
     def set_valuing_mode(self, valuing_mode: Optional[ValuingModes]) -> None:
