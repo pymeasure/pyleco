@@ -36,6 +36,7 @@ except ImportError:  # pragma: no cover
         pass
 import json
 import logging
+from threading import Lock
 from typing import Any, Callable, Optional, Iterable
 
 try:
@@ -118,6 +119,7 @@ class DataLogger(ExtendedMessageHandler):
         self.publisher = DataPublisher(full_name=name)
         self.valuing = average
         # Initialize values
+        self.list_lock = Lock()
         self.reset_data_storage()
         self.units = {}
         # TODO add auto_save functionality?
@@ -164,11 +166,12 @@ class DataLogger(ExtendedMessageHandler):
 
     def handle_subscription_data(self, data: dict[str, Any]) -> None:
         """Store `data` dict in `tmp`"""
-        for key, value in data.items():
-            try:
-                self.tmp[key].append(value)
-            except KeyError:
-                log.debug("Got value for '%s', but no list present.", key)
+        with self.list_lock:
+            for key, value in data.items():
+                try:
+                    self.tmp[key].append(value)
+                except KeyError:
+                    log.debug("Got value for '%s', but no list present.", key)
         if self.trigger_type == TriggerTypes.VARIABLE and self.trigger_variable in data.keys():
             self.make_datapoint()
 
@@ -183,24 +186,29 @@ class DataLogger(ExtendedMessageHandler):
     def calculate_data(self) -> dict[str, Any]:
         """Calculate data for a data point and return the data point."""
         datapoint = {}
-        if 'time' in self.lists.keys():
-            now = datetime.datetime.now(datetime.timezone.utc)
-            today = datetime.datetime.combine(self.today, datetime.time(),
-                                              datetime.timezone.utc)
-            time = (now - today).total_seconds()
-            self.tmp['time'].append(time)
-        for variable, datalist in self.lists.items():
-            value = datapoint[variable] = self.calculate_single_data(variable, self.tmp[variable])
-            datalist.append(value)
-        for key in self.tmp.keys():
-            self.tmp[key].clear()
-        return datapoint
+        with self.list_lock:
+            if 'time' in self.lists.keys():
+                now = datetime.datetime.now(datetime.timezone.utc)
+                today = datetime.datetime.combine(
+                    self.today, datetime.time(), datetime.timezone.utc
+                )
+                time = (now - today).total_seconds()
+                self.tmp['time'].append(time)
+            for variable, datalist in self.lists.items():
+                value = datapoint[variable] = self.calculate_single_data(
+                    variable, self.tmp[variable]
+                )
+                datalist.append(value)
+            for key in self.tmp.keys():
+                self.tmp[key].clear()
+            return datapoint
 
     def calculate_single_data(self, variable: str, tmp: list):
         if tmp:
             value = self.valuing(tmp)
         elif self.value_repeating:
             try:
+                # no lock, as this method is called in in a locked environment!
                 value = self.lists[variable][-1]
             except (KeyError, IndexError):  # No last value present.
                 value = nan
@@ -270,14 +278,16 @@ class DataLogger(ExtendedMessageHandler):
             else:
                 # old style: topic is variable name
                 subscriptions.add(variable)
-            self.lists[variable] = []
-            self.tmp[variable] = []
+            with self.list_lock:
+                self.lists[variable] = []
+                self.tmp[variable] = []
         self.subscribe(topics=subscriptions)
 
     def reset_data_storage(self) -> None:
         """Reset the data storage."""
-        self.tmp = {}
-        self.lists = {}
+        with self.list_lock:
+            self.tmp = {}
+            self.lists = {}
         self.last_datapoint = {}
 
     def start_timer_trigger(self, timeout: float) -> None:
@@ -316,8 +326,9 @@ class DataLogger(ExtendedMessageHandler):
             # 'user': self.user_data,  # user stored meta data
         })
         try:
-            with open(f"{folder}/{file_name}.json", 'w') as file:
-                json.dump(obj=(header, self.lists, meta), fp=file)
+            with self.list_lock:
+                with open(f"{folder}/{file_name}.json", 'w') as file:
+                    json.dump(obj=(header, self.lists, meta), fp=file)
         except TypeError as exc:
             log.exception("Some type error during saving occurred.", exc_info=exc)
             raise
@@ -353,7 +364,8 @@ class DataLogger(ExtendedMessageHandler):
         config['valuing_mode'] = vm.value
         config['value_repeating'] = self.value_repeating
         # Header and Variables.
-        config['variables'] = list(self.lists.keys())
+        with self.list_lock:
+            config['variables'] = list(self.lists.keys())
         config['units'] = self.units
         # config['autoSave'] = self.actionAutoSave.isChecked()
         return config
@@ -368,8 +380,9 @@ class DataLogger(ExtendedMessageHandler):
 
     def get_list_length(self) -> int:
         """Return the length of the lists."""
-        length = len(self.lists[list(self.lists.keys())[0]]) if self.lists else 0
-        return length
+        with self.list_lock:
+            length = len(self.lists[list(self.lists.keys())[0]]) if self.lists else 0
+            return length
 
 
 def main() -> None:
