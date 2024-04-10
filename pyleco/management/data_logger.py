@@ -98,10 +98,10 @@ class DataLogger(ExtendedMessageHandler):
     """
 
     # TODO names
-    tmp: dict[str, list[Any]] = {}  # contains all values since last datapoint
-    lists: dict[str, list[Any]] = {}  # contains datapoints.
-    units: dict[str, Any] = {}  # contains the units of the variables  TODO TBD what the value is.
-    last_datapoint: dict[str, Any] = {}
+    tmp: dict[str, list[Any]]  # contains all values since last datapoint
+    lists: dict[str, list[Any]]  # contains datapoints.
+    units: dict[str, Any]  # contains the units of the variables  TODO TBD what the value is.
+    last_datapoint: dict[str, Any]
     last_save_name: str = ""
 
     # configuration variables
@@ -117,6 +117,9 @@ class DataLogger(ExtendedMessageHandler):
         self.directory = directory
         self.publisher = DataPublisher(full_name=name)
         self.valuing = average
+        # Initialize values
+        self.reset_data_storage()
+        self.units = {}
         # TODO add auto_save functionality?
 
     def register_rpc_methods(self) -> None:
