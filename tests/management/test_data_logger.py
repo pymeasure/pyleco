@@ -212,6 +212,7 @@ def test_handle_subscription_data_triggers(data_logger: DataLogger):
 
 def test_handle_subscription_data_without_list(data_logger: DataLogger,
                                                caplog: pytest.LogCaptureFixture):
+    caplog.set_level(0)
     data_logger.handle_subscription_data({'not_present': 42})
     assert caplog.messages == ["Got value for 'not_present', but no list present."]
 

@@ -168,7 +168,7 @@ class DataLogger(ExtendedMessageHandler):
             try:
                 self.tmp[key].append(value)
             except KeyError:
-                log.error(f"Got value for '{key}', but no list present.")
+                log.debug("Got value for '%s', but no list present.", key)
         if self.trigger_type == TriggerTypes.VARIABLE and self.trigger_variable in data.keys():
             self.make_datapoint()
 
