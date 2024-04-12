@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [0.3.1] 2024-04-12
+
+### Fixed
+
+* Fix `Coordinator` to not use period in hostname as namespace ([#69](https://github.com/pymeasure/pyleco/pull/69))
+* Fix `DataLogger` timer ([#70](https://github.com/pymeasure/pyleco/pull/70))
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.3.0...v0.3.1
+
+
 ## [0.3.0] 2024-03-13
 
 _Use self defined objects instead of jsonrpc2-objects and jsonrpc2-pyclient._
@@ -116,7 +126,8 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.1
 [0.3.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.0
 [0.2.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.2
 [0.2.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.1
