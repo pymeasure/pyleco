@@ -162,7 +162,7 @@ class Node:
     def send_message(self, message: Message) -> None:
         raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
-    def message_received(self, timeout: float = 0) -> bool:
+    def message_received(self, timeout: int = 0) -> bool:
         raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
     def read_message(self, timeout: int = 0) -> Message:
@@ -200,7 +200,7 @@ class ZmqNode(Node):
         """Send a multipart message to the Coordinator."""
         self._dealer.send_multipart(message.to_frames())
 
-    def message_received(self, timeout: float = 0) -> bool:
+    def message_received(self, timeout: int = 0) -> bool:
         return bool(self._dealer.poll(timeout=timeout))
 
     def read_message(self, timeout: int = 0) -> Message:
