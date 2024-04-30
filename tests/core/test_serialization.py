@@ -23,6 +23,7 @@
 #
 
 from __future__ import annotations
+import datetime
 from typing import Any, Optional, Union
 
 import pytest
@@ -107,6 +108,17 @@ class Test_generate_conversation_id_is_UUIDv7:
 
     def test_variant(self, conversation_id):
         assert conversation_id[8] >> 6 == 0b10
+
+    def test_valid_UUIDv7(self):
+        """According to the draft https://datatracker.ietf.org/doc/draft-ietf-uuidrev-rfc4122bis/14/
+        017F22E2-79B0-7CC3-98C4-DC0C0C07398F should be a timestamp of February 22, 2022, 2:22:22.00
+        GMT-5
+        """
+        assert serialization.conversation_id_to_datetime(
+            b"017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
+        ) == datetime.datetime(
+            2022, 2, 22, 2, 22, 22, tzinfo=datetime.timezone(datetime.timedelta(-5))
+        )
 
 
 def test_json_type_result_is_response():
