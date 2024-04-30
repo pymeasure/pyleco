@@ -134,7 +134,7 @@ class Communicator(BaseCommunicator):
         """Check how many messages arrived."""
         if timeout is None:
             timeout = self.timeout
-        return self.socket.poll(timeout=timeout * 1000)  # in ms
+        return self.socket.poll(timeout=int(timeout * 1000))  # in ms
 
     def handle_not_signed_in(self):
         super().handle_not_signed_in()

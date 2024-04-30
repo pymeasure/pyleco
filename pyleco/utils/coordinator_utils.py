@@ -69,7 +69,7 @@ class MultiSocket(Protocol):
     def send_message(self, identity: bytes, message: Message) -> None: ...  # pragma: no cover
 
     @abstractmethod
-    def message_received(self, timeout: float = 0) -> bool: ...  # pragma: no cover
+    def message_received(self, timeout: int = 0) -> bool: ...  # pragma: no cover
 
     @abstractmethod
     def read_message(self) -> tuple[bytes, Message]: ...  # pragma: no cover
@@ -100,7 +100,7 @@ class ZmqMultiSocket(MultiSocket):
     def send_message(self, identity: bytes, message: Message) -> None:
         self._sock.send_multipart((identity, *message.to_frames()))
 
-    def message_received(self, timeout: float = 0) -> bool:
+    def message_received(self, timeout: int = 0) -> bool:
         return bool(self._sock.poll(timeout=timeout))
 
     def read_message(self) -> tuple[bytes, Message]:
@@ -126,7 +126,7 @@ class FakeMultiSocket(MultiSocket):
     def send_message(self, identity: bytes, message: Message) -> None:
         self._messages_sent.append((identity, message))
 
-    def message_received(self, timeout: float = 0) -> bool:
+    def message_received(self, timeout: int = 0) -> bool:
         return len(self._messages_read) > 0  # pragma: no cover
 
     def read_message(self) -> tuple[bytes, Message]:
@@ -162,7 +162,7 @@ class Node:
     def send_message(self, message: Message) -> None:
         raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
-    def message_received(self, timeout: float = 0) -> bool:
+    def message_received(self, timeout: int = 0) -> bool:
         raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
     def read_message(self, timeout: int = 0) -> Message:
@@ -200,7 +200,7 @@ class ZmqNode(Node):
         """Send a multipart message to the Coordinator."""
         self._dealer.send_multipart(message.to_frames())
 
-    def message_received(self, timeout: float = 0) -> bool:
+    def message_received(self, timeout: int = 0) -> bool:
         return bool(self._dealer.poll(timeout=timeout))
 
     def read_message(self, timeout: int = 0) -> Message:
