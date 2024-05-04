@@ -22,7 +22,7 @@ requires-python = ">=3.8"
 dependencies = [
   "pyzmq >= 22.3.0",
   "openrpc >= 8.1.0; python_version >= '3.9'",
-  "uuid7 >= 0.1.0",
+  "uuid6 >= 2024.1.12",
 ]
 
 [project.optional-dependencies]

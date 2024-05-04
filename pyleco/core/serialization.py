@@ -26,10 +26,10 @@ from __future__ import annotations
 import datetime
 from enum import IntEnum, IntFlag
 import json
-from typing import Any, cast, Optional, NamedTuple, Union
+from typing import Any, Optional, NamedTuple, Union
 
-# as long as uuid does not yet support UUIDv7 use uuid_extensions
-from uuid_extensions import uuid7, uuid_to_datetime  # type: ignore
+# as long as uuid does not yet support UUIDv7 use uuid6
+from uuid6 import uuid7
 from ..json_utils.json_objects import (
     Request,
     ParamsRequest,
@@ -154,7 +154,7 @@ def deserialize_data(content: bytes) -> Any:
 
 def generate_conversation_id() -> bytes:
     """Generate a conversation_id."""
-    return uuid7(as_type="bytes")  # type: ignore
+    return uuid7().bytes
 
 
 def conversation_id_to_datetime(conversation_id: bytes) -> datetime.datetime:
