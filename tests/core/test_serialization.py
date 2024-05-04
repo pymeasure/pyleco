@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 import datetime
+import uuid
 from typing import Any, Optional, Union
 
 import pytest
@@ -109,16 +110,22 @@ class Test_generate_conversation_id_is_UUIDv7:
     def test_variant(self, conversation_id):
         assert conversation_id[8] >> 6 == 0b10
 
-    def test_valid_UUIDv7(self):
-        """According to the draft https://datatracker.ietf.org/doc/draft-ietf-uuidrev-rfc4122bis/14/
-        017F22E2-79B0-7CC3-98C4-DC0C0C07398F should be a timestamp of February 22, 2022, 2:22:22.00
-        GMT-5
-        """
-        assert serialization.conversation_id_to_datetime(
-            b"017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
-        ) == datetime.datetime(
-            2022, 2, 22, 2, 22, 22, tzinfo=datetime.timezone(datetime.timedelta(-5))
-        )
+    def test_correct_timestamp(self, conversation_id):
+        ts = serialization.conversation_id_to_datetime(conversation_id=conversation_id)
+        assert abs(ts - datetime.datetime.now(datetime.timezone.utc)) < datetime.timedelta(hours=1)
+
+
+def test_conversation_id_to_datetime_according_to_uuid_example():
+    """According to the draft https://datatracker.ietf.org/doc/draft-ietf-uuidrev-rfc4122bis/14/
+    017F22E2-79B0-7CC3-98C4-DC0C0C07398F should be a timestamp of
+    Tuesday, February 22, 2022 2:22:22.00 PM GMT-05:00, represented as 1645557742000
+    """
+    cid = uuid.UUID("017F22E2-79B0-7CC3-98C4-DC0C0C07398F").bytes
+    reference = datetime.datetime(
+        2022, 2, 22, 14, 22, 22, tzinfo=datetime.timezone(datetime.timedelta(hours=-5))
+    )
+    ts = serialization.conversation_id_to_datetime(cid)
+    assert reference - ts == datetime.timedelta(0)
 
 
 def test_json_type_result_is_response():

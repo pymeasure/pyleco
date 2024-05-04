@@ -158,8 +158,8 @@ def generate_conversation_id() -> bytes:
 
 
 def conversation_id_to_datetime(conversation_id: bytes) -> datetime.datetime:
-    return cast(datetime.datetime, uuid_to_datetime(conversation_id.decode(),
-                                                    suppress_error=False))
+    seconds_since_epoch = int.from_bytes(conversation_id[:6], byteorder="big", signed=False) / 1000
+    return datetime.datetime.fromtimestamp(seconds_since_epoch, tz=datetime.timezone.utc)
 
 
 def _get_json_object_type(data: dict[str, Any]) -> JsonContentTypes:
