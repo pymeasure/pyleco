@@ -15,9 +15,12 @@ authors:
 identifiers:
   - type: doi
     value: 10.5281/zenodo.10837366
+doi: 10.5281/zenodo.10837366
 repository-code: 'https://github.com/pymeasure/pyleco'
 abstract: >-
   Python implementation of the Laboratory Experiment COntrol
   (LECO) protocol.
 publisher:
   - name: Zenodo
+version: 0.3.1
+date-released: 2024-04-12
