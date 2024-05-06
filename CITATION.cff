@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+title: "PyLECO"
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - family-names: Burger
+    given-names: Benedikt
+    orcid: "https://orcid.org/0000-0003-3302-3674"
+  - family-names: Klebel-Knobloch
+    given-names: Benjamin
+  - family-names: Buchner
+    given-names: Christoph
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.10837366
+repository-code: 'https://github.com/pymeasure/pyleco'
+abstract: >-
+  Python implementation of the Laboratory Experiment COntrol
+  (LECO) protocol.
+publisher:
+  - name: Zenodo
