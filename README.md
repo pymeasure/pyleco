@@ -1,5 +1,10 @@
 # PyLECO
 
+[![codecov](https://codecov.io/gh/pymeasure/pyleco/graph/badge.svg?token=9OB3GWDLRB)](https://codecov.io/gh/pymeasure/pyleco)
+[![pypi release](https://img.shields.io/pypi/v/pyleco.svg)](https://pypi.org/project/pyleco/)
+[![DOI](https://zenodo.org/badge/594982645.svg)](https://zenodo.org/doi/10.5281/zenodo.10837366)
+[![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
+
 Python reference implementation of the [Laboratory Experiment COntrol (LECO) protocol](https://github.com/pymeasure/leco-protocol).
 
 The [reviewed branch](https://github.com/pymeasure/pyleco/tree/reviewed) contains reviewed code, which does not yet contain all necessary modules and classes.
@@ -8,11 +13,6 @@ Development happens in the [main](https://github.com/pymeasure/pyleco/tree/main)
 Note: LECO is still under development, such that the code and API might change.
 The LECO protocol branch [pyleco-state](https://github.com/pymeasure/leco-protocol/tree/pyleco-state) contains the assumptions used in this project, which are not yet accepted into the LECO main branch.
 These things might change, if LECO defines them differently.
-
-[![codecov](https://codecov.io/gh/pymeasure/pyleco/graph/badge.svg?token=9OB3GWDLRB)](https://codecov.io/gh/pymeasure/pyleco)
-[![pypi release](https://img.shields.io/pypi/v/pyleco.svg)](https://pypi.org/project/pyleco/)
-[![DOI](https://zenodo.org/badge/594982645.svg)](https://zenodo.org/doi/10.5281/zenodo.10837366)
-[![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
 
 For a tutorial on how to get started, see [GETTING_STARTED.md](https://github.com/pymeasure/pyleco/blob/main/GETTING_STARTED.md).
 

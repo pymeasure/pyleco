@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [0.3.2] 2024-5-07
+
+### Fixed
+
+* Fix dependency on outdated UUIDv7 generating library to `uuid6` package ([#75](https://github.com/pymeasure/pyleco/pull/75))
+* Fix codecov CI ([#73](https://github.com/pymeasure/pyleco/pull/73))
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.3.1...v0.3.2
+
+
 ## [0.3.1] 2024-04-12
 
 ### Fixed
@@ -126,7 +136,8 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.3.1...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.2
 [0.3.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.1
 [0.3.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.0
 [0.2.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.2.2
