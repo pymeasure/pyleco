@@ -46,7 +46,7 @@ starter = "pyleco.management.starter:main"
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=7.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools_scm]
+# [tool.setuptools_scm]
 # write_to = "pyleco/_version.py"
 
 [tool.black]
