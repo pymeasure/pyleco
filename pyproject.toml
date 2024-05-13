@@ -21,7 +21,7 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
   "pyzmq >= 22.3.0",
-  "openrpc >= 8.1.0; python_version >= '3.9'",
+  # "openrpc >= 8.1.0; python_version >= '3.9'",
   "uuid6 >= 2024.1.12",
 ]
 
@@ -46,7 +46,7 @@ starter = "pyleco.management.starter:main"
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8.1.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools_scm]
+# [tool.setuptools_scm]
 # write_to = "pyleco/_version.py"
 
 [tool.black]
