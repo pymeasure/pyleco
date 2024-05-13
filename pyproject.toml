@@ -3,7 +3,7 @@ name = "pyleco"
 authors = [
   { name="PyLECO Developers" },
 ]
-dynamic = ["version"]
+version = "0.3.2"
 
 description = "Python reference implementation of the Laboratory Experiment COntrol (LECO) protocol"
 readme = "README.md"
