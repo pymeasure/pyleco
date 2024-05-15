@@ -17,6 +17,8 @@ These things might change, if LECO defines them differently.
 
 For a tutorial on how to get started, see [GETTING_STARTED.md](https://github.com/pymeasure/pyleco/blob/main/GETTING_STARTED.md).
 
+You are welcome to contribute, for more information see [CONTRIBUTING.md](https://github.com/pymeasure/pyleco/blob/main/CONTRIBUTING.md)
+
 
 ## Quick Start
 
