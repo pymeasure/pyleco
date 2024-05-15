@@ -106,7 +106,8 @@ For more information and for examples see the docstrings of the relevant methods
     It satisfies the `CommunicatorProtocol` and is useful in scripts.
   * The `MessageHandler` also satisfies the `CommunicatorProtocol`, but handles incoming messages in a continuous loop (blocking until stopped).
     It is useful for creating standalone scripts, like tasks for the _Starter_.
-  * The `Listener` offers an interface according to the `CommunicatorProtocol`, but listens at the same time in an extra thread for incoming messages.
+  * The `ExtendedMessageHandler` adds the capability to subscribe and receive data protocol messages.
+  * The `Listener` offers an interface according to the `CommunicatorProtocol`, but listens at the same time in an extra thread for incoming messages (with an `ExtendedMessageHandler`).
     It is useful if you want to react to incoming messages (via data or control protocol) and if you want to send messages of your own accord, for example for GUI applications.
 * The `coordinators` subpackage contains the different _Coordinators_.
   * `Coordinator` is the _Coordinator_ for the control protocol (exchanging messages).
@@ -117,6 +118,8 @@ For more information and for examples see the docstrings of the relevant methods
     A task could be an _Actor_ controlling some _Device_.
   * The `DataLogger` listens to published data (via the data protocol) and collects them.
 * The `directors` subpackage contains Directors, which facilitate controlling actors or management utilities.
+  * The `Director` is a base _Director_.
+    It can communicate via any util, which implements the `CommunicatorProtocol`.
   * For example the `CoordinatorDirector` has a method for getting _Coordinators_ and _Components_ connected to a _Coordinator_.
   * The `TransparentDirector` reads / writes all messages to the remote actor, such that you use the director's `device` as if it were the instrument itself.
 
