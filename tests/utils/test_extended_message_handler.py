@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #
 
+import json
+import pickle
 from unittest.mock import MagicMock
 
 import pytest
@@ -50,6 +52,15 @@ def test_read_subscription_message_calls_handle(handler: ExtendedMessageHandler)
     handler.read_subscription_message()
     # assert
     handler.handle_subscription_message.assert_called_once_with(message)  # type: ignore
+
+
+def test_read_subscription_message_calls_handle_legacy(handler: ExtendedMessageHandler):
+    message = DataMessage("", data="[]", message_type=234)
+    handler.handle_full_legacy_subscription_message = MagicMock()  # type: ignore[method-assign]
+    handler.subscriber._r = [message.to_frames()]  # type: ignore
+    handler.read_subscription_message()
+    # assert
+    handler.handle_full_legacy_subscription_message.assert_called_once_with(message)  # type: ignore
 
 
 def test_subscribe_single(handler: ExtendedMessageHandler):
@@ -91,3 +102,30 @@ def test_unsubscribe_all(handler: ExtendedMessageHandler):
     handler._subscriptions = [b"topic1", b"topic2"]
     handler.unsubscribe_all()
     assert handler._subscriptions == []
+
+
+class Test_handle_full_legacy_subscription_message:
+    @pytest.fixture
+    def handler_hfl(self, handler: ExtendedMessageHandler) -> ExtendedMessageHandler:
+        handler.handle_subscription_data = MagicMock()  # type: ignore[method-assign]
+        return handler
+
+    def test_handle_pickled_message(self, handler_hfl: ExtendedMessageHandler):
+        data = ["some", "data", 5]
+        handler_hfl.handle_full_legacy_subscription_message(
+            DataMessage("topic", data=pickle.dumps(data), message_type=234)
+        )
+        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})
+
+    def test_handle_json_message(self, handler_hfl: ExtendedMessageHandler):
+        data = ["some", "data", 5]
+        handler_hfl.handle_full_legacy_subscription_message(
+            DataMessage("topic", data=json.dumps(data), message_type=235)
+        )
+        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})
+
+    def test_handle_unknown_message_type(self, handler_hfl: ExtendedMessageHandler):
+        with pytest.raises(ValueError):
+            handler_hfl.handle_full_legacy_subscription_message(
+                DataMessage("topic", data="", message_type=210)
+            )
