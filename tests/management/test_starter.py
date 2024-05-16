@@ -23,12 +23,13 @@
 #
 
 from __future__ import annotations
-from unittest.mock import MagicMock
+from unittest.mock import call, MagicMock
 
 import pytest
 
 from pyleco.test import FakeContext
-from pyleco.management.starter import Starter, Status
+from pyleco.management.starter import sanitize_tasks, Starter, Status
+from pyleco.utils.events import SimpleEvent
 
 
 @pytest.fixture
@@ -54,6 +55,14 @@ class FakeThread:
         return
 
 
+@pytest.mark.parametrize("tasks", (None, [], (), "string", ["abc", "def"]))
+def test_sanitize_tasks(tasks):
+    sanitized = sanitize_tasks(tasks)
+    assert isinstance(sanitized, (tuple, list))
+    for t in sanitized:
+        assert isinstance(t, str)
+
+
 def test_init(starter: Starter):
     assert starter.started_tasks == {}
     assert starter.threads == {}
@@ -73,6 +82,12 @@ def test_install_task(starter: Starter, pre: Status, post: Status):
     assert starter.started_tasks["test"] == post
 
 
+def test_install_tasks(starter: Starter):
+    starter.install_task = MagicMock()  # type: ignore[method-assign]
+    starter.install_tasks(["a", "b"])
+    assert starter.install_task.call_args_list == [call("a"), call("b")]
+
+
 @pytest.mark.parametrize("pre, post", (
         (Status.RUNNING | Status.INSTALLED, Status.RUNNING),
         (None, Status.STOPPED),  # not yet in the dict
@@ -84,6 +99,12 @@ def test_uninstall_task(starter: Starter, pre: Status, post: Status):
         starter.started_tasks["test"] = pre
     starter.uninstall_task("test")
     assert starter.started_tasks.get("test") == post
+
+
+def test_uninstall_tasks(starter: Starter):
+    starter.uninstall_task = MagicMock()  # type: ignore[method-assign]
+    starter.uninstall_tasks(["a", "b"])
+    assert starter.uninstall_task.call_args_list == [call("a"), call("b")]
 
 
 class Test_status_tasks:
@@ -138,3 +159,62 @@ class Test_check_installed_tasks:
     def test_start_installed_but_not_running_task(self, starter_cit: Starter):
         """Test, that only the installed (and not running) task is started."""
         starter_cit.start_task.assert_called_once_with("INR")  # type: ignore[attr-defined]
+
+
+class Test_start_task:
+    def test_already_started_task(self, starter: Starter):
+        # arrange
+        starter.started_tasks["t1"] = Status.STARTED
+        starter.threads["t1"] = FakeThread(alive=True)  # type: ignore
+        starter.events["t1"] = SimpleEvent()  # type: ignore
+        # act
+        starter.start_task("t1")
+        assert Status.RUNNING in Status(starter.started_tasks["t1"])
+
+
+def test_start_tasks(starter: Starter):
+    starter.start_task = MagicMock()  # type: ignore[method-assign]
+    starter.start_tasks(["a", "b"])
+    assert starter.start_task.call_args_list == [call("a"), call("b")]
+
+
+class Test_stop_task:
+    def test_stop_not_existing_task(self, starter: Starter):
+        starter.stop_task("whatever")
+
+    def test_stop_existing_running_task(self, starter: Starter):
+        # arrange
+        starter.started_tasks["t1"] = Status.STARTED
+        starter.threads["t1"] = FakeThread(alive=True)  # type: ignore
+        event = starter.events["t1"] = SimpleEvent()  # type: ignore
+        # act
+        starter.stop_task("t1")
+        assert "t1" not in starter.threads
+        assert "t1" not in starter.started_tasks
+        assert event.is_set() is True
+
+    def test_stop_removed_task(self, starter: Starter):
+        # arrange
+        try:
+            del starter.threads["t1"]
+        except KeyError:
+            pass
+        starter.started_tasks["t1"] = Status.STARTED
+        # act
+        starter.stop_task("t1")
+        assert "t1" not in starter.threads
+        assert "t1" not in starter.started_tasks
+
+
+def test_stop_tasks(starter: Starter):
+    starter.stop_task = MagicMock()  # type: ignore[method-assign]
+    starter.stop_tasks(["a", "b"])
+    assert starter.stop_task.call_args_list == [call("a"), call("b")]
+
+
+def test_restart_tasks(starter: Starter):
+    starter.start_task = MagicMock()  # type: ignore[method-assign]
+    starter.stop_task = MagicMock()  # type: ignore[method-assign]
+    starter.restart_tasks(["a", "b"])
+    assert starter.stop_task.call_args_list == [call("a"), call("b")]
+    assert starter.start_task.call_args_list == [call("a"), call("b")]
