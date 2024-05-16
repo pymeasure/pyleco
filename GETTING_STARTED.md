@@ -171,6 +171,41 @@ If you do not specify the namespace, LECO assumes that the recipient's namespace
 You can send from any Component connected to any Coordinator (which has to be connected to `N1` Coordinator or be `N1` Coordinator itself) a message to `N1.fiberAmp` and it will arrive there.
 The response will always return as well, as you must specify the sender's namespace.
 
+All Components (rectangular elements) on different computers can communicate with each other in the following graph.
+Note that all Components connected to a certain Coordinator (circle) share the same _Namespace_, e.g. `N1`.
+
+```mermaid
+flowchart TD
+    subgraph PC1[PC 1]
+        C1(("N1.COORDINATOR
+        (default port)"))
+        ca[N1.ComponentA]<-->C1
+        CX(("NX.COORDINATOR
+        (different port)"))
+        cxz[NX.ComponentZ]
+        cxz <--> CX
+    end
+
+    subgraph PC2[PC 2]
+        C2((N2.COORDINATOR))
+        cb[N2.ComponentB]<-->C2
+        c2a[N2.ComponentA]<-->C2
+        c1d[N1.ComponentD]
+    end
+
+    subgraph PC3[PC 3]
+        cc[N1.ComponentC]
+    end
+
+    C1 <--> C2
+    cc <--> C1
+    C1 <--> CX
+    C2 <--> CX
+
+    c1d <--> C1
+```
+
+
 ### Collect Data
 
 If you're doing an experiment, you typically want to collect data as well.
@@ -205,23 +240,31 @@ Basically you request to execute a procedure call on a remote station and receiv
 
 #### Communicator
 
-There are several tools in the `utils` directory, which behave as _Communicator_.
-They can be used as an argument for any `communicator` parameter.
-All these Communicators offer some convenience methods to send RPC requests and to deceipher the responses.
+There are several tools in the `utils` directory, which offer some convenience methods to send RPC requests via the LECO protocol and to deceipher the responses.
+For interchangeability, they all follow a consistent API defined in the `CommunicatorProtocol` and can be used as an argument for any `communicator` parameter.
+
 For example `communicator.ask_rpc(receiver="N1.fiberAmp", method="get_parameters", parameters=["emission_enabled"])` would call the `get_parameters` method of the actor called `"N1.fiberAmp"` with the keyword argument `parameters=["emission_enabled"]`.
 The result of that method is the content, for example `{"emission_enabled": True}`.
+This example is the spelled out code behind the call of the director example shown above.
 
-This example is the code behind the call of the director example.
+The most simple util implementing the `CommunicatorProtocol` is the [`Communicator`](pyleco/utils/communicator.py) (in `utils` directory).
+It allows to send messages and read the answer.
+However, it does not listen continuously for incoming messages.
+It is great for scripts as it does not require additional threads.
+_Directors_ create such a `Communicator`, unless they are given one.
+
 
 ### Daemon Type
 
-For a program which runs happily in the background listening for commands, and executing them, you can base your code on the [`MessageHandler`](pyleco/utils/message_handler.py) (in `utils` directory).
+For a program, which runs happily in the background listening for commands and executing them, you can base your code on the [`MessageHandler`](pyleco/utils/message_handler.py) (in `utils` directory).
 The MessageHandler will listen to incoming messages and handle them in a continuous loop.
 The `listen` method has three parts:
+
 1. The method `_listen_setup`, where you can specify, what to do at the start of listening,
-2. the method `_listen_loop_element`, which is executed in the loop until the `stop_event` is set.
+1. the method `_listen_loop_element`, which is executed in the loop until the `stop_event` is set.
    Typically, it listens for incoming messages and handles them,
-3. the method `_listen_close`, which finishes after having been told to stop.
+1. the method `_listen_close`, which finishes after having been told to stop.
+
 
 If you want to make a method available for RPC calls, you can use the `register_rpc_method` method.
 That allows any Component to use that method via `ask_rpc`.
@@ -235,11 +278,15 @@ message_handler = MessageHandler("my_name")
 message_handler.listen()  # infinity loop
 ```
 
+The [`ExtendedMessageHandler`](pyleco/utils/extended_message_handler.py) is a subclass, which can subscribe to the data protocol and act on received data messages.
+
+
 ### In an Additional Thread
 
-Sometimes, you want to have LECO communication, but do not want to block the thread, for example in a GUI.
+Sometimes, you want to have continuous LECO communication, but do not want to block the thread, for example in a GUI.
 
 The [`Listener`](pyleco/utils/listener.py) (in `utils` directory) starts a special form of the `MessageHandler` in another thread and offers a communicator:
+
 ```python
 from pyleco.utils.listener import Listener
 from pyleco.directors.transparent_director import TransparentDirector
@@ -256,4 +303,154 @@ director = TransparentDirector(communicator=communicator)
 In this example, the message handler will offer the `my_method` method via RPC (via the listener's `register_rpc_method`).
 However, that method will be executed in the message handler thread!
 You can send messages via the message handler by using the listener's `communciator`.
-In this example the director uses this communicator instead of creating its own one with its own name.
+Here the director uses this communicator instead of creating its own one with its own name.
+
+The following graph shows how the `Listener` is used in a (multi-threaded) application.
+Rounded elements run in a continuous loop.
+
+```mermaid
+flowchart TD
+    Proxy(((proxy_server)))
+    C((COORDINATOR))
+
+    subgraph Application
+        subgraph MainThread[Main Thread]
+            main([main])-.->|creates|Listener
+            main -.->|calls|sl
+            
+            subgraph Listener
+            sl[[start_listen]]-.->
+            gc[[get_communicator]]
+            rrm[[register_rpc_method]]
+            end
+
+            gc-.->|generates|LC[Listener Communicator]
+            main <-->LC
+            main <-->Director <-->LC
+            main -.->|calls|rrm
+        end
+        sl-.->|"starts"|ListenerThread
+        main-.->|starts|AnotherThread
+        rrm-.->|registers method|ListenerEMH
+
+        subgraph ListenerThread[Listener Thread]
+            ListenerEMH([ExtendedMessageHandler])
+        end
+
+        subgraph AnotherThread[Another Thread]
+            loop([loop])<-->Director6
+            loop<-->LC2
+            Director6[Director]<-->LC2[Listener Communicator]
+        end
+        loop-.->|calls|gc
+        LC2<-->ListenerEMH
+        gc-.->|generates|LC2
+
+        LC<-->ListenerEMH
+    end
+
+    ListenerEMH <---> C
+    Proxy ==> ListenerEMH
+
+```
+The `main` method creates a `Listener` and calls its `start_listen` method, which creates a new thread (`Listener Thread`) with an `ExtendedMessageHandler`.
+It can use the `Listener Communicator` (generated via `get_communicator`) to communicate to the LECO network, either directly or via one or several `Director`s.
+Similarly, another thread can use (its own) `Listener Communicator` to communicate with the LECO network.
+
+
+
+## Graphical overview
+
+Here a graphical overview over a single computer experimental setup.
+Solid lines indicate data flow, dashed lines actions.
+Rounded fields elements run in a continuous loop.
+Circles are Coordinators.
+Note that the control protocol (with the _COORDINATOR_) is symmetric, while the data protocol (_proxy_server_, bold lines) is one way only.
+
+```mermaid
+flowchart TD
+    COM2 <--> C(("COORDINATOR
+    (control protocol)"))
+
+    PUB[DataPublisher] ==> Proxy
+    Proxy((("proxy_server
+    (data protocol)"))) ==> SUB[Subscriber]
+    Proxy ==>SUBD
+
+    subgraph DataLogger
+        SUBD([Subscriber])-->STO[(Storage)]
+    end
+
+
+    subgraph Jupyter Notebook
+        Script <--> Director
+        Director -.->|creates|COM2[Communicator]
+        Director <-->COM2
+        Script{{Script}} <--> Director2 <--> COM2
+        COM2
+        subgraph Director2
+        end
+    end
+
+
+    subgraph "`Actor`"
+        MessageHandler([MessageHandler]) <--> InstrumentDriver[Instrument Driver]
+        MessageHandler --> PUB2[DataPublisher]
+    end
+    C <--> MessageHandler
+    InstrumentDriver <--> Instrument{{Measurement Instrument}}
+    PUB2 ==> Proxy
+
+
+    subgraph GUI-App
+        subgraph Main Thread
+            Listener-.->|generates|ListenerCOM[Listener Communicator]
+            GUI{{GUI}}
+            Director5
+        end
+
+        subgraph ListenerThread[Listener Thread]
+            ListenerEMH([ExtendedMessageHandler])
+        end
+
+        Listener-.->|starts|ListenerThread
+        ListenerCOM<-->ListenerEMH
+        GUI<-->ListenerCOM
+        Director5[Director]<-->ListenerCOM
+        GUI<-->Director5
+        ListenerEMH-->|notifies|GUI
+        GUI-.->|starts|Listener
+    end
+    ListenerEMH <---> C
+    Proxy ==> ListenerEMH
+
+    subgraph starter_p[Starter process]
+        starter([Starter])
+        t1([task 1])
+        t2([task 2])
+        t3([task 3])
+        starter -.->|start/stop thread|t1
+        starter -.->|start/stop thread|t2
+        starter -.->|start/stop thread|t3
+    end
+    starter <-->C
+    t1 <--> C
+    t2 <--> C
+    t2 ==> Proxy
+    t3 ==> Proxy
+
+```
+The `Actor` contains a `MessageHandler` handling incoming messages in order to control a hardware measurement instrument via a _Driver_. It also has a `DataPublisher` to publish measurement data regularly.
+
+A script uses _Directors_ to send messages via a `Communicator` (generated by the first _Director_) to that measurement instrument.
+
+The `Starter` controls several _tasks_ in their own threads.
+These tasks may communicate via the LECO protocol individually.
+They can be, for example, instrument actors.
+
+The GUI-App has a `Listener` in its main thread, which starts an `ExtendedMessageHandler` in another thread and offers its _Listener Communicator_ in order to communicate.
+The GUI can then communicate via that Communicator to the network, either directly or using _Directors_.
+It can send commands to the measurement instrument via the _Actor_.
+It can also subscribe to the data published by the _Actor_.
+
+The `DataLogger` collects the data published via the data protocol (`proxy_server`).
