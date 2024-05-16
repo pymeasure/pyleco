@@ -24,12 +24,53 @@
 
 import pytest
 
-from pyleco.test import FakePoller, FakeSocket
+from pyleco.test import FakeCommunicator, FakePoller, FakeSocket
 
 
 @pytest.fixture
-def poller():
+def poller() -> FakePoller:
     return FakePoller()
+
+
+@pytest.fixture
+def socket() -> FakeSocket:
+    return FakeSocket(1)
+
+
+def test_socket_unbind(socket: FakeSocket):
+    socket.bind("abc")
+    socket.unbind()
+    assert socket.addr is None
+
+
+def test_socket_disconnect(socket: FakeSocket):
+    socket.connect("abc")
+    socket.disconnect()
+    assert socket.addr is None
+
+
+@pytest.mark.parametrize("topic", ("string", b"bytes"))
+def test_socket_subscribe(socket: FakeSocket, topic):
+    socket.socket_type = 2
+    socket.subscribe(topic)
+    assert isinstance(socket._subscriptions[-1], bytes)
+
+
+def test_subscribe_fails_for_not_SUB(socket: FakeSocket):
+    with pytest.raises(ValueError):
+        socket.subscribe("abc")
+
+
+@pytest.mark.parametrize("topic", ("string", b"bytes"))
+def test_socket_unsubscribe(socket: FakeSocket, topic):
+    socket.socket_type = 2
+    socket.unsubscribe(topic)
+    assert isinstance(socket._subscriptions[-1], bytes)
+
+
+def test_unsubscribe_fails_for_not_SUB(socket: FakeSocket):
+    with pytest.raises(ValueError):
+        socket.unsubscribe("abc")
 
 
 class Test_FakePoller_unregister:
@@ -42,3 +83,9 @@ class Test_FakePoller_unregister:
         poller._sockets = [1, 2, socket, 4, 5]  # type: ignore
         poller.unregister(socket)
         assert socket not in poller._sockets
+
+
+def test_FakeCommunicator_sign_in():
+    fc = FakeCommunicator("")
+    fc.sign_in()
+    assert fc._signed_in is True
