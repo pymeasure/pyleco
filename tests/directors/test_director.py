@@ -77,6 +77,20 @@ class Test_actor_check:
         assert director._actor_check("") == "actor"
 
 
+def test_get_rpc_capabilities(director: Director):
+    data = {"name": "actor", "methods": []}
+    director.communicator._r = [  # type: ignore
+        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
+            "id": 1, "result": data, "jsonrpc": "2.0"
+            })]
+    result = director.get_rpc_capabilities()
+    assert director.communicator._s == [  # type: ignore
+        Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data={
+            "id": 1, "method": "rpc.discover", "jsonrpc": "2.0"
+            })]
+    assert result == data
+
+
 def test_shutdown_actor(director: Director):
     director.communicator._r = [  # type: ignore
         Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
@@ -86,6 +100,18 @@ def test_shutdown_actor(director: Director):
     assert director.communicator._s == [  # type: ignore
         Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data={
             "id": 1, "method": "shut_down", "jsonrpc": "2.0"
+            })]
+
+
+def test_set_actor_log_level(director: Director):
+    director.communicator._r = [  # type: ignore
+        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
+            "id": 1, "result": None, "jsonrpc": "2.0"
+            })]
+    director.set_actor_log_level(30)
+    assert director.communicator._s == [  # type: ignore
+        Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data={
+            "id": 1, "method": "set_log_level", "jsonrpc": "2.0", "params": {"level": "WARNING"}
             })]
 
 

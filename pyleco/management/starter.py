@@ -22,18 +22,6 @@
 # THE SOFTWARE.
 #
 
-"""
-The starter starts scripts (containing devices) and runs them.
-
-For command line arguments, execute the module with `--help` parameter.
-
-Tasks have to be PyQtObjects with name "Task" in a file called with the taskname
-in the folder "tasks" or any other folder given with `directory`.
-E.g. in "tasks/test1.py" for task "test1".
-
-Created on Thu Dec 15 09:31:04 2022 by Benedikt Moneke
-"""
-
 from __future__ import annotations
 from enum import IntFlag
 from importlib import import_module, reload
@@ -59,8 +47,9 @@ StrFormatter = logging.Formatter("%(asctime)s\t%(levelname)s\t%(name)s\t%(messag
 modules: dict[str, Any] = {}  # A dictionary of the task modules
 
 
-def sanitize_tasks(tasks: Optional[Union[list[str], tuple[str, ...], str]]
-                   ) -> Union[tuple[str, ...], list[str]]:
+def sanitize_tasks(
+    tasks: Optional[Union[list[str], tuple[str, ...], str]],
+) -> Union[tuple[str, ...], list[str]]:
     """Ensure that the tasks are a list of tasks."""
     if tasks is None:
         return ()
@@ -108,8 +97,13 @@ class Starter(MessageHandler):
     :param tasks: List of task names to execute on startup.
     """
 
-    def __init__(self, name: str = "starter", directory: Optional[str] = None,
-                 tasks: Optional[list[str]] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        name: str = "starter",
+        directory: Optional[str] = None,
+        tasks: Optional[list[str]] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(name=name, **kwargs)
         self.threads: dict[str, threading.Thread] = {}  # List of threads
         self.events: dict[str, threading.Event] = {}  # Events to stop the threads.
@@ -189,9 +183,9 @@ class Starter(MessageHandler):
                 return
             self.events[name] = threading.Event()
             try:
-                self.threads[name] = thread = threading.Thread(target=script.task,
-                                                               args=(self.events[name],),
-                                                               daemon=True)
+                self.threads[name] = thread = threading.Thread(
+                    target=script.task, args=(self.events[name],), daemon=True
+                )
             except Exception as exc:
                 log.exception(f"Creation of task '{name}' failed.", exc_info=exc)
                 return
@@ -272,10 +266,10 @@ class Starter(MessageHandler):
                 with open(f"{self.directory}/{name}", "r") as file:
                     # Search for the first line with triple quotes
                     i = 0
-                    while not file.readline().strip() == '\"\"\"' and i < 10:
+                    while not file.readline().strip() == '"""' and i < 10:
                         i += 1
                     tooltip = file.readline()  # first line after line with triple quotes
-                tasks.append({'name': name.replace(".py", ""), 'tooltip': tooltip})
+                tasks.append({"name": name.replace(".py", ""), "tooltip": tooltip})
         log.debug(f"Tasks found: {tasks}.")
         return tasks
 
@@ -289,19 +283,21 @@ class Starter(MessageHandler):
 
 
 def main() -> None:
-    parser.add_argument("tasks", nargs="*",
-                        help="Tasks to execute at startup.")
-    parser.add_argument("-d", "--directory",
-                        help="set the directory to search for tasks, do not add a trailing slash")
+    parser.add_argument("tasks", nargs="*", help="Tasks to execute at startup.")
+    parser.add_argument(
+        "-d",
+        "--directory",
+        help="set the directory to search for tasks, do not add a trailing slash",
+    )
 
     gLog = logging.getLogger()  # print all log entries!
     if not gLog.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(StrFormatter)
         gLog.addHandler(handler)
-    kwargs = parse_command_line_parameters(parser=parser,
-                                           parser_description="Start tasks as required.",
-                                           logger=gLog)
+    kwargs = parse_command_line_parameters(
+        parser=parser, parser_description="Start tasks as required.", logger=gLog
+    )
 
     starter = Starter(log=gLog, **kwargs)
     starter.listen()
