@@ -37,6 +37,11 @@ def socket() -> FakeSocket:
     return FakeSocket(1)
 
 
+@pytest.fixture
+def sub_socket() -> FakeSocket:
+    return FakeSocket(2)
+
+
 def test_socket_unbind(socket: FakeSocket):
     socket.bind("abc")
     socket.unbind()
@@ -50,10 +55,9 @@ def test_socket_disconnect(socket: FakeSocket):
 
 
 @pytest.mark.parametrize("topic", ("string", b"bytes"))
-def test_socket_subscribe(socket: FakeSocket, topic):
-    socket.socket_type = 2
-    socket.subscribe(topic)
-    assert isinstance(socket._subscriptions[-1], bytes)
+def test_socket_subscribe(sub_socket: FakeSocket, topic):
+    sub_socket.subscribe(topic)
+    assert isinstance(sub_socket._subscriptions[-1], bytes)
 
 
 def test_subscribe_fails_for_not_SUB(socket: FakeSocket):
@@ -61,11 +65,11 @@ def test_subscribe_fails_for_not_SUB(socket: FakeSocket):
         socket.subscribe("abc")
 
 
-@pytest.mark.parametrize("topic", ("string", b"bytes"))
-def test_socket_unsubscribe(socket: FakeSocket, topic):
-    socket.socket_type = 2
-    socket.unsubscribe(topic)
-    assert isinstance(socket._subscriptions[-1], bytes)
+@pytest.mark.parametrize("topic", ("topic", b"topic"))
+def test_socket_unsubscribe(sub_socket: FakeSocket, topic):
+    sub_socket._subscriptions.append(b"topic")
+    sub_socket.unsubscribe(topic)
+    assert b"topic" not in sub_socket._subscriptions
 
 
 def test_unsubscribe_fails_for_not_SUB(socket: FakeSocket):

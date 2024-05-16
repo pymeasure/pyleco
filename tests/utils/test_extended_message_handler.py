@@ -115,14 +115,14 @@ class Test_handle_full_legacy_subscription_message:
         handler_hfl.handle_full_legacy_subscription_message(
             DataMessage("topic", data=pickle.dumps(data), message_type=234)
         )
-        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})
+        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})  # type: ignore
 
     def test_handle_json_message(self, handler_hfl: ExtendedMessageHandler):
         data = ["some", "data", 5]
         handler_hfl.handle_full_legacy_subscription_message(
             DataMessage("topic", data=json.dumps(data), message_type=235)
         )
-        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})
+        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})  # type: ignore
 
     def test_handle_unknown_message_type(self, handler_hfl: ExtendedMessageHandler):
         with pytest.raises(ValueError):
