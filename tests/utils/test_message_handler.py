@@ -494,6 +494,52 @@ class Test_process_json_message:
         assert error.message == INVALID_REQUEST.message
 
 
+class Test_process_json_message_with_binary:
+    data = {"jsonrpc": "2.0", "method": "do_binary", "id": 8}
+    payload_in: list[bytes]
+    payload_out: list[bytes]
+
+    @pytest.fixture
+    def handler_b(self, handler: MessageHandler):
+        test_class = self
+        class SpecialHandler(MessageHandler):
+            def do_binary(self) -> None:
+                test_class.payload_in = self.current_message.payload[1:]
+                self.additional_response_payload = test_class.payload_out
+
+        handler = SpecialHandler(name=handler_name.split(".")[1], context=FakeContext())  # type: ignore
+        handler.namespace = handler_name.split(".")[0]
+        handler.stop_event = SimpleEvent()
+        handler.timeout = 0.1
+
+        handler.register_rpc_method(handler.do_binary)
+        return handler
+
+    def test_message_stored(self, handler_b: MessageHandler):
+        m_in = Message("abc", data=self.data, message_type=MessageTypes.JSON)
+        handler_b.process_json_message(m_in)
+        assert handler_b.current_message == m_in
+
+    def test_empty_additional_payload(self, handler_b: MessageHandler):
+        m_in = Message("abc", data=self.data, message_type=MessageTypes.JSON)
+        handler_b.process_json_message(m_in)
+        assert handler_b.additional_response_payload is None
+
+    def test_binary_payload_available(self, handler_b: MessageHandler):
+        m_in = Message("abc", data=self.data, message_type=MessageTypes.JSON)
+        m_in.payload.append(b"def")
+        self.payload_out = []
+        handler_b.process_json_message(m_in)
+        assert self.payload_in == [b"def"]
+
+    def test_binary_payload_sent(self, handler_b: MessageHandler):
+        m_in = Message("abc", data=self.data, message_type=MessageTypes.JSON)
+        self.payload_out = [b"ghi"]
+        response = handler_b.process_json_message(m_in)
+        assert response.payload[1:] == [b"ghi"]
+        assert response.data == {"jsonrpc": "2.0", "id": 8, "result": None}
+
+
 class Test_listen:
     @pytest.fixture
     def handler_l(self, handler: MessageHandler, fake_cid_generation):

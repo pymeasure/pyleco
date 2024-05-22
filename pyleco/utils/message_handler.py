@@ -66,6 +66,9 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
     name: str
 
+    current_message: Message
+    additional_response_payload: Optional[list[bytes]] = None
+
     def __init__(
         self,
         name: str,
@@ -251,6 +254,8 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.send_message(response)
 
     def process_json_message(self, message: Message) -> Message:
+        self.current_message = message
+        self.additional_response_payload = None
         self.log.info(f"Handling commands of {message}.")
         reply = self.rpc.process_request(message.payload[0])
         response = Message(
@@ -259,6 +264,8 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
             message_type=MessageTypes.JSON,
             data=reply,
         )
+        if self.additional_response_payload is not None:
+            response.payload += self.additional_response_payload
         return response
 
     def handle_json_error(self, message: Message) -> None:
