@@ -77,6 +77,19 @@ class Test_actor_check:
         assert director._actor_check("") == "actor"
 
 
+def test_ask_message(director: Director):
+    rec = Message("director", "actor", conversation_id=cid)
+    director.communicator._r = [rec]  # type: ignore
+    result = director.ask_message()
+    assert result == rec
+    sent = director.communicator._s[0]  # type: ignore
+    assert sent == Message(
+        "actor",
+        "director",
+        conversation_id=cid,
+    )
+
+
 def test_get_rpc_capabilities(director: Director):
     data = {"name": "actor", "methods": []}
     director.communicator._r = [  # type: ignore

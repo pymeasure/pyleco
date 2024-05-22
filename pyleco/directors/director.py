@@ -88,10 +88,9 @@ class Director:
     # Message handling
     def ask_message(self, actor: Optional[Union[bytes, str]] = None,
                     data: Optional[Any] = None, **kwargs) -> Message:
-        cid0 = generate_conversation_id()
         actor = self._actor_check(actor)
         log.debug(f"Asking {actor!r} with message '{data}'.")
-        response = self.communicator.ask(actor, conversation_id=cid0, data=data, **kwargs)
+        response = self.communicator.ask(actor, data=data, **kwargs)
         log.debug(f"Data '{response.data}' received.")
         return response
 
