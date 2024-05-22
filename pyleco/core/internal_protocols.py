@@ -88,7 +88,14 @@ class CommunicatorProtocol(Protocol):
             timeout=timeout)
 
     def interpret_rpc_response(self, response_message: Message) -> Any:
-        return self.rpc_generator.get_result_from_response(response_message.payload[0])
+        result = self.rpc_generator.get_result_from_response(response_message.payload[0])
+        if (
+            result is None
+            and len(response_message.payload) > 1
+        ):
+            return response_message.payload[1]
+        else:
+            return result
 
     def ask_rpc(self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None,
                 **kwargs) -> Any:

@@ -84,6 +84,16 @@ class Test_interpret_rpc_response:
         with pytest.raises(JSONRPCError):
             communicator.interpret_rpc_response(message)
 
+    def test_json_binary_response(self, communicator: FakeCommunicator):
+        message = Message(receiver="rec", data={"jsonrpc": "2.0", "result": None, "id": 7})
+        message.payload.append(b"abcd")
+        assert communicator.interpret_rpc_response(message) == b"abcd"
+
+    def test_json_value_overrides_binary(self, communicator: FakeCommunicator):
+        message = Message(receiver="rec", data={"jsonrpc": "2.0", "result": 6, "id": 7})
+        message.payload.append(b"abcd")
+        assert communicator.interpret_rpc_response(message) == 6
+
 
 class Test_ask_rpc:
     response = Message(receiver="communicator", sender="rec", conversation_id=cid,
