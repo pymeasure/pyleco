@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Iterable, Optional, Sequence, Union
 
 from ..core.internal_protocols import CommunicatorProtocol
 from ..utils.communicator import Communicator
@@ -112,10 +112,23 @@ class Director:
         return params
 
     # Remote control synced
-    def ask_rpc(self, method: str, actor: Optional[Union[bytes, str]] = None, **kwargs) -> Any:
+    def ask_rpc(
+        self,
+        method: str,
+        actor: Optional[Union[bytes, str]] = None,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        extract_additional_payload: bool = False,
+        **kwargs,
+    ) -> Any:
         """Remotely call the `method` procedure on the `actor` and return the return value."""
         receiver = self._actor_check(actor)
-        return self.communicator.ask_rpc(receiver=receiver, method=method, **kwargs)
+        return self.communicator.ask_rpc(
+            receiver=receiver,
+            method=method,
+            additional_payload=additional_payload,
+            extract_additional_payload=extract_additional_payload,
+            **kwargs,
+        )
 
     #   Component
     def get_rpc_capabilities(self, actor: Optional[Union[bytes, str]] = None) -> dict:
