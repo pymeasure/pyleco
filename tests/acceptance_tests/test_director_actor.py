@@ -148,4 +148,4 @@ def test_device_method_via_rpc(director: Director):
 def test_binary_data_transfer(director: Director):
     assert director.ask_rpc(
         method="binary_method", additional_payload=[b"123"], extract_additional_payload=True
-    ) == b"123123"
+    ) == [b"123123"]
