@@ -147,6 +147,27 @@ class Test_ask_rpc:
                                                      "params": {'par1': 5},
                                                  })]
 
+    def test_sent_with_additional_payload(self, communicator_asked: FakeCommunicator):
+        communicator_asked.ask_rpc(
+            receiver="rec", method="test_method", par1=5, additional_payload=[b"12345"]
+        )
+        sent = communicator_asked._s[0]
+        assert communicator_asked._s == [
+            Message(
+                receiver="rec",
+                sender="communicator",
+                conversation_id=sent.conversation_id,
+                message_type=MessageTypes.JSON,
+                data={
+                    "jsonrpc": "2.0",
+                    "method": "test_method",
+                    "id": 1,
+                    "params": {"par1": 5},
+                },
+                additional_payload=[b"12345"],
+            )
+        ]
+
     def test_read(self, communicator_asked: FakeCommunicator):
         result = communicator_asked.ask_rpc(receiver="rec", method="test_method", par1=5)
         assert result == 5

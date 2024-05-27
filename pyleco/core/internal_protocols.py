@@ -113,6 +113,7 @@ class CommunicatorProtocol(Protocol):
         receiver: Union[bytes, str],
         method: str,
         timeout: Optional[float] = None,
+        additional_payload: Optional[Iterable[bytes]] = None,
         extract_additional_payload: bool = False,
         **kwargs,
     ) -> Any:
@@ -122,6 +123,7 @@ class CommunicatorProtocol(Protocol):
             receiver=receiver,
             data=string,
             message_type=MessageTypes.JSON,
+            additional_payload=additional_payload,
             timeout=timeout,
         )
         return self.interpret_rpc_response(
