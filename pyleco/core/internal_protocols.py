@@ -98,19 +98,25 @@ class CommunicatorProtocol(Protocol):
             timeout=timeout,
         )
 
-    def interpret_rpc_response(self, response_message: Message) -> Any:
+    def interpret_rpc_response(
+        self, response_message: Message, extract_additional_payload: bool = False
+    ) -> Any:
+        """Retrieve the return value of a RPC response message or its binary payload."""
         result = self.rpc_generator.get_result_from_response(response_message.payload[0])
-        if (
-            result is None
-            and len(response_message.payload) > 1
-        ):
+        if extract_additional_payload and result is None and len(response_message.payload) > 1:
             return response_message.payload[1]
         else:
             return result
 
     def ask_rpc(
-        self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None, **kwargs
+        self,
+        receiver: Union[bytes, str],
+        method: str,
+        timeout: Optional[float] = None,
+        extract_additional_payload: bool = False,
+        **kwargs,
     ) -> Any:
+        """Send a JSON-RPC request (with method \\**kwargs) and return the response value."""
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
         response = self.ask(
             receiver=receiver,
@@ -118,7 +124,9 @@ class CommunicatorProtocol(Protocol):
             message_type=MessageTypes.JSON,
             timeout=timeout,
         )
-        return self.interpret_rpc_response(response)
+        return self.interpret_rpc_response(
+            response, extract_additional_payload=extract_additional_payload
+        )
 
 
 class SubscriberProtocol(Protocol):
