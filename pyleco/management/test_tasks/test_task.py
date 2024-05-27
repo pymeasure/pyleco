@@ -8,7 +8,7 @@ from time import sleep
 from pyleco.actors.actor import Actor
 
 
-class FakeInstrument:
+class FakeInstrument:  # pragma: no cover
     _prop1 = 5
 
     def __init__(self):
