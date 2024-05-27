@@ -23,7 +23,7 @@
 #
 
 from __future__ import annotations
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Iterable, Optional, Sequence, Union
 
 from .core.message import Message
 from .core.internal_protocols import CommunicatorProtocol
@@ -219,14 +219,26 @@ class FakeDirector:
         super().__init__(**kwargs)
         self.remote_class = remote_class
 
-    def ask_rpc(self, method: str, actor: Optional[Union[bytes, str]] = None, **kwargs) -> Any:
+    def ask_rpc(
+        self,
+        method: str,
+        actor: Optional[Union[bytes, str]] = None,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        extract_additional_payload: bool = False,
+        **kwargs,
+    ) -> Any:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
         self.method = method
         self.kwargs = kwargs
         return self.return_value
 
-    def ask_rpc_async(self, method: str, actor: Optional[Union[bytes, str]] = None,
-                      **kwargs) -> bytes:
+    def ask_rpc_async(
+        self,
+        method: str,
+        actor: Optional[Union[bytes, str]] = None,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        **kwargs,
+    ) -> bytes:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
         self.method = method
         self.kwargs = kwargs

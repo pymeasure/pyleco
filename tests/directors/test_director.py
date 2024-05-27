@@ -136,6 +136,22 @@ def test_read_rpc_response(director: Director):
     assert director.read_rpc_response(conversation_id=cid) == 7.5
 
 
+def test_read_binary_rpc_response(director: Director):
+    director.communicator._r = [  # type: ignore
+        Message(
+            "director",
+            "actor",
+            conversation_id=cid,
+            message_type=MessageTypes.JSON,
+            data={"id": 1, "result": None, "jsonrpc": "2.0"},
+            additional_payload=[b"123"],
+        )
+    ]
+    assert director.read_rpc_response(conversation_id=cid, extract_additional_payload=True) == [
+        b"123"
+    ]
+
+
 def test_get_properties_async(director: Director):
     properties = ["a", "some"]
     cid = director.get_parameters_async(parameters=properties)
