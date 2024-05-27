@@ -69,6 +69,16 @@ class FakeInstrument:
 
 def start_actor(event: threading.Event):
     actor = Actor("actor", FakeInstrument, port=PORT)
+
+    def binary_method() -> None:
+        """Receive binary data and return it."""
+        payload = actor.current_message.payload[1:]
+        try:
+            actor.additional_response_payload = [payload[0] * 2]
+        except IndexError:
+            pass
+
+    actor.register_rpc_method(binary_method)
     actor.connect()
     actor.rpc.method()(actor.device.triple)
     actor.register_device_method(actor.device.triple)
@@ -133,3 +143,9 @@ def test_method_via_rpc2(director: Director):
 
 def test_device_method_via_rpc(director: Director):
     assert director.ask_rpc(method="device.triple", factor=5) == 15
+
+
+def test_binary_data_transfer(director: Director):
+    assert director.ask_rpc(
+        method="binary_method", additional_payload=[b"123"], extract_additional_payload=True
+    ) == b"123123"
