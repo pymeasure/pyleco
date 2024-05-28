@@ -11,8 +11,9 @@ Python reference implementation of the [Laboratory Experiment COntrol (LECO) pro
 The [reviewed branch](https://github.com/pymeasure/pyleco/tree/reviewed) contains reviewed code, which does not yet contain all necessary modules and classes.
 Development happens in the [main](https://github.com/pymeasure/pyleco/tree/main) branch.
 
-Note: LECO is still under development, such that the code and API might change.
+**Note**: LECO is still under development, such that the code and API might change.
 The LECO protocol branch [pyleco-state](https://github.com/pymeasure/leco-protocol/tree/pyleco-state) contains the assumptions used in this project, which are not yet accepted into the LECO main branch.
+See this [documentation](https://leco-laboratory-experiment-control-protocol--69.org.readthedocs.build/en/69/) for the LECO definitions including these assumptions.
 These things might change, if LECO defines them differently.
 
 For a tutorial on how to get started, see [GETTING_STARTED.md](https://github.com/pymeasure/pyleco/blob/main/GETTING_STARTED.md).
