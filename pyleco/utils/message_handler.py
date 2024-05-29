@@ -23,6 +23,7 @@
 #
 
 from __future__ import annotations
+from functools import wraps
 from json import JSONDecodeError
 import logging
 import time
@@ -137,6 +138,61 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
     def register_rpc_method(self, method: Callable, **kwargs) -> None:
         """Register a method to be available via rpc calls."""
         self.rpc.method(**kwargs)(method)
+
+    def _handle_possible_binary_return_value(
+        self, return_value: Union[Any, bytes, list[bytes]]
+    ) -> Optional[Any]:
+        if isinstance(return_value, (bytearray, bytes, memoryview)):
+            self.additional_response_payload = [return_value]
+            return None
+        elif isinstance(return_value, list) and isinstance(
+            return_value[0], (bytearray, bytes, memoryview)
+        ):
+            self.additional_response_payload = return_value
+            return None
+        else:
+            return return_value
+
+    def _generate_binary_capable_method(
+        self,
+        method: Callable[..., Union[Any, bytes, list[bytes]]],
+        accept_binary_input: bool = False,
+    ) -> Callable[..., Any]:
+        if accept_binary_input is True:
+
+            @wraps(method)
+            def modified_method(*args, **kwargs):  # type: ignore
+                return_value = method(
+                    *args, additional_payload=self.current_message.payload[1:], **kwargs
+                )
+                return self._handle_possible_binary_return_value(return_value=return_value)
+        else:
+
+            @wraps(method)
+            def modified_method(*args, **kwargs):
+                return_value = method(*args, **kwargs)
+                return self._handle_possible_binary_return_value(return_value=return_value)
+
+        return modified_method
+
+    def register_binary_rpc_method(
+        self,
+        method: Callable[..., Union[Any, bytes, list[bytes]]],
+        accept_binary_input: bool = False,
+        **kwargs,
+    ) -> None:
+        """Register a method which accepts binary input and/or returns binary values.
+
+        If a method should accept binary input, set the `accept_binary_input=True` and the method
+        must accept the additional payload as an `additional_payload` parameter.
+
+        If a method returns a binary object or a list of binary objects, they are sent as
+        additional_payload with the json response value `None`.
+        """
+        modified_method = self._generate_binary_capable_method(
+            method=method, accept_binary_input=accept_binary_input
+        )
+        self.register_rpc_method(modified_method, **kwargs)
 
     def register_rpc_methods(self) -> None:
         """Register methods for RPC."""

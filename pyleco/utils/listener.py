@@ -139,6 +139,17 @@ class Listener:
         """
         self.message_handler.register_rpc_method(method=method, **kwargs)
 
+    def register_binary_rpc_method(
+        self, method: Callable, accept_binary_input: bool = False, **kwargs
+    ) -> None:
+        """Register a binary method for calling with the current message handler.
+
+        If you restart the listening, you have to register the method anew.
+        """
+        self.message_handler.register_binary_rpc_method(
+            method=method, accept_binary_input=accept_binary_input, **kwargs
+        )
+
     def stop_listen(self) -> None:
         """Stop the listener Thread."""
         try:

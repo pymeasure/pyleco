@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 import logging
 import threading
 from time import sleep
@@ -70,7 +71,7 @@ class FakeInstrument:
 def start_actor(event: threading.Event):
     actor = Actor("actor", FakeInstrument, port=PORT)
 
-    def binary_method() -> None:
+    def binary_method_manually() -> None:
         """Receive binary data and return it."""
         payload = actor.current_message.payload[1:]
         try:
@@ -78,7 +79,12 @@ def start_actor(event: threading.Event):
         except IndexError:
             pass
 
-    actor.register_rpc_method(binary_method)
+    def binary_method_created(additional_payload: list[bytes]) -> bytes:
+        """Receive binary data and return it."""
+        return additional_payload[0] * 2
+
+    actor.register_rpc_method(binary_method_manually)
+    actor.register_binary_rpc_method(binary_method_created, accept_binary_input=True)
     actor.connect()
     actor.rpc.method()(actor.device.triple)
     actor.register_device_method(actor.device.triple)
@@ -147,5 +153,13 @@ def test_device_method_via_rpc(director: Director):
 
 def test_binary_data_transfer(director: Director):
     assert director.ask_rpc(
-        method="binary_method", additional_payload=[b"123"], extract_additional_payload=True
+        method="binary_method_manually",
+        additional_payload=[b"123"],
+        extract_additional_payload=True,
+    ) == (None, [b"123123"])
+
+
+def test_binary_data_transfer_created(director: Director):
+    assert director.ask_rpc(
+        method="binary_method_created", additional_payload=[b"123"], extract_additional_payload=True
     ) == (None, [b"123123"])
