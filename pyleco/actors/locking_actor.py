@@ -54,7 +54,7 @@ class LockingActor(Actor, Generic[Device]):
         **kwargs,
     ):
         super().__init__(name, device_class, periodic_reading, auto_connect, context, **kwargs)
-        self.locks: dict[Optional[str], bytes] = {}
+        self._locks: dict[Optional[str], bytes] = {}
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
@@ -65,9 +65,9 @@ class LockingActor(Actor, Generic[Device]):
     # RPC methods for locking
     def lock(self, resource: Optional[str] = None) -> bool:
         """Lock the controlled device or one of its resources and return the success state."""
-        current_owner = self.locks.get(resource)
+        current_owner = self._locks.get(resource)
         if current_owner is None:
-            self.locks[resource] = self.current_message.sender
+            self._locks[resource] = self.current_message.sender
             return True
         elif current_owner == self.current_message.sender:
             return True
@@ -79,19 +79,19 @@ class LockingActor(Actor, Generic[Device]):
 
         Only the locking Component may unlock.
         """
-        current_owner = self.locks.get(resource)
+        current_owner = self._locks.get(resource)
         if current_owner is None:
-            self.locks[resource] = self.current_message.sender
+            self._locks[resource] = self.current_message.sender
             return  # True
         elif current_owner == self.current_message.sender:
-            self.locks.pop(resource, None)
+            self._locks.pop(resource, None)
             return  # True
         else:
             return  # False
 
     def force_unlock(self, resource: Optional[str] = None) -> None:
         """Unlock the controlled device or one of its resources even if someone else locked it."""
-        self.locks.pop(resource, None)
+        self._locks.pop(resource, None)
 
     # modified methods for device access
     def process_json_message(self, message: Message) -> Message:
@@ -101,26 +101,33 @@ class LockingActor(Actor, Generic[Device]):
     def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
         # `parameters` should be `Iterable[str]`, however, openrpc does not like that.
         for parameter in parameters:
-            self._check_access_rights(parameter)
+            self._check_access_rights_raising(parameter)
         return super().get_parameters(parameters=parameters)
 
     def set_parameters(self, parameters: dict[str, Any]) -> None:
         for parameter in parameters.keys():
-            self._check_access_rights(parameter)
+            self._check_access_rights_raising(parameter)
         return super().set_parameters(parameters=parameters)
 
     def call_action(
         self, action: str, args: Optional[Sequence] = None, kwargs: Optional[dict[str, Any]] = None
     ) -> Any:
-        self._check_access_rights(action)
+        self._check_access_rights_raising(action)
         return super().call_action(action=action, args=args, kwargs=kwargs)
 
     # helper methods
-    def _check_access_rights(self, resource: str) -> None:
+    def _check_access_rights(self, resource: Optional[str]) -> bool:
         requester = self.current_message.sender
-        elements = resource.split(".")
-        for i in range(len(elements)):
-            local_owner = self.locks.get(".".join(elements[:i])) if i > 0 else None
+        if resource is None:
+            elements = []
+        else:
+            elements = resource.split(".")
+        for i in range(-1, len(elements)):
+            local_owner = self._locks.get(".".join(elements[:i + 1])) if i >= 0 else None
             if local_owner is not None and requester != local_owner:
-                raise AccessError
-        return
+                return False
+        return True
+
+    def _check_access_rights_raising(self, resource: str) -> None:
+        if self._check_access_rights(resource=resource) is False:
+            raise AccessError
