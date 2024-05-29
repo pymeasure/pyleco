@@ -147,9 +147,10 @@ def test_read_binary_rpc_response(director: Director):
             additional_payload=[b"123"],
         )
     ]
-    assert director.read_rpc_response(conversation_id=cid, extract_additional_payload=True) == [
-        b"123"
-    ]
+    assert director.read_rpc_response(conversation_id=cid, extract_additional_payload=True) == (
+        None,
+        [b"123"],
+    )
 
 
 def test_get_properties_async(director: Director):

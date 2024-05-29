@@ -100,11 +100,11 @@ class CommunicatorProtocol(Protocol):
 
     def interpret_rpc_response(
         self, response_message: Message, extract_additional_payload: bool = False
-    ) -> Any:
-        """Retrieve the return value of a RPC response message or the additional payload."""
+    ) -> Union[Any, tuple[Any, list[bytes]]]:
+        """Retrieve the return value of a RPC response and optionally the additional payload."""
         result = self.rpc_generator.get_result_from_response(response_message.payload[0])
-        if extract_additional_payload and result is None and len(response_message.payload) > 1:
-            return response_message.payload[1:]
+        if extract_additional_payload:
+            return result, response_message.payload[1:]
         else:
             return result
 

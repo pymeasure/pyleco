@@ -90,10 +90,13 @@ class Test_interpret_rpc_response:
             data={"jsonrpc": "2.0", "result": None, "id": 7},
             additional_payload=[b"abcd", b"efgh"],
         )
-        assert communicator.interpret_rpc_response(message, extract_additional_payload=True) == [
-            b"abcd",
-            b"efgh",
-        ]
+        assert communicator.interpret_rpc_response(message, extract_additional_payload=True) == (
+            None,
+            [
+                b"abcd",
+                b"efgh",
+            ],
+        )
 
     def test_ignore_additional_payload_if_not_desired(self, communicator: FakeCommunicator):
         message = Message(
@@ -110,7 +113,10 @@ class Test_interpret_rpc_response:
             receiver="rec",
             data={"jsonrpc": "2.0", "result": None, "id": 7},
         )
-        assert communicator.interpret_rpc_response(message, extract_additional_payload=True) is None
+        assert communicator.interpret_rpc_response(message, extract_additional_payload=True) == (
+            None,
+            [],
+        )
 
     def test_json_value_overrides_binary(self, communicator: FakeCommunicator):
         message = Message(
@@ -118,7 +124,10 @@ class Test_interpret_rpc_response:
             data={"jsonrpc": "2.0", "result": 6, "id": 7},
             additional_payload=[b"abcd"],
         )
-        assert communicator.interpret_rpc_response(message, extract_additional_payload=True) == 6
+        assert communicator.interpret_rpc_response(message, extract_additional_payload=True) == (
+            6,
+            [b"abcd"],
+        )
 
 
 class Test_ask_rpc:
