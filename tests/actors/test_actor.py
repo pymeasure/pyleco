@@ -126,7 +126,7 @@ class TestProtocolImplemented:
     def static_test_methods_are_present(self):
         def testing(component: ExtendedActorProtocol):
             pass
-        testing(FakeActor(name="test", device_class=FantasyInstrument))  # type: ignore
+        testing(FakeActor(name="test", device_class=FantasyInstrument))
 
     @pytest.fixture
     def component_methods(self, actor: Actor):

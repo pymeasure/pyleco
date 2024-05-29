@@ -238,6 +238,7 @@ class Actor(MessageHandler, Generic[Device]):
 
     def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
         """Get device properties from the list `properties`."""
+        # `parameters` should be `Iterable[str]`, however, openrpc does not like that.
         data = {}
         for key in parameters:
             path = key.split(".")
