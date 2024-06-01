@@ -586,7 +586,7 @@ class Test_generate_binary_method:
         assert modified_binary_method.__name__ == binary_method.__name__
 
     def test_docstring(self, modified_binary_method, binary_method):
-        assert modified_binary_method.__doc__ == binary_method.__doc__
+        assert modified_binary_method.__doc__ == binary_method.__doc__ + "\n(binary method)"
 
     def test_annotation(self, modified_binary_method, binary_method):
         assert modified_binary_method.__annotations__ == binary_method.__annotations__

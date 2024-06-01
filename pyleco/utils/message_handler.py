@@ -172,7 +172,10 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
             def modified_method(*args, **kwargs):
                 return_value = method(*args, **kwargs)
                 return self._handle_possible_binary_return_value(return_value=return_value)
-
+        try:
+            modified_method.__doc__ += "\n(binary method)"  # type: ignore
+        except TypeError:
+            modified_method.__doc__ = "binary method"
         return modified_method
 
     def register_binary_rpc_method(
