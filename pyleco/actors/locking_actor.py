@@ -65,11 +65,8 @@ class LockingActor(Actor, Generic[Device]):
     # RPC methods for locking
     def lock(self, resource: Optional[str] = None) -> bool:
         """Lock the controlled device or one of its resources and return the success state."""
-        current_owner = self._locks.get(resource)
-        if current_owner is None:
+        if self.check_access_rights(resource):
             self._locks[resource] = self.current_message.sender
-            return True
-        elif current_owner == self.current_message.sender:
             return True
         else:
             return False
@@ -79,15 +76,8 @@ class LockingActor(Actor, Generic[Device]):
 
         Only the locking Component may unlock.
         """
-        current_owner = self._locks.get(resource)
-        if current_owner is None:
-            self._locks[resource] = self.current_message.sender
-            return  # True
-        elif current_owner == self.current_message.sender:
+        if self.check_access_rights(resource):
             self._locks.pop(resource, None)
-            return  # True
-        else:
-            return  # False
 
     def force_unlock(self, resource: Optional[str] = None) -> None:
         """Unlock the controlled device or one of its resources even if someone else locked it."""
@@ -116,7 +106,7 @@ class LockingActor(Actor, Generic[Device]):
         return super().call_action(action=action, args=args, kwargs=kwargs)
 
     # helper methods
-    def _check_access_rights(self, resource: Optional[str]) -> bool:
+    def check_access_rights(self, resource: Optional[str]) -> bool:
         requester = self.current_message.sender
         if resource is None:
             elements = []
@@ -129,5 +119,5 @@ class LockingActor(Actor, Generic[Device]):
         return True
 
     def _check_access_rights_raising(self, resource: str) -> None:
-        if self._check_access_rights(resource=resource) is False:
+        if self.check_access_rights(resource=resource) is False:
             raise AccessError

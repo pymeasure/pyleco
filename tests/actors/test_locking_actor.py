@@ -46,47 +46,55 @@ class FantasyChannel:
     def channel_property(self, value):
         self._prop = value
 
+    @property
+    def l_c_prop(self):
+        return self._prop
+
+    @l_c_prop.setter
+    def l_c_prop(self, value):
+        self._prop = value
+
     def channel_method(self, value):
         return 2 * value
 
 
 class FantasyInstrument:
+    """Some instrument to be controlled.
+
+    The prefix "l" indicates properties etc. which should be locked.
+    """
     def __init__(self, adapter, name="FantasyInstrument", *args, **kwargs):
         self.name = name
         self.adapter = adapter
         super().__init__()
-        self._prop = 5
-        self._prop2 = 7
-        self.channel = FantasyChannel()
-        self.channel.trace = FantasyChannel()  # type: ignore
+        self.l_channel = FantasyChannel()
+        self.l_channel.trace = FantasyChannel()  # type: ignore
+        self.o_channel = FantasyChannel()
+        self._l_prop = 5
 
     @property
-    def prop(self):
-        return self._prop
+    def l_prop(self):
+        return self._l_prop
 
-    @prop.setter
-    def prop(self, value):
-        self._prop = value
+    @l_prop.setter
+    def l_prop(self, value):
+        self._l_prop = value
 
     @property
-    def prop2(self):
-        return self._prop2
+    def o_prop(self):
+        return self._o_prop2
 
-    @prop2.setter
-    def prop2(self, value):
-        self._prop2 = value
+    @o_prop.setter
+    def o_prop(self, value):
+        self._o_prop2 = value
 
-    def silent_method(self, value):
+    def l_method(self, value):
         self._method_value = value
 
-    def returning_method(self, value):
+    def o_method(self, value):
         return value**2
 
-    @property
-    def long(self):
-        time.sleep(0.5)
-        return 7
-
+    # methods for Instrument simulation
     def connect(self, *args):
         pass
 
@@ -118,12 +126,11 @@ def actor() -> FakeActor:
 
 
 resources = (
-    None,  # the whole device
-    "prop",  # a property
-    "returning_method",  # a method
-    "channel",  # a channel
-    "channel.trace",  # channel of a channel
-    "channel.channel_property",  # property of a channel
+    "l_prop",  # a property
+    "l_method",  # a method
+    "l_channel",  # a channel
+    "l_channel.l_c_prop",  # property of a channel
+    "o_channel.l_c_prop",  # property of a channel
 )
 
 
@@ -160,37 +167,58 @@ class TestProtocolImplemented:
                 return
         raise AssertionError(f"Method {method} is not available.")
 
+class Test_check_access_rights:
+    @pytest.mark.parametrize("resource", resources)
+    def test_owner(self, locked_actor: LockingActor, resource):
+        locked_actor.current_message = Message("rec", "owner")
+        assert locked_actor.check_access_rights(resource) is True
 
-@pytest.mark.parametrize("resource", (None, "channel.prop2", "prop7"))
-def test_check_access_rights_owner_True(locked_actor: LockingActor, resource):
-    locked_actor.current_message = Message("rec", "owner")
-    assert locked_actor._check_access_rights(resource) is True
+    @pytest.mark.parametrize("resource", ("l_channel.channel_property", "l_channel.trace"))
+    def test_owner_of_parent(self, locked_actor: LockingActor, resource):
+        locked_actor.current_message = Message("rec", "owner")
+        assert locked_actor.check_access_rights(resource) is True
 
+    @pytest.mark.parametrize("resource", (None, *resources))
+    def test_owner_of_device(self, actor: LockingActor, resource):
+        """Only the device itself is locked, test access to parts."""
+        actor.current_message = Message("rec", "owner")
+        actor.lock(None)
+        # act and assert
+        assert actor.check_access_rights(resource) is True
 
-@pytest.mark.parametrize("resource", (None, "prop7"))
-def test_check_access_rights_requester_partially_locked_True(locked_actor: LockingActor, resource):
-    """Test that another requester may access unlocked resources."""
-    locked_actor.force_unlock(None)
-    locked_actor.current_message = Message("rec", "requester")
-    assert locked_actor._check_access_rights(resource) is True
+    @pytest.mark.parametrize(
+        "resource", (None, "o_prop", "o_method", "o_channel", "o_channel.channel_property")
+    )
+    def test_requester_True(self, locked_actor: LockingActor, resource):
+        """Test that another requester may access unlocked resources."""
+        locked_actor.current_message = Message("rec", "requester")
+        assert locked_actor.check_access_rights(resource) is True
 
+    @pytest.mark.parametrize(
+        "resource", ("l_channel", "l_channel.channel_property", "l_prop", "o_channel.l_c_prop")
+    )
+    def test_requester_False(self, locked_actor: LockingActor, resource):
+        # arrange
+        locked_actor.force_unlock(None)
+        # act
+        locked_actor.current_message = Message("rec", "requester")
+        assert locked_actor.check_access_rights(resource) is False
 
-@pytest.mark.parametrize(
-    "resource", ("channel", "channel.prop2", "channel.channel_property", "prop")
-)
-def test_check_access_rights_False(locked_actor: LockingActor, resource):
-    # arrange
-    locked_actor.force_unlock(None)
-    # act
-    locked_actor.current_message = Message("rec", "requester")
-    assert locked_actor._check_access_rights(resource) is False
+    @pytest.mark.parametrize("resource", (None, *resources))
+    def test_not_owner_of_device(self, actor: LockingActor, resource):
+        """Only the device itself is locked, test access to parts of it."""
+        actor.current_message = Message("rec", "owner")
+        actor.lock(None)
+        actor.current_message = Message("rec", "requester")
+        # act and assert
+        assert actor.check_access_rights(resource) is True
 
 
 @pytest.mark.parametrize(
     "resource",
     resources,
 )
-def lock_unlocked(actor: LockingActor, resource):
+def test_lock_unlocked(actor: LockingActor, resource):
     actor.current_message = Message("rec", "owner")
     assert actor.lock(resource) is True
     assert actor._locks[resource] == b"owner"
@@ -200,27 +228,27 @@ def lock_unlocked(actor: LockingActor, resource):
     "resource",
     resources,
 )
-def lock_already_locked(locked_actor: LockingActor, resource):
+def test_lock_already_locked(locked_actor: LockingActor, resource):
     locked_actor.current_message = Message("rec", "owner")
     assert locked_actor.lock(resource) is True
-    assert actor.locks[resource] == b"owner"
+    assert locked_actor._locks[resource] == b"owner"
 
 
 @pytest.mark.parametrize(
     "resource",
     resources,
 )
-def lock_fail_as_already_locked(locked_actor: LockingActor, resource):
+def test_lock_fail_as_already_locked(locked_actor: LockingActor, resource):
     locked_actor.current_message = Message("rec", "requester")
     assert locked_actor.lock(resource) is False
-    assert actor.locks[resource] == b"owner"
+    assert locked_actor._locks[resource] == b"owner"
 
 
 @pytest.mark.parametrize(
     "resource",
-    ("prop2", "channel.channel_method"),
+    ("l_channel.channel_method", "l_channel.trace"),
 )
-def lock_fail_for_child_of_locked_resource(locked_actor: LockingActor, resource):
+def test_lock_fail_for_child_of_locked_resource(locked_actor: LockingActor, resource):
     """If the parent is locked (e.g. the device), no child may be locked."""
     locked_actor.current_message = Message("rec", "requester")
     assert locked_actor.lock(resource) is False
