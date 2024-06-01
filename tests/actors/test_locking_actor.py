@@ -30,7 +30,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyleco.core.message import Message
-from pyleco.actors.locking_actor import LockingActor
+from pyleco.actors.locking_actor import LockingActor, AccessError
 from pyleco.core.leco_protocols import LockingActorProtocol
 
 
@@ -71,6 +71,7 @@ class FantasyInstrument:
         self.l_channel.trace = FantasyChannel()  # type: ignore
         self.o_channel = FantasyChannel()
         self._l_prop = 5
+        self._o_prop = 6
 
     @property
     def l_prop(self):
@@ -82,11 +83,11 @@ class FantasyInstrument:
 
     @property
     def o_prop(self):
-        return self._o_prop2
+        return self._o_prop
 
     @o_prop.setter
     def o_prop(self, value):
-        self._o_prop2 = value
+        self._o_prop = value
 
     def l_method(self, value):
         self._method_value = value
@@ -252,3 +253,40 @@ def test_lock_fail_for_child_of_locked_resource(locked_actor: LockingActor, reso
     """If the parent is locked (e.g. the device), no child may be locked."""
     locked_actor.current_message = Message("rec", "requester")
     assert locked_actor.lock(resource) is False
+
+
+# test device access
+def test_get_parameters_successfully(locked_actor: LockingActor):
+    locked_actor.current_message = Message("rec", "owner")
+    locked_actor.get_parameters(["l_prop", "l_channel.channel_property", "o_prop"])
+    # assert that no error is raised
+
+
+def test_get_parameters_unsuccessfully(locked_actor: LockingActor):
+    locked_actor.current_message = Message("rec", "requester")
+    with pytest.raises(AccessError, match="'l_prop'"):
+        locked_actor.get_parameters(["o_prop", "l_prop"])
+
+
+def test_set_parameters_successfully(locked_actor: LockingActor):
+    locked_actor.current_message = Message("rec", "owner")
+    locked_actor.set_parameters({"l_prop": 5, "l_channel.channel_property": 6})
+    # assert that no error is raised
+
+
+def test_set_parameters_unsuccessfully(locked_actor: LockingActor):
+    locked_actor.current_message = Message("rec", "requester")
+    with pytest.raises(AccessError, match="'l_prop'"):
+        locked_actor.set_parameters({"o_prop": 5, "l_prop": 6})
+
+
+def test_call_action_successfully(locked_actor: LockingActor):
+    locked_actor.current_message = Message("rec", "owner")
+    locked_actor.call_action("l_method", [5])
+    # assert that no error is raised
+
+
+def test_call_action_unsuccessfully(locked_actor: LockingActor):
+    locked_actor.current_message = Message("rec", "requester")
+    with pytest.raises(AccessError, match="'l_method'"):
+        locked_actor.call_action("l_method", [5])

@@ -120,4 +120,4 @@ class LockingActor(Actor, Generic[Device]):
 
     def _check_access_rights_raising(self, resource: str) -> None:
         if self.check_access_rights(resource=resource) is False:
-            raise AccessError
+            raise AccessError(f"Resource '{resource}' is locked by someone else.")
