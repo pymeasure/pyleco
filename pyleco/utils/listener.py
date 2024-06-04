@@ -22,10 +22,11 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 import logging
 from threading import Thread, Event
 from time import sleep
-from typing import Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 from ..core import PROXY_SENDING_PORT, COORDINATOR_PORT
 from .pipe_handler import PipeHandler, CommunicatorPipe
@@ -132,7 +133,7 @@ class Listener:
         kwargs.setdefault("timeout", self.timeout)
         return self.message_handler.get_communicator(**kwargs)
 
-    def register_rpc_method(self, method: Callable, **kwargs) -> None:
+    def register_rpc_method(self, method: Callable[..., Any], **kwargs) -> None:
         """Register a method for calling with the current message handler.
 
         If you restart the listening, you have to register the method anew.
@@ -140,14 +141,21 @@ class Listener:
         self.message_handler.register_rpc_method(method=method, **kwargs)
 
     def register_binary_rpc_method(
-        self, method: Callable, accept_binary_input: bool = False, **kwargs
+        self,
+        method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
+        accept_binary_input: bool = False,
+        return_binary_output: bool = False,
+        **kwargs,
     ) -> None:
         """Register a binary method for calling with the current message handler.
 
         If you restart the listening, you have to register the method anew.
         """
         self.message_handler.register_binary_rpc_method(
-            method=method, accept_binary_input=accept_binary_input, **kwargs
+            method=method,
+            accept_binary_input=accept_binary_input,
+            return_binary_output=return_binary_output,
+            **kwargs,
         )
 
     def stop_listen(self) -> None:

@@ -27,7 +27,7 @@ from functools import wraps
 from json import JSONDecodeError
 import logging
 import time
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Union, TypeVar
 
 import zmq
 
@@ -46,6 +46,9 @@ from .events import Event, SimpleEvent
 
 # Parameters
 heartbeat_interval = 10  # s
+
+
+ReturnValue = TypeVar("ReturnValue")
 
 
 class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
@@ -135,65 +138,65 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.log.info(f"MessageHandler connecting to {host}:{port}")
         self.socket.connect(f"{protocol}://{host}:{port}")
 
-    def register_rpc_method(self, method: Callable, **kwargs) -> None:
+    def register_rpc_method(self, method: Callable[..., Any], **kwargs) -> None:
         """Register a method to be available via rpc calls."""
         self.rpc.method(**kwargs)(method)
 
-    def _handle_possible_binary_return_value(
-        self, return_value: Union[Any, bytes, list[bytes]]
-    ) -> Optional[Any]:
-        if isinstance(return_value, (bytearray, bytes, memoryview)):
-            self.additional_response_payload = [return_value]
-            return None
-        elif isinstance(return_value, list) and isinstance(
-            return_value[0], (bytearray, bytes, memoryview)
-        ):
-            self.additional_response_payload = return_value
-            return None
-        else:
-            return return_value
+    def _handle_binary_return_value(
+        self, return_value: tuple[ReturnValue, list[bytes]]
+    ) -> ReturnValue:
+        self.additional_response_payload = return_value[1]
+        return return_value[0]
+
+    @staticmethod
+    def _pass_through(return_value: ReturnValue) -> ReturnValue:
+        return return_value
 
     def _generate_binary_capable_method(
         self,
-        method: Callable[..., Union[Any, bytes, list[bytes]]],
+        method: Callable[..., Union[ReturnValue, tuple[ReturnValue, list[bytes]]]],
         accept_binary_input: bool = False,
-    ) -> Callable[..., Any]:
+        return_binary_output: bool = False,
+    ) -> Callable[..., ReturnValue]:
+        returner = self._handle_binary_return_value if return_binary_output else self._pass_through
         if accept_binary_input is True:
 
             @wraps(method)
-            def modified_method(*args, **kwargs):  # type: ignore
+            def modified_method(*args, **kwargs) -> ReturnValue:  # type: ignore
                 return_value = method(
                     *args, additional_payload=self.current_message.payload[1:], **kwargs
                 )
-                return self._handle_possible_binary_return_value(return_value=return_value)
+                return returner(return_value=return_value)  # type: ignore
         else:
 
             @wraps(method)
-            def modified_method(*args, **kwargs):
+            def modified_method(*args, **kwargs) -> ReturnValue:
                 return_value = method(*args, **kwargs)
-                return self._handle_possible_binary_return_value(return_value=return_value)
+                return returner(return_value=return_value)  # type: ignore
         try:
-            modified_method.__doc__ += "\n(binary method)"  # type: ignore
+            modified_method.__doc__ += "\n(binary method)"  # type: ignore[operator]
         except TypeError:
-            modified_method.__doc__ = "binary method"
-        return modified_method
+            modified_method.__doc__ = "(binary method)"
+        return modified_method  # type: ignore
 
     def register_binary_rpc_method(
         self,
-        method: Callable[..., Union[Any, bytes, list[bytes]]],
+        method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
         accept_binary_input: bool = False,
+        return_binary_output: bool = False,
         **kwargs,
     ) -> None:
         """Register a method which accepts binary input and/or returns binary values.
 
-        If a method should accept binary input, set the `accept_binary_input=True` and the method
-        must accept the additional payload as an `additional_payload` parameter.
-
-        If a method returns a binary object or a list of binary objects, they are sent as
-        additional_payload with the json response value `None`.
+        :param accept_binary_input: the method must accept the additional payload as an
+            `additional_payload` parameter.
+        :param return_binary_output: the method must return a tuple of a JSON-able python object
+            (e.g. `None`) and of a list of bytes objects, to be sent as additional payload.
         """
         modified_method = self._generate_binary_capable_method(
-            method=method, accept_binary_input=accept_binary_input
+            method=method,
+            accept_binary_input=accept_binary_input,
+            return_binary_output=return_binary_output,
         )
         self.register_rpc_method(modified_method, **kwargs)
 

@@ -79,12 +79,14 @@ def start_actor(event: threading.Event):
         except IndexError:
             pass
 
-    def binary_method_created(additional_payload: list[bytes]) -> bytes:
+    def binary_method_created(additional_payload: list[bytes]) -> tuple[None, list[bytes]]:
         """Receive binary data and return it."""
-        return additional_payload[0] * 2
+        return None, [additional_payload[0] * 2]
 
     actor.register_rpc_method(binary_method_manually)
-    actor.register_binary_rpc_method(binary_method_created, accept_binary_input=True)
+    actor.register_binary_rpc_method(
+        binary_method_created, accept_binary_input=True, return_binary_output=True
+    )
     actor.connect()
     actor.rpc.method()(actor.device.triple)
     actor.register_device_method(actor.device.triple)
