@@ -571,15 +571,31 @@ class Test_generate_binary_method:
         assert modified_binary_method.__name__ == binary_method.__name__
 
     def test_docstring(self, modified_binary_method, binary_method):
-        assert modified_binary_method.__doc__ == binary_method.__doc__ + "\n(binary method)"
+        doc_addition = (
+            "(binary input output method)"
+            if self._accept_binary_input
+            else "(binary output method)"
+        )
+        assert modified_binary_method.__doc__ == binary_method.__doc__ + "\n" + doc_addition
 
-    def test_docstring_without_original_docstring(self, handler: MessageHandler):
+    @pytest.mark.parametrize(
+        "input, output, string",
+        (
+            (False, False, "(binary method)"),
+            (True, False, "(binary input method)"),
+            (False, True, "(binary output method)"),
+            (True, True, "(binary input output method)"),
+        ),
+    )
+    def test_docstring_without_original_docstring(
+        self, handler: MessageHandler, input, output, string
+    ):
         def binary_method(additional_payload):
             return 7
         mod = handler._generate_binary_capable_method(
-            binary_method, accept_binary_input=True, return_binary_output=False
+            binary_method, accept_binary_input=input, return_binary_output=output
         )
-        assert mod.__doc__ == "(binary method)"
+        assert mod.__doc__ == string
 
     def test_annotation(self, modified_binary_method, binary_method):
         assert modified_binary_method.__annotations__ == binary_method.__annotations__

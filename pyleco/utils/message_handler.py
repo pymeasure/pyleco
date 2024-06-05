@@ -173,10 +173,14 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
             def modified_method(*args, **kwargs) -> ReturnValue:
                 return_value = method(*args, **kwargs)
                 return returner(return_value=return_value)  # type: ignore
+
+        doc_addition = (
+            f"(binary{' input' * accept_binary_input}{' output' * return_binary_output} method)"
+        )
         try:
-            modified_method.__doc__ += "\n(binary method)"  # type: ignore[operator]
+            modified_method.__doc__ += "\n" + doc_addition  # type: ignore[operator]
         except TypeError:
-            modified_method.__doc__ = "(binary method)"
+            modified_method.__doc__ = doc_addition
         return modified_method  # type: ignore
 
     def register_binary_rpc_method(
