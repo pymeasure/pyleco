@@ -59,6 +59,13 @@ def test_call_publisher_sends(publisher: DataPublisher):
     assert message.payload[0] == b"data"
 
 
+def test_send_data(publisher: DataPublisher):
+    publisher.send_data(
+        data=b"data", topic=b"topic", conversation_id=b"cid", additional_payload=[b"1"]
+    )
+    assert publisher.socket._s == [[b"topic", b"cid\x00", b"data", b"1"]]
+
+
 def test_send_message(publisher: DataPublisher):
     message = DataMessage.from_frames(b"topic", b"header", b"data")
     publisher.send_message(message=message)
