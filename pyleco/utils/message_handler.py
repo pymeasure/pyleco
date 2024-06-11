@@ -329,9 +329,8 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
             conversation_id=message.conversation_id,
             message_type=MessageTypes.JSON,
             data=reply,
+            additional_payload=self.additional_response_payload
         )
-        if self.additional_response_payload is not None:
-            response.payload += self.additional_response_payload
         return response
 
     def handle_json_error(self, message: Message) -> None:

@@ -453,8 +453,12 @@ class Test_read_and_handle_message:
     def test_handle_undecodable_message(self, handler: MessageHandler,
                                         caplog: pytest.LogCaptureFixture):
         """An invalid message should not cause the message handler to crash."""
-        message = Message(b"N3.handler", b"N3.COORDINATOR", message_type=MessageTypes.JSON)
-        message.payload = [b"()"]
+        message = Message(
+            b"N3.handler",
+            b"N3.COORDINATOR",
+            message_type=MessageTypes.JSON,
+            additional_payload=[b"()"],
+        )
         handler.socket._r = [message.to_frames()]  # type: ignore
         handler.read_and_handle_message()
         assert caplog.records[-1].msg.startswith("Could not decode")
@@ -526,8 +530,9 @@ class Test_process_json_message_with_binary:
         assert handler_b.additional_response_payload is None
 
     def test_binary_payload_available(self, handler_b: MessageHandler):
-        m_in = Message("abc", data=self.data, message_type=MessageTypes.JSON)
-        m_in.payload.append(b"def")
+        m_in = Message(
+            "abc", data=self.data, message_type=MessageTypes.JSON, additional_payload=[b"def"]
+        )
         self.payload_out = []
         handler_b.process_json_message(m_in)
         assert self.payload_in == [b"def"]
@@ -616,7 +621,7 @@ class Test_generate_binary_method:
             assert modified_binary_method(1, [b"0", b"1", b"2", b"3"]) is None
         assert self.handler.additional_response_payload == [b"1"]
 
-    def test_no_binary_return(self, handler: MessageHandler):
+    def test_binary_input_from_message(self, handler: MessageHandler):
         handler.current_message = Message("rec", "send", data=b"", additional_payload=[b"0"])
 
         def binary_method(additional_payload = None):

@@ -72,7 +72,7 @@ def start_actor(event: threading.Event):
     actor = Actor("actor", FakeInstrument, port=PORT)
 
     def binary_method_manually() -> None:
-        """Receive binary data and return it."""
+        """Receive binary data and return it. Do all the binary things manually."""
         payload = actor.current_message.payload[1:]
         try:
             actor.additional_response_payload = [payload[0] * 2]
@@ -80,7 +80,7 @@ def start_actor(event: threading.Event):
             pass
 
     def binary_method_created(additional_payload: list[bytes]) -> tuple[None, list[bytes]]:
-        """Receive binary data and return it."""
+        """Receive binary data and return it. Create binary method by registering it."""
         return None, [additional_payload[0] * 2]
 
     actor.register_rpc_method(binary_method_manually)

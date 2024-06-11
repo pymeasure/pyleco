@@ -108,7 +108,7 @@ class Test_interpret_rpc_response:
             communicator.interpret_rpc_response(message, extract_additional_payload=False) is None
         )
 
-    def test_without_additional_payload_return_None(self, communicator: FakeCommunicator):
+    def test_without_additional_payload_return_empty_list(self, communicator: FakeCommunicator):
         message = Message(
             receiver="rec",
             data={"jsonrpc": "2.0", "result": None, "id": 7},
@@ -118,7 +118,7 @@ class Test_interpret_rpc_response:
             [],
         )
 
-    def test_json_value_overrides_binary(self, communicator: FakeCommunicator):
+    def test_json_value_and_binary_payload(self, communicator: FakeCommunicator):
         message = Message(
             receiver="rec",
             data={"jsonrpc": "2.0", "result": 6, "id": 7},
