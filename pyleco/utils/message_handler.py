@@ -163,8 +163,17 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
             @wraps(method)
             def modified_method(*args, **kwargs) -> ReturnValue:  # type: ignore
+                if args:
+                    args_l = list(args)
+                    if args_l[-1] is None:
+                        args_l[-1] = self.current_message.payload[1:]
+                    else:
+                        args_l.append(self.current_message.payload[1:])
+                    args = args_l  # type: ignore[assignment]
+                else:
+                    kwargs["additional_payload"] = self.current_message.payload[1:]
                 return_value = method(
-                    *args, additional_payload=self.current_message.payload[1:], **kwargs
+                    *args, **kwargs
                 )
                 return returner(return_value=return_value)  # type: ignore
         else:
@@ -193,7 +202,7 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         """Register a method which accepts binary input and/or returns binary values.
 
         :param accept_binary_input: the method must accept the additional payload as an
-            `additional_payload` parameter.
+            `additional_payload=None` parameter (default value must be present as `None`!).
         :param return_binary_output: the method must return a tuple of a JSON-able python object
             (e.g. `None`) and of a list of bytes objects, to be sent as additional payload.
         """

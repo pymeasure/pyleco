@@ -498,51 +498,82 @@ class Test_process_json_message:
         assert error.message == INVALID_REQUEST.message
 
 
-class Test_process_json_message_with_binary:
-    data = {"jsonrpc": "2.0", "method": "do_binary", "id": 8}
+class Test_process_json_message_with_created_binary:
     payload_in: list[bytes]
     payload_out: list[bytes]
+
+    @pytest.fixture(
+        params=(
+            # normally created binary method
+            {"method": "do_binary", "params": [5]},  # with a list
+            {"method": "do_binary", "params": {"data": 5}},  # a dictionary
+            # manually created binary method
+            {"method": "do_binary_manually", "params": [5]},
+            {"method": "do_binary_manually", "params": {"data": 5}},
+        ),
+        ids=(
+            "created, list",
+            "created, dict",
+            "manual, list",
+            "manual, dict",
+        ),
+    )
+    def data(self, request):
+        """Create a request with a list and a dict of other parameters."""
+        d = {"jsonrpc": "2.0", "id": 8}
+        d.update(request.param)
+        return d
 
     @pytest.fixture
     def handler_b(self, handler: MessageHandler):
         test_class = self
         class SpecialHandler(MessageHandler):
-            def do_binary(self) -> None:
+            def do_binary_manually(self, data: int) -> int:
                 test_class.payload_in = self.current_message.payload[1:]
                 self.additional_response_payload = test_class.payload_out
+                return data
+
+            def do_binary(
+                self, data: int, additional_payload: Optional[list[bytes]] = None
+            ) -> tuple[int, list[bytes]]:
+                test_class.payload_in = additional_payload  # type: ignore
+                return data, test_class.payload_out
 
         handler = SpecialHandler(name=handler_name.split(".")[1], context=FakeContext())  # type: ignore
         handler.namespace = handler_name.split(".")[0]
         handler.stop_event = SimpleEvent()
         handler.timeout = 0.1
 
-        handler.register_rpc_method(handler.do_binary)
+        handler.register_rpc_method(handler.do_binary_manually)
+        handler.register_binary_rpc_method(
+            handler.do_binary, accept_binary_input=True, return_binary_output=True
+        )
         return handler
 
-    def test_message_stored(self, handler_b: MessageHandler):
-        m_in = Message("abc", data=self.data, message_type=MessageTypes.JSON)
+    def test_message_stored(self, handler_b: MessageHandler, data):
+        m_in = Message("abc", data=data, message_type=MessageTypes.JSON)
         handler_b.process_json_message(m_in)
         assert handler_b.current_message == m_in
 
-    def test_empty_additional_payload(self, handler_b: MessageHandler):
-        m_in = Message("abc", data=self.data, message_type=MessageTypes.JSON)
+    def test_empty_additional_payload(self, handler_b: MessageHandler, data):
+        m_in = Message("abc", data=data, message_type=MessageTypes.JSON)
         handler_b.process_json_message(m_in)
         assert handler_b.additional_response_payload is None
 
-    def test_binary_payload_available(self, handler_b: MessageHandler):
+    def test_binary_payload_available(self, handler_b: MessageHandler, data):
         m_in = Message(
-            "abc", data=self.data, message_type=MessageTypes.JSON, additional_payload=[b"def"]
+            "abc", data=data, message_type=MessageTypes.JSON, additional_payload=[b"def"]
         )
         self.payload_out = []
         handler_b.process_json_message(m_in)
         assert self.payload_in == [b"def"]
 
-    def test_binary_payload_sent(self, handler_b: MessageHandler):
-        m_in = Message("abc", data=self.data, message_type=MessageTypes.JSON)
+    def test_binary_payload_sent(self, handler_b: MessageHandler, data):
+        m_in = Message("abc", data=data, message_type=MessageTypes.JSON)
         self.payload_out = [b"ghi"]
         response = handler_b.process_json_message(m_in)
         assert response.payload[1:] == [b"ghi"]
-        assert response.data == {"jsonrpc": "2.0", "id": 8, "result": None}
+        assert response.data == {"jsonrpc": "2.0", "id": 8, "result": 5}
 
 
 def test_handle_binary_return_value(handler: MessageHandler):
@@ -565,9 +596,9 @@ class Test_generate_binary_method:
         handler.current_message = Message(
             "rec", "send", data=b"", additional_payload=[b"0", b"1", b"2", b"3"]
         )
-        self._accept_binary_input = abi = request.param
+        self._accept_binary_input = request.param
         mod = handler._generate_binary_capable_method(
-            binary_method, accept_binary_input=abi, return_binary_output=True
+            binary_method, accept_binary_input=self._accept_binary_input, return_binary_output=True
         )
         self.handler = handler
         return mod
