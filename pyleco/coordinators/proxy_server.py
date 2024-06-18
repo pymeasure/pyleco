@@ -45,7 +45,7 @@ command line arguments:
     -p NAME/IP Publish to the local proxy of some other computer
 
 
-Created on Mon Jun 27 09:57:05 2022 by Benedikt Moneke
+Created on Mon Jun 27 09:57:05 2022 by Benedikt Burger
 """
 
 import logging
@@ -66,8 +66,14 @@ port = PROXY_RECEIVING_PORT
 
 
 # Technical method to start the proxy server. Use `start_proxy` instead.
-def pub_sub_proxy(context: zmq.Context, captured: bool = False, sub: str = "localhost",
-                  pub: str = "localhost", offset: int = 0):
+def pub_sub_proxy(
+    context: zmq.Context,
+    captured: bool = False,
+    sub: str = "localhost",
+    pub: str = "localhost",
+    offset: int = 0,
+    event: Optional[threading.Event] = None,
+) -> None:
     """Run a publisher subscriber proxy in the current thread (blocking)."""
     s: zmq.Socket = context.socket(zmq.XSUB)
     p: zmq.Socket = context.socket(zmq.XPUB)
@@ -88,6 +94,8 @@ def pub_sub_proxy(context: zmq.Context, captured: bool = False, sub: str = "loca
         c.bind("inproc://capture")
     else:
         c = None  # type: ignore
+    if event is not None:
+        event.set()
     try:
         zmq.proxy_steerable(p, s, capture=c)
     except zmq.ContextTerminated:
@@ -116,7 +124,7 @@ def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
         # Stop the proxy:
         c.destroy()
 
-    :param context: The zmq context. If None, it generates its own context.
+    :param context: The zmq context.
     :param bool captured: Print the captured messages.
     :param str sub: Name or IP Address of the server to subscribe to.
     :param str pub: Name or IP Address of the server to publish to.
@@ -124,9 +132,16 @@ def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
     :return: The zmq context. To stop, call `context.destroy()`.
     """
     context = context or zmq.Context.instance()
-    thread = threading.Thread(target=pub_sub_proxy, args=(context, captured, sub, pub, offset))
+    event = threading.Event()
+    thread = threading.Thread(
+        target=pub_sub_proxy, args=(context, captured, sub, pub, offset, event)
+    )
     thread.daemon = True
     thread.start()
+    started = event.wait(1)
+    if not started:
+        raise TimeoutError("Starting of proxy server failed.")
+    event.clear()
     log.info("Proxy thread started.")
     return context
 
@@ -168,9 +183,6 @@ def main() -> None:
     poller = zmq.Poller()
     poller.register(reader, zmq.POLLIN)
     while True:
-        if input("Quit with q:") == "q":
-            context.destroy()
-            break
         if socks := dict(poller.poll(100)):
             if reader in socks:
                 received = reader.recv_multipart()
