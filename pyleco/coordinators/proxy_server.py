@@ -83,8 +83,10 @@ def pub_sub_proxy(
         s.bind(f"tcp://*:{_port}")
         p.bind(f"tcp://*:{_port - 1}")
     else:
-        log.info(f"Start remote proxy server subsribing to {sub}:{_port - 1} and publishing to "
-                 f"{pub}:{_port}.")
+        log.info(
+            f"Start remote proxy server subsribing to {sub}:{_port - 1} and publishing to "
+            f"{pub}:{_port}."
+        )
         s.connect(f"tcp://{sub}:{port -1 - 2 * offset}")
         p.connect(f"tcp://{pub}:{port - 2 * offset}")
 
@@ -104,8 +106,13 @@ def pub_sub_proxy(
         log.exception("Some other exception on proxy happened.", exc)
 
 
-def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
-                sub: str = "localhost", pub: str = "localhost", offset: int = 0) -> zmq.Context:
+def start_proxy(
+    context: Optional[zmq.Context] = None,
+    captured: bool = False,
+    sub: str = "localhost",
+    pub: str = "localhost",
+    offset: int = 0,
+) -> zmq.Context:
     """Start a proxy server, either local or remote, in its own thread.
 
     Examples:
@@ -148,14 +155,26 @@ def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
 
 def main() -> None:
     from pyleco.utils.parser import ArgumentParser, parse_command_line_parameters
+
     parser = ArgumentParser(prog="Proxy server")
-    parser.add_argument("-s", "--sub", help="set the host name to subscribe to",
-                        default="localhost")
+    parser.add_argument(
+        "-s", "--sub", help="set the host name to subscribe to", default="localhost"
+    )
     parser.add_argument("-p", "--pub", help="set the host name to publish to", default="localhost")
-    parser.add_argument("-v", "--verbose", action="count", default=0,
-                        help="increase the logging level by one, may be used more than once")
-    parser.add_argument("-c", "--captured", action="store_true", default=False,
-                        help="log all messages sent through the proxy")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="increase the logging level by one, may be used more than once",
+    )
+    parser.add_argument(
+        "-c",
+        "--captured",
+        action="store_true",
+        default=False,
+        help="log all messages sent through the proxy",
+    )
     parser.add_argument("-o", "--offset", help="shifting the port numbers.", default=0, type=int)
     kwargs = parse_command_line_parameters(parser=parser, logger=log, logging_default=logging.INFO)
 
@@ -165,8 +184,10 @@ def main() -> None:
     merely_local = kwargs.get("pub") == "localhost" and kwargs.get("sub") == "localhost"
 
     if not merely_local:
-        log.info(f"Remote proxy from {kwargs.get('sub', 'localhost')} "
-                 f"to {kwargs.get('pub', 'localhost')}.")
+        log.info(
+            f"Remote proxy from {kwargs.get('sub', 'localhost')} "
+            f"to {kwargs.get('pub', 'localhost')}."
+        )
     else:
         log.info(
             "This data broker manages the data between measurement software, "
