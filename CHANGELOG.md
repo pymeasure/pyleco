@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [unreleased]
+
+### Added
+
+* Add convenience functions for using additional frames for binary payload ([#82](https://github.com/pymeasure/pyleco/pull/82))
+
+
 ## [0.3.2] 2024-5-07
 
 ### Fixed
