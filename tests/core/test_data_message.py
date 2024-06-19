@@ -54,6 +54,14 @@ class TestDataMessageInit:
         with pytest.raises(ValueError, match="header"):
             DataMessage(topic="topic", header=b"whatever", **{key: value})
 
+    def test_additional_payload(self):
+        message = DataMessage("topic", data=b"0", additional_payload=[b"1", b"2"])
+        assert message.payload == [b"0", b"1", b"2"]
+
+    def test_additional_payload_without_data(self):
+        message = DataMessage("topic", additional_payload=[b"1", b"2"])
+        assert message.payload == [b"1", b"2"]
+
 
 def test_data_message_str_topic():
     assert DataMessage(topic="topic").topic == b"topic"

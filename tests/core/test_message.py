@@ -84,6 +84,14 @@ class Test_Message_create_message:
         message = Message(b"rec", data="some string")
         assert message.payload[0] == b"some string"
 
+    def test_additional_binary_data(self):
+        message = Message(b"rec", data=b"0", additional_payload=[b"1", b"2"])
+        assert message.payload == [b"0", b"1", b"2"]
+
+    def test_additional_payload_without_data(self):
+        message = Message(b"rec", additional_payload=[b"1", b"2"])
+        assert message.payload == [b"1", b"2"]
+
     @pytest.mark.parametrize("key, value", (("conversation_id", b"content"),
                                             ("message_id", b"mid"),
                                             ("message_type", 7),

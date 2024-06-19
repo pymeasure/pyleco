@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from json import JSONDecodeError
-from typing import Any, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
 
 from . import VERSION_B
@@ -64,6 +64,7 @@ class Message:
                  conversation_id: Optional[bytes] = None,
                  message_id: Optional[bytes] = None,
                  message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
+                 additional_payload: Optional[Iterable[bytes]] = None,
                  ) -> None:
         self.receiver = receiver.encode() if isinstance(receiver, str) else receiver
         self.sender = sender.encode() if isinstance(sender, str) else sender
@@ -81,6 +82,8 @@ class Message:
             self.payload = []
         else:
             self.payload = [serialize_data(data)]
+        if additional_payload is not None:
+            self.payload.extend(additional_payload)
 
     @classmethod
     def from_frames(cls, version: bytes, receiver: bytes, sender: bytes, header: bytes,
@@ -92,9 +95,8 @@ class Message:
             frames = socket.recv_multipart()
             message = Message.from_frames(*frames)
         """
-        inst = cls(receiver, sender, header=header)
+        inst = cls(receiver, sender, header=header, additional_payload=payload)
         inst.version = version
-        inst.payload = list(payload)
         return inst
 
     def to_frames(self) -> list[bytes]:

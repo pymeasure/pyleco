@@ -25,7 +25,7 @@
 from __future__ import annotations
 import logging
 import pickle
-from typing import Any, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
 import zmq
 
@@ -49,13 +49,15 @@ class DataPublisher:
 
     full_name: str
 
-    def __init__(self,
-                 full_name: str,
-                 host: str = "localhost",
-                 port: int = PROXY_RECEIVING_PORT,
-                 log: Optional[logging.Logger] = None,
-                 context: Optional[zmq.Context] = None,
-                 **kwargs) -> None:
+    def __init__(
+        self,
+        full_name: str,
+        host: str = "localhost",
+        port: int = PROXY_RECEIVING_PORT,
+        log: Optional[logging.Logger] = None,
+        context: Optional[zmq.Context] = None,
+        **kwargs,
+    ) -> None:
         if log is None:
             self.log = logging.getLogger(f"{__name__}.Publisher")
         else:
@@ -87,17 +89,22 @@ class DataPublisher:
         """Send a data protocol message."""
         self.socket.send_multipart(message.to_frames())
 
-    def send_data(self, data: Any,
-                  topic: Optional[Union[bytes, str]] = None,
-                  conversation_id: Optional[bytes] = None,
-                  message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
-                  ) -> None:
+    def send_data(
+        self,
+        data: Any,
+        topic: Optional[Union[bytes, str]] = None,
+        conversation_id: Optional[bytes] = None,
+        message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
+        additional_payload: Optional[Iterable[bytes]] = None,
+    ) -> None:
         """Send the `data` via the data protocol."""
-        message = DataMessage(topic=topic or self.full_name,
-                              data=data,
-                              conversation_id=conversation_id,
-                              message_type=message_type
-                              )
+        message = DataMessage(
+            topic=topic or self.full_name,
+            data=data,
+            conversation_id=conversation_id,
+            message_type=message_type,
+            additional_payload=additional_payload,
+        )
         self.send_message(message)
 
     def send_legacy(self, data: dict[str, Any]) -> None:

@@ -59,43 +59,76 @@ class CommunicatorProtocol(Protocol):
 
     def send_message(self, message: Message) -> None: ...  # pragma: no cover
 
-    def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
-                     ) -> Message: ...  # pragma: no cover
+    def read_message(
+        self, conversation_id: Optional[bytes], timeout: Optional[float] = None
+    ) -> Message: ...  # pragma: no cover
 
-    def ask_message(self, message: Message, timeout: Optional[float] = None
-                    ) -> Message: ...  # pragma: no cover
+    def ask_message(
+        self, message: Message, timeout: Optional[float] = None
+    ) -> Message: ...  # pragma: no cover
 
     def close(self) -> None: ...  # pragma: no cover
 
     # Utilities
-    def send(self,
-             receiver: Union[bytes, str],
-             conversation_id: Optional[bytes] = None,
-             data: Optional[Any] = None,
-             **kwargs) -> None:
+    def send(
+        self,
+        receiver: Union[bytes, str],
+        conversation_id: Optional[bytes] = None,
+        data: Optional[Any] = None,
+        **kwargs,
+    ) -> None:
         """Send a message based on kwargs."""
-        self.send_message(message=Message(
-            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
-        ))
+        self.send_message(
+            message=Message(receiver=receiver, conversation_id=conversation_id, data=data, **kwargs)
+        )
 
-    def ask(self, receiver: Union[bytes, str], conversation_id: Optional[bytes] = None,
-            data: Optional[Any] = None,
-            timeout: Optional[float] = None,
-            **kwargs) -> Message:
+    def ask(
+        self,
+        receiver: Union[bytes, str],
+        conversation_id: Optional[bytes] = None,
+        data: Optional[Any] = None,
+        timeout: Optional[float] = None,
+        **kwargs,
+    ) -> Message:
         """Send a message based on kwargs and retrieve the response."""
-        return self.ask_message(message=Message(
-            receiver=receiver, conversation_id=conversation_id, data=data, **kwargs),
-            timeout=timeout)
+        return self.ask_message(
+            message=Message(
+                receiver=receiver, conversation_id=conversation_id, data=data, **kwargs
+            ),
+            timeout=timeout,
+        )
 
-    def interpret_rpc_response(self, response_message: Message) -> Any:
-        return self.rpc_generator.get_result_from_response(response_message.payload[0])
+    def interpret_rpc_response(
+        self, response_message: Message, extract_additional_payload: bool = False
+    ) -> Union[Any, tuple[Any, list[bytes]]]:
+        """Retrieve the return value of a RPC response and optionally the additional payload."""
+        result = self.rpc_generator.get_result_from_response(response_message.payload[0])
+        if extract_additional_payload:
+            return result, response_message.payload[1:]
+        else:
+            return result
 
-    def ask_rpc(self, receiver: Union[bytes, str], method: str, timeout: Optional[float] = None,
-                **kwargs) -> Any:
+    def ask_rpc(
+        self,
+        receiver: Union[bytes, str],
+        method: str,
+        timeout: Optional[float] = None,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        extract_additional_payload: bool = False,
+        **kwargs,
+    ) -> Any:
+        """Send a JSON-RPC request (with method \\**kwargs) and return the response value."""
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
-        response = self.ask(receiver=receiver, data=string, message_type=MessageTypes.JSON,
-                            timeout=timeout)
-        return self.interpret_rpc_response(response)
+        response = self.ask(
+            receiver=receiver,
+            data=string,
+            message_type=MessageTypes.JSON,
+            additional_payload=additional_payload,
+            timeout=timeout,
+        )
+        return self.interpret_rpc_response(
+            response, extract_additional_payload=extract_additional_payload
+        )
 
 
 class SubscriberProtocol(Protocol):

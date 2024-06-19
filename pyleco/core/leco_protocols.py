@@ -105,7 +105,7 @@ class ExtendedComponentProtocol(ComponentProtocol, Protocol):
 
 
 class CoordinatorProtocol(ComponentProtocol, Protocol):
-    """A command protocol Coordinator"""
+    """A command protocol Coordinator."""
 
     def sign_in(self) -> None: ...
 

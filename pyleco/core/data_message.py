@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from json import JSONDecodeError
-from typing import Any, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
 from .serialization import deserialize_data, generate_conversation_id, serialize_data, MessageTypes
 
@@ -42,6 +42,7 @@ class DataMessage:
                  data: Optional[Union[bytes, str, Any]] = None,
                  conversation_id: Optional[bytes] = None,
                  message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
+                 additional_payload: Optional[Iterable[bytes]] = None,
                  **kwargs) -> None:
         super().__init__(**kwargs)
         self.topic = topic.encode() if isinstance(topic, str) else topic
@@ -61,6 +62,8 @@ class DataMessage:
             self.payload = []
         else:
             self.payload = [serialize_data(data)]
+        if additional_payload is not None:
+            self.payload.extend(additional_payload)
 
     @classmethod
     def from_frames(cls, topic: bytes, header: bytes, *payload: bytes):
@@ -71,8 +74,7 @@ class DataMessage:
             frames = socket.recv_multipart()
             message = DataMessage.from_frames(*frames)
         """
-        message = cls(topic=topic, header=header)
-        message.payload = list(payload)
+        message = cls(topic=topic, header=header, additional_payload=payload)
         return message
 
     def to_frames(self) -> list[bytes]:

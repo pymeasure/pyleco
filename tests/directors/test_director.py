@@ -77,6 +77,19 @@ class Test_actor_check:
         assert director._actor_check("") == "actor"
 
 
+def test_ask_message(director: Director):
+    rec = Message("director", "actor", conversation_id=cid)
+    director.communicator._r = [rec]  # type: ignore
+    result = director.ask_message()
+    assert result == rec
+    sent = director.communicator._s[0]  # type: ignore
+    assert sent == Message(
+        "actor",
+        "director",
+        conversation_id=cid,
+    )
+
+
 def test_get_rpc_capabilities(director: Director):
     data = {"name": "actor", "methods": []}
     director.communicator._r = [  # type: ignore
@@ -121,6 +134,23 @@ def test_read_rpc_response(director: Director):
             "id": 1, "result": 7.5, "jsonrpc": "2.0"
             })]
     assert director.read_rpc_response(conversation_id=cid) == 7.5
+
+
+def test_read_binary_rpc_response(director: Director):
+    director.communicator._r = [  # type: ignore
+        Message(
+            "director",
+            "actor",
+            conversation_id=cid,
+            message_type=MessageTypes.JSON,
+            data={"id": 1, "result": None, "jsonrpc": "2.0"},
+            additional_payload=[b"123"],
+        )
+    ]
+    assert director.read_rpc_response(conversation_id=cid, extract_additional_payload=True) == (
+        None,
+        [b"123"],
+    )
 
 
 def test_get_properties_async(director: Director):

@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Iterable, Optional, Sequence, Union
 
 from ..core.internal_protocols import CommunicatorProtocol
 from ..utils.communicator import Communicator
@@ -88,10 +88,9 @@ class Director:
     # Message handling
     def ask_message(self, actor: Optional[Union[bytes, str]] = None,
                     data: Optional[Any] = None, **kwargs) -> Message:
-        cid0 = generate_conversation_id()
         actor = self._actor_check(actor)
         log.debug(f"Asking {actor!r} with message '{data}'.")
-        response = self.communicator.ask(actor, conversation_id=cid0, data=data, **kwargs)
+        response = self.communicator.ask(actor, data=data, **kwargs)
         log.debug(f"Data '{response.data}' received.")
         return response
 
@@ -113,10 +112,23 @@ class Director:
         return params
 
     # Remote control synced
-    def ask_rpc(self, method: str, actor: Optional[Union[bytes, str]] = None, **kwargs) -> Any:
+    def ask_rpc(
+        self,
+        method: str,
+        actor: Optional[Union[bytes, str]] = None,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        extract_additional_payload: bool = False,
+        **kwargs,
+    ) -> Any:
         """Remotely call the `method` procedure on the `actor` and return the return value."""
         receiver = self._actor_check(actor)
-        return self.communicator.ask_rpc(receiver=receiver, method=method, **kwargs)
+        return self.communicator.ask_rpc(
+            receiver=receiver,
+            method=method,
+            additional_payload=additional_payload,
+            extract_additional_payload=extract_additional_payload,
+            **kwargs,
+        )
 
     #   Component
     def get_rpc_capabilities(self, actor: Optional[Union[bytes, str]] = None) -> dict:
@@ -165,23 +177,48 @@ class Director:
         return self.ask_rpc("call_action", action=action, actor=actor, **params)
 
     # Async methods: Just send, read later.
-    def send(self, actor: Optional[Union[bytes, str]] = None, data=None, **kwargs) -> bytes:
+    def send(
+        self,
+        actor: Optional[Union[bytes, str]] = None,
+        data=None,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        **kwargs,
+    ) -> bytes:
         """Send a request and return the conversation_id."""
         actor = self._actor_check(actor)
         cid0 = generate_conversation_id()
-        self.communicator.send(actor, conversation_id=cid0, data=data, **kwargs)
+        self.communicator.send(
+            actor, conversation_id=cid0, data=data, additional_payload=additional_payload, **kwargs
+        )
         return cid0
 
-    def ask_rpc_async(self, method: str, actor: Optional[Union[bytes, str]] = None,
-                      **kwargs) -> bytes:
+    def ask_rpc_async(
+        self,
+        method: str,
+        actor: Optional[Union[bytes, str]] = None,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        **kwargs,
+    ) -> bytes:
         """Send a rpc request, the response can be read later with :meth:`read_rpc_response`."""
         string = self.generator.build_request_str(method=method, **kwargs)
-        return self.send(actor=actor, data=string, message_type=MessageTypes.JSON)
+        return self.send(
+            actor=actor,
+            data=string,
+            message_type=MessageTypes.JSON,
+            additional_payload=additional_payload,
+        )
 
-    def read_rpc_response(self, conversation_id: Optional[bytes] = None, **kwargs) -> Any:
+    def read_rpc_response(
+        self,
+        conversation_id: Optional[bytes] = None,
+        extract_additional_payload: bool = False,
+        **kwargs,
+    ) -> Any:
         """Read the response value corresponding to a request with a certain `conversation_id`."""
         response_message = self.communicator.read_message(conversation_id=conversation_id, **kwargs)
-        return self.communicator.interpret_rpc_response(response_message=response_message)
+        return self.communicator.interpret_rpc_response(
+            response_message=response_message, extract_additional_payload=extract_additional_payload
+        )
 
     #   Actor
     def get_parameters_async(self, parameters: Union[str, Sequence[str]],
