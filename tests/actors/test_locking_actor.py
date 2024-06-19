@@ -247,6 +247,34 @@ def test_lock_fail_as_already_locked(locked_actor: LockingActor, resource):
 
 @pytest.mark.parametrize(
     "resource",
+    resources,
+)
+def test_unlock_locked(locked_actor: LockingActor, resource):
+    locked_actor.current_message = Message("rec", "owner")
+    locked_actor.unlock(resource)
+    assert resource not in locked_actor._locks
+
+
+@pytest.mark.parametrize("resource", (None, "prop"))
+def test_unlock_already_unlocked(actor: LockingActor, resource):
+    actor.current_message = Message("rec", "requester")
+    actor.unlock(resource)
+    # assert no error is raised
+
+
+@pytest.mark.parametrize(
+    "resource",
+    resources,
+)
+def test_unlock_fail_as_different_user(locked_actor: LockingActor, resource):
+    locked_actor.current_message = Message("rec", "requester")
+    # with pytest.raises(AccessDeniedError, match=resource):
+    locked_actor.unlock(resource)
+    assert locked_actor._locks[resource] == b"owner"
+
+
+@pytest.mark.parametrize(
+    "resource",
     ("l_channel.channel_method", "l_channel.trace"),
 )
 def test_lock_fail_for_child_of_locked_resource(locked_actor: LockingActor, resource):
