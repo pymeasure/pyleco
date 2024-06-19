@@ -28,13 +28,9 @@ Zero MQ Proxy server for data exchange.
 methods
 -------
 pub_sub_proxy
-    Listens on port 11100 and publishes to 11099, available to all IP addresses.
-pub_sub_remote_proxy
-    Connects two local proxy servers on different computers, connecting to their
-    publisher port at 11099 and publishing to the local proxy at 11100
+    Run a publisher subscriber proxy in the current thread (blocking).
 start_proxy
-    Start a proxy server of either type. If it is merely local, a local server
-    is started, otherwise a connecting proxy.
+    Start a proxy server, either local or remote, in its own thread.
 
 
 Execute this module to start a proxy server. If no remote connection given, a
@@ -44,10 +40,10 @@ command line arguments:
     -s NAME/IP Subscribe to the local proxy of some other computer
     -p NAME/IP Publish to the local proxy of some other computer
 
-
-Created on Mon Jun 27 09:57:05 2022 by Benedikt Moneke
+Created on Mon Jun 27 09:57:05 2022 by Benedikt Burger
 """
 
+from __future__ import annotations
 import logging
 import threading
 from typing import Optional
@@ -66,8 +62,14 @@ port = PROXY_RECEIVING_PORT
 
 
 # Technical method to start the proxy server. Use `start_proxy` instead.
-def pub_sub_proxy(context: zmq.Context, captured: bool = False, sub: str = "localhost",
-                  pub: str = "localhost", offset: int = 0):
+def pub_sub_proxy(
+    context: zmq.Context,
+    captured: bool = False,
+    sub: str = "localhost",
+    pub: str = "localhost",
+    offset: int = 0,
+    event: Optional[threading.Event] = None,
+) -> None:
     """Run a publisher subscriber proxy in the current thread (blocking)."""
     s: zmq.Socket = context.socket(zmq.XSUB)
     p: zmq.Socket = context.socket(zmq.XPUB)
@@ -77,8 +79,10 @@ def pub_sub_proxy(context: zmq.Context, captured: bool = False, sub: str = "loca
         s.bind(f"tcp://*:{_port}")
         p.bind(f"tcp://*:{_port - 1}")
     else:
-        log.info(f"Start remote proxy server subsribing to {sub}:{_port - 1} and publishing to "
-                 f"{pub}:{_port}.")
+        log.info(
+            f"Start remote proxy server subsribing to {sub}:{_port - 1} and publishing to "
+            f"{pub}:{_port}."
+        )
         s.connect(f"tcp://{sub}:{port -1 - 2 * offset}")
         p.connect(f"tcp://{pub}:{port - 2 * offset}")
 
@@ -88,6 +92,8 @@ def pub_sub_proxy(context: zmq.Context, captured: bool = False, sub: str = "loca
         c.bind("inproc://capture")
     else:
         c = None  # type: ignore
+    if event is not None:
+        event.set()
     try:
         zmq.proxy_steerable(p, s, capture=c)
     except zmq.ContextTerminated:
@@ -96,8 +102,13 @@ def pub_sub_proxy(context: zmq.Context, captured: bool = False, sub: str = "loca
         log.exception("Some other exception on proxy happened.", exc)
 
 
-def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
-                sub: str = "localhost", pub: str = "localhost", offset: int = 0) -> zmq.Context:
+def start_proxy(
+    context: Optional[zmq.Context] = None,
+    captured: bool = False,
+    sub: str = "localhost",
+    pub: str = "localhost",
+    offset: int = 0,
+) -> zmq.Context:
     """Start a proxy server, either local or remote, in its own thread.
 
     Examples:
@@ -116,7 +127,7 @@ def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
         # Stop the proxy:
         c.destroy()
 
-    :param context: The zmq context. If None, it generates its own context.
+    :param context: The zmq context.
     :param bool captured: Print the captured messages.
     :param str sub: Name or IP Address of the server to subscribe to.
     :param str pub: Name or IP Address of the server to publish to.
@@ -124,25 +135,47 @@ def start_proxy(context: Optional[zmq.Context] = None, captured: bool = False,
     :return: The zmq context. To stop, call `context.destroy()`.
     """
     context = context or zmq.Context.instance()
-    thread = threading.Thread(target=pub_sub_proxy, args=(context, captured, sub, pub, offset))
+    event = threading.Event()
+    thread = threading.Thread(
+        target=pub_sub_proxy, args=(context, captured, sub, pub, offset, event)
+    )
     thread.daemon = True
     thread.start()
+    started = event.wait(1)
+    if not started:
+        raise TimeoutError("Starting of proxy server failed.")
     log.info("Proxy thread started.")
     return context
 
 
-def main() -> None:
+def main(
+    arguments: Optional[list[str]] = None, stop_event: Optional[threading.Event] = None
+) -> None:
     from pyleco.utils.parser import ArgumentParser, parse_command_line_parameters
+
     parser = ArgumentParser(prog="Proxy server")
-    parser.add_argument("-s", "--sub", help="set the host name to subscribe to",
-                        default="localhost")
+    parser.add_argument(
+        "-s", "--sub", help="set the host name to subscribe to", default="localhost"
+    )
     parser.add_argument("-p", "--pub", help="set the host name to publish to", default="localhost")
-    parser.add_argument("-v", "--verbose", action="count", default=0,
-                        help="increase the logging level by one, may be used more than once")
-    parser.add_argument("-c", "--captured", action="store_true", default=False,
-                        help="log all messages sent through the proxy")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="increase the logging level by one, may be used more than once",
+    )
+    parser.add_argument(
+        "-c",
+        "--captured",
+        action="store_true",
+        default=False,
+        help="log all messages sent through the proxy",
+    )
     parser.add_argument("-o", "--offset", help="shifting the port numbers.", default=0, type=int)
-    kwargs = parse_command_line_parameters(parser=parser, logger=log, logging_default=logging.INFO)
+    kwargs = parse_command_line_parameters(
+        parser=parser, logger=log, arguments=arguments, logging_default=logging.INFO
+    )
 
     log.addHandler(logging.StreamHandler())
     if kwargs.get("captured"):
@@ -150,31 +183,31 @@ def main() -> None:
     merely_local = kwargs.get("pub") == "localhost" and kwargs.get("sub") == "localhost"
 
     if not merely_local:
-        log.info(f"Remote proxy from {kwargs.get('sub', 'localhost')} "
-                 f"to {kwargs.get('pub', 'localhost')}.")
+        log.info(
+            f"Remote proxy from {kwargs.get('sub', 'localhost')} "
+            f"to {kwargs.get('pub', 'localhost')}."
+        )
     else:
         log.info(
             "This data broker manages the data between measurement software, "
             f"which publishes on port {port}, and all the consumers of data "
             f" (DataLogger, Beamprofiler etc.), which subscribe on port {port - 1}."
         )
-
-    context = start_proxy(**kwargs)
+    context = zmq.Context()
+    start_proxy(context=context, **kwargs)
     if merely_local:
-        start_proxy(offset=1)  # for log entries
+        start_proxy(context=context, offset=1)  # for log entries
     reader = context.socket(zmq.SUB)
     reader.connect("inproc://capture")
     reader.subscribe(b"")
     poller = zmq.Poller()
     poller.register(reader, zmq.POLLIN)
-    while True:
-        if input("Quit with q:") == "q":
-            context.destroy()
-            break
-        if socks := dict(poller.poll(100)):
+    while stop_event is None or not stop_event.is_set():
+        if socks := dict(poller.poll(1)):
             if reader in socks:
                 received = reader.recv_multipart()
                 log.debug(f"Message brokered: {received}")
+    context.term()
 
 
 if __name__ == "__main__":  # pragma: no cover
