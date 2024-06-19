@@ -28,13 +28,9 @@ Zero MQ Proxy server for data exchange.
 methods
 -------
 pub_sub_proxy
-    Listens on port 11100 and publishes to 11099, available to all IP addresses.
-pub_sub_remote_proxy
-    Connects two local proxy servers on different computers, connecting to their
-    publisher port at 11099 and publishing to the local proxy at 11100
+    Run a publisher subscriber proxy in the current thread (blocking).
 start_proxy
-    Start a proxy server of either type. If it is merely local, a local server
-    is started, otherwise a connecting proxy.
+    Start a proxy server, either local or remote, in its own thread.
 
 
 Execute this module to start a proxy server. If no remote connection given, a
@@ -43,7 +39,6 @@ command line arguments:
     -v show all the data passing through the proxy
     -s NAME/IP Subscribe to the local proxy of some other computer
     -p NAME/IP Publish to the local proxy of some other computer
-
 
 Created on Mon Jun 27 09:57:05 2022 by Benedikt Burger
 """
