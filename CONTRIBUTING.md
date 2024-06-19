@@ -39,8 +39,8 @@ If you want to add a new feature, please open an issue first in order to discuss
 
 ### Development
 
-Once the general idea is tied down, you can open a pull request with your code.
-We encourage to open a pull request early on.
+Once the general idea is tied down, you can open a pull request (towards the `main` branch) with your code.
+We encourage to open a pull request early on, to incorporate review comments from the beginning.
 
 For development, we recommend _test driven development_, that is writing tests and the features at the same time supporting each other.
 
