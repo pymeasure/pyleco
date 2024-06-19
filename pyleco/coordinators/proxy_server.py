@@ -48,6 +48,7 @@ command line arguments:
 Created on Mon Jun 27 09:57:05 2022 by Benedikt Burger
 """
 
+from __future__ import annotations
 import logging
 import threading
 from typing import Optional
@@ -148,12 +149,13 @@ def start_proxy(
     started = event.wait(1)
     if not started:
         raise TimeoutError("Starting of proxy server failed.")
-    event.clear()
     log.info("Proxy thread started.")
     return context
 
 
-def main() -> None:
+def main(
+    arguments: Optional[list[str]] = None, stop_event: Optional[threading.Event] = None
+) -> None:
     from pyleco.utils.parser import ArgumentParser, parse_command_line_parameters
 
     parser = ArgumentParser(prog="Proxy server")
@@ -176,7 +178,9 @@ def main() -> None:
         help="log all messages sent through the proxy",
     )
     parser.add_argument("-o", "--offset", help="shifting the port numbers.", default=0, type=int)
-    kwargs = parse_command_line_parameters(parser=parser, logger=log, logging_default=logging.INFO)
+    kwargs = parse_command_line_parameters(
+        parser=parser, logger=log, arguments=arguments, logging_default=logging.INFO
+    )
 
     log.addHandler(logging.StreamHandler())
     if kwargs.get("captured"):
@@ -194,20 +198,21 @@ def main() -> None:
             f"which publishes on port {port}, and all the consumers of data "
             f" (DataLogger, Beamprofiler etc.), which subscribe on port {port - 1}."
         )
-
-    context = start_proxy(**kwargs)
+    context = zmq.Context()
+    start_proxy(context=context, **kwargs)
     if merely_local:
-        start_proxy(offset=1)  # for log entries
+        start_proxy(context=context, offset=1)  # for log entries
     reader = context.socket(zmq.SUB)
     reader.connect("inproc://capture")
     reader.subscribe(b"")
     poller = zmq.Poller()
     poller.register(reader, zmq.POLLIN)
-    while True:
-        if socks := dict(poller.poll(100)):
+    while stop_event is None or not stop_event.is_set():
+        if socks := dict(poller.poll(1)):
             if reader in socks:
                 received = reader.recv_multipart()
                 log.debug(f"Message brokered: {received}")
+    context.term()
 
 
 if __name__ == "__main__":  # pragma: no cover
