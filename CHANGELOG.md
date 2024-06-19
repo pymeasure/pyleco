@@ -1,13 +1,27 @@
 # CHANGELOG
 
-## [unreleased]
+## [0.4.0] 2024-06-19
+
+_Binary data handling facilitated with utility functions._
+
+### Changed
+* Proxy_server stops if binding failed ([#86](https://github.com/pymeasure/pyleco/pull/86))
 
 ### Added
 
 * Add convenience functions for using additional frames for binary payload ([#82](https://github.com/pymeasure/pyleco/pull/82))
+* Improve getting_started and readme documentation ([#80](https://github.com/pymeasure/pyleco/pull/80))
+* Add RELEASE.md ([#79](https://github.com/pymeasure/pyleco/pull/79))
+* Add locking actor ([#84](https://github.com/pymeasure/pyleco/pull/84))
+
+### Fixed
+
+* Fix listener documentation ([#88](https://github.com/pymeasure/pyleco/pull/88))
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.3.2...v0.4.0
 
 
-## [0.3.2] 2024-5-07
+## [0.3.2] 2024-05-07
 
 ### Fixed
 
@@ -143,7 +157,8 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.3.2...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.0
 [0.3.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.2
 [0.3.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.1
 [0.3.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.0
