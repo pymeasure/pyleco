@@ -36,9 +36,9 @@ log.addHandler(logging.NullHandler())
 
 
 class Listener:
-    """Listening on published data and opening a configuration port, both in a separate thread.
+    """Listening on incoming messages in a separate thread.
 
-    On one side it handles incoming messages (in another thread).
+    On one side it handles incoming messages (data and control protocol) in another thread.
     On the other side, it offers the :meth:`get_communicator` method, which returns a
     :class:`Communicator`, offering communication to the network.
 
@@ -129,7 +129,7 @@ class Listener:
         raise TimeoutError("PipeHandler has not started after 0.5 s.")
 
     def get_communicator(self, **kwargs) -> CommunicatorPipe:
-        """Get the communicator for this thread, creating one if necessary."""
+        """Get the communicator for the calling thread, creating one if necessary."""
         kwargs.setdefault("timeout", self.timeout)
         return self.message_handler.get_communicator(**kwargs)
 

@@ -91,21 +91,18 @@ class QtPipeHandler(PipeHandler):
 
 
 class QtListener(Listener):
-    """
-    Listening on published data and opening a configuration port. PyQt version.
+    """Listening on incoming messages in a separate thread - PyQt version.
 
-    Call `listener.start_listen()` to actually listen.
+    On one side it handles incoming messages (data and control protocol) in another thread.
+    On the other side, it offers the :meth:`get_communicator` method, which returns a
+    :class:`Communicator`, offering communication to the network.
 
-    You may send a dictionary to the configuration port, which will be handed
-    to the parent program via the 'command' signal. The listener responds with
-    an acknowledgement or error.
-    Special dictionary keys:
-        - 'query': The listener does not respond, but places the response address
-        into the 'query' entry, that the parent program may respond.
-        - 'save': The listener does not respond, but emits a 'save' signal
-        with the response address.
+    Call :meth:`.start_listen()` to actually listen.
 
-    :param int port: Configure the port to be used for configuration.
+    It emits signals from :attr:`signals` if a control or data message arrives.
+    It also emits the `signals.name_changed` signal, whenever the Communicator changes its name.
+
+    :param int data_port: Configure the port to be used for configuration.
     :param logger: Logger instance whose logs should be published. Defaults to "__main__".
     """
 
