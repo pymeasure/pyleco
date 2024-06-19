@@ -27,22 +27,18 @@ from typing import Any, Generic, Optional, Sequence, TypeVar, Union
 
 from zmq import Context
 
-from ..core.message import Message
 from .actor import Actor
 
 
 Device = TypeVar("Device")
 
 
-class AccessError(BaseException):
-    # TODO name TBD
+class AccessDeniedError(BaseException):
     pass
 
 
 class LockingActor(Actor, Generic[Device]):
     """An Actor which allows to lock the device or parts of it."""
-
-    current_message: Message
 
     def __init__(
         self,
@@ -84,10 +80,6 @@ class LockingActor(Actor, Generic[Device]):
         self._locks.pop(resource, None)
 
     # modified methods for device access
-    def process_json_message(self, message: Message) -> Message:
-        self.current_message = message
-        return super().process_json_message(message=message)
-
     def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
         # `parameters` should be `Iterable[str]`, however, openrpc does not like that.
         for parameter in parameters:
@@ -120,4 +112,4 @@ class LockingActor(Actor, Generic[Device]):
 
     def _check_access_rights_raising(self, resource: str) -> None:
         if self.check_access_rights(resource=resource) is False:
-            raise AccessError(f"Resource '{resource}' is locked by someone else.")
+            raise AccessDeniedError(f"Resource '{resource}' is locked by someone else.")

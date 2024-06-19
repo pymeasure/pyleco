@@ -30,7 +30,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyleco.core.message import Message
-from pyleco.actors.locking_actor import LockingActor, AccessError
+from pyleco.actors.locking_actor import LockingActor, AccessDeniedError
 from pyleco.core.leco_protocols import LockingActorProtocol
 
 
@@ -264,7 +264,7 @@ def test_get_parameters_successfully(locked_actor: LockingActor):
 
 def test_get_parameters_unsuccessfully(locked_actor: LockingActor):
     locked_actor.current_message = Message("rec", "requester")
-    with pytest.raises(AccessError, match="'l_prop'"):
+    with pytest.raises(AccessDeniedError, match="'l_prop'"):
         locked_actor.get_parameters(["o_prop", "l_prop"])
 
 
@@ -276,7 +276,7 @@ def test_set_parameters_successfully(locked_actor: LockingActor):
 
 def test_set_parameters_unsuccessfully(locked_actor: LockingActor):
     locked_actor.current_message = Message("rec", "requester")
-    with pytest.raises(AccessError, match="'l_prop'"):
+    with pytest.raises(AccessDeniedError, match="'l_prop'"):
         locked_actor.set_parameters({"o_prop": 5, "l_prop": 6})
 
 
@@ -288,5 +288,5 @@ def test_call_action_successfully(locked_actor: LockingActor):
 
 def test_call_action_unsuccessfully(locked_actor: LockingActor):
     locked_actor.current_message = Message("rec", "requester")
-    with pytest.raises(AccessError, match="'l_method'"):
+    with pytest.raises(AccessDeniedError, match="'l_method'"):
         locked_actor.call_action("l_method", [5])
