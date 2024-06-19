@@ -22,4 +22,4 @@
    * Comment out the section (including header!) `[tool.setuptools_scm]`
 1. Create a tag with `vMajor.Minor.Patch-cf` at the head of that branch
 1. Update the conda-forge repository with the version and checksum of the tar.gz archive of that tag:
-   * On windows use `certUtil --hashfile pyleco-1.2.3-cf.tar.gz SHA256` (adjust the version) to generate the SHA256 hash
+   * On windows use `certUtil -hashfile pyleco-1.2.3-cf.tar.gz SHA256` (adjust the version) to generate the SHA256 hash
