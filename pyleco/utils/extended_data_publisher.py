@@ -42,13 +42,19 @@ class ExtendedDataPublisher(DataPublisher):
         self.rpc_generator = RPCGenerator()
 
     def register_subscriber(self, subscriber: Union[bytes, str]) -> None:
-        """Register a subscriber, that it may receive messages via data_protocol."""
+        """Register a subscriber, that it may receive data messages via command protocol."""
         if isinstance(subscriber, str):
             subscriber = subscriber.encode()
         self.subscribers.add(subscriber)
 
+    def unregister_subscriber(self, subscriber: Union[bytes, str]) -> None:
+        """Unregister a subscriber, that it may not receive data messages via command protocol."""
+        if isinstance(subscriber, str):
+            subscriber = subscriber.encode()
+        self.subscribers.discard(subscriber)
+
     def convert_data_message_to_messages(
-        self, data_message: DataMessage, receivers: set[Union[bytes, str]],
+        self, data_message: DataMessage, receivers: Union[set[Union[bytes, str]], set[bytes]],
     ) -> Generator[Message, Any, Any]:
         cid = data_message.conversation_id
         data = self.rpc_generator.build_request_str(method="set_subscription_message")
