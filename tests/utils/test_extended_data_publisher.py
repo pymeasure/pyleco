@@ -25,7 +25,9 @@
 import pytest
 
 from pyleco.test import FakeContext
-from pyleco.utils.extended_data_publisher import ExtendedDataPublisher, Message, DataMessage, MessageTypes
+from pyleco.core.message import Message, MessageTypes
+from pyleco.core.data_message import DataMessage
+from pyleco.utils.extended_data_publisher import ExtendedDataPublisher
 
 
 CID = b"conversation_id;"
@@ -64,6 +66,21 @@ def test_register_subscribers(publisher: ExtendedDataPublisher):
 
     publisher.register_subscriber(b"ghi")
     assert b"ghi" in publisher.subscribers
+
+
+def test_unregister_subscribers(publisher: ExtendedDataPublisher):
+    # arrange
+    publisher.subscribers.add(b"abc")
+    publisher.subscribers.add(b"def")
+    # act
+    # str
+    publisher.unregister_subscriber("abc")
+    assert b"abc" not in publisher.subscribers
+    # bytes
+    publisher.unregister_subscriber(b"def")
+    assert b"def" not in publisher.subscribers
+    # assert that no error is raised at repeated unregistering
+    publisher.unregister_subscriber(b"def")
 
 
 @pytest.mark.parametrize("receivers", (set(), {b"abc"}, {b"abc", b"def"}, {"string"}))
