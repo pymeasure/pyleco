@@ -31,7 +31,7 @@ from pyleco.utils.extended_data_publisher import ExtendedDataPublisher
 
 
 CID = b"conversation_id;"
-
+messages = []  # for tests
 
 @pytest.fixture
 def fake_send_message():
@@ -86,7 +86,8 @@ def test_unregister_subscribers(publisher: ExtendedDataPublisher):
 @pytest.mark.parametrize("receivers", (set(), {b"abc"}, {b"abc", b"def"}, {"string"}))
 def test_convert(publisher: ExtendedDataPublisher, receivers, data_message: DataMessage):
     msgs = publisher.convert_data_message_to_messages(data_message, receivers=receivers)
-    for rec, msg in zip(receivers, msgs, strict=True):
+    assert len(receivers) == len(list(msgs)), "The lengths of receivers and messages do not match."
+    for rec, msg in zip(receivers, msgs):
         assert msg == Message(
             receiver=rec,
             data={"id": 1, "method": "set_subscription_message", "jsonrpc": "2.0"},
