@@ -177,7 +177,7 @@ def test_data_via_control_protocol(director: Director):
     director.ask_rpc("register_subscriber")
     director.ask_rpc("publish")
 
-    msg = director.communicator.read_message()
+    msg = director.communicator.read_message(conversation_id=None)
     director.communicator.send(
         receiver=director.actor,  # type: ignore
         data={"jsonrpc": "2.0", "id": 1, "result": None},
