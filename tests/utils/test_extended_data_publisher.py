@@ -101,7 +101,9 @@ def test_send_message(publisher: ExtendedDataPublisher, data_message: DataMessag
     publisher.register_subscriber("abc")
     # act
     publisher.send_message(data_message)
+    # assert that the data message is sent
     assert publisher.socket._s == [data_message.to_frames()]
+    # assert that the control message is sent
     global messages
     assert messages == [
         Message(
