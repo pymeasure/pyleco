@@ -36,7 +36,7 @@ from pyleco.utils.extended_message_handler import ExtendedMessageHandler
 
 
 CID = b"conversation_id;"
-
+_data = None  # for temporary storage
 
 @pytest.fixture
 def handler():
