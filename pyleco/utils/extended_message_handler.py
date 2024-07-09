@@ -25,7 +25,7 @@
 from __future__ import annotations
 import json
 import pickle
-from typing import Optional
+from typing import Optional, Union
 
 import zmq
 
@@ -59,6 +59,7 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         self.register_rpc_method(self.subscribe)
         self.register_rpc_method(self.unsubscribe)
         self.register_rpc_method(self.unsubscribe_all)
+        self.register_rpc_method(self.set_subscription_message)
 
     def close(self) -> None:
         self.subscriber.close(1)
@@ -126,3 +127,22 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         """Unsubscribe from all subscriptions."""
         while self._subscriptions:
             self.unsubscribe_single(self._subscriptions.pop())
+
+    # methods for data protocol via control protocol
+    def subscribe_via_control(self, topic: Union[bytes, str]) -> None:
+        """Subscribe to a topic via the control protocol."""
+        self.ask_rpc(receiver=topic, method="register_subscriber")
+
+    def unsubscribe_via_control(self, topic: Union[bytes, str]) -> None:
+        """Unsubscribe to a topic via the control protocol."""
+        self.ask_rpc(receiver=topic, method="unregister_subscriber")
+
+    def set_subscription_message(self) -> None:
+        """Set a subscription message as if it had been received via data protocol."""
+        msg = self.current_message
+        dm = DataMessage(
+            topic=msg.sender,
+            conversation_id=msg.conversation_id,
+            additional_payload=msg.payload[1:],
+        )
+        self.handle_subscription_message(dm)
