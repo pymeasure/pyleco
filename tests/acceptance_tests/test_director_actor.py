@@ -29,6 +29,7 @@ from time import sleep
 
 import pytest
 
+from pyleco.core.message import MessageTypes
 from pyleco.coordinators.coordinator import Coordinator
 from pyleco.actors.actor import Actor
 from pyleco.directors.director import Director
@@ -83,10 +84,14 @@ def start_actor(event: threading.Event):
         """Receive binary data and return it. Create binary method by registering it."""
         return None, [additional_payload[0] * 2]
 
+    def publish():
+        actor.publisher.send_data("super content")
+
     actor.register_rpc_method(binary_method_manually)
     actor.register_binary_rpc_method(
         binary_method_created, accept_binary_input=True, return_binary_output=True
     )
+    actor.register_rpc_method(publish)
     actor.connect()
     actor.rpc.method()(actor.device.triple)
     actor.register_device_method(actor.device.triple)
@@ -165,3 +170,23 @@ def test_binary_data_transfer_created(director: Director):
     assert director.ask_rpc(
         method="binary_method_created", additional_payload=[b"123"], extract_additional_payload=True
     ) == (None, [b"123123"])
+
+
+def test_data_via_control_protocol(director: Director):
+    # act
+    director.ask_rpc("register_subscriber")
+    director.ask_rpc("publish")
+
+    msg = director.communicator.read_message()
+    director.communicator.send(
+        receiver=director.actor,  # type: ignore
+        data={"jsonrpc": "2.0", "id": 1, "result": None},
+        conversation_id=msg.conversation_id,
+        message_type=MessageTypes.JSON,
+    )
+
+    # teardown
+    director.ask_rpc("unregister_subscriber")
+
+    assert msg.data == {"jsonrpc": "2.0", "id": 1, "method": "set_subscription_message"}
+    assert msg.payload[1:] == [b'super content']
