@@ -133,7 +133,12 @@ class RPCServer:
                 continue
             method_dict = {"name": name}
             if method.__doc__:
-                method_dict["description"] = method.__doc__
+                lines = method.__doc__.split("\n")
+                method_dict["summary"] = lines[0]
+                if lines[1:]:
+                    method_dict["description"] = " ".join(
+                        line.strip() for line in lines[1:] if line
+                    ).strip()
             methods.append(method_dict)
         result["methods"] = methods
         return result

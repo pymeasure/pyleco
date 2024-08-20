@@ -52,7 +52,11 @@ def side_effect_method(arg=None):
 
 
 def fail():
-    """Fails always."""
+    """Fail always.
+
+    This method fails always.
+    And has a description.
+    """
     raise NotImplementedError
 
 
@@ -164,7 +168,14 @@ class Test_discover_method:
     def test_fail(self, methods: list):
         m = methods[2]
         assert m["name"] == "fail"
-        assert m["description"] == fail.__doc__
+        assert m["summary"] == "Fail always."
+        assert m.get("description") == "This method fails always. And has a description."
+
+    def test_simple_description(self, methods: list):
+        m = methods[3]
+        assert m["name"] == "simple"
+        assert m["summary"] == "A method without parameters."
+        assert m.get("description") is None
 
     def test_rpc_discover_not_listed(self, methods: list):
         for m in methods:
