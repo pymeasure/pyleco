@@ -15,7 +15,7 @@ These things might change, if LECO defines them differently.
 
 For a tutorial on how to get started, see [GETTING_STARTED.md](https://github.com/pymeasure/pyleco/blob/main/GETTING_STARTED.md).
 
-You are welcome to contribute, for more information see [CONTRIBUTING.md](https://github.com/pymeasure/pyleco/blob/main/CONTRIBUTING.md)
+You are welcome to contribute, for more information see [CONTRIBUTING.md](https://github.com/pymeasure/pyleco/blob/main/CONTRIBUTING.md).
 
 
 ## Quick Start
@@ -58,8 +58,8 @@ For that purpose, you send a message which encodes exactly that (via jsonrpc): t
 ### Minimum Setup
 
 For a minimum setup, you need:
-* a _Coordinator_ (just execute `coordinator` in your terminal or run the `coordinator.py` file with your Python interpreter)
-* one _Component_
+* a _Coordinator_ (just execute `coordinator` in your terminal or run the `coordinator.py` file with your Python interpreter),
+* one _Component_.
 
 For example, you can use a `Communicator` instance to send/receive messages via LECO protocol.
 The following example requests the list of _Components_ connected currently to the _Coordinator_:
@@ -77,9 +77,9 @@ print(connected_components)
 Let's say you have an instrument with a pymeasure driver `Driver`, which you want to control.
 
 You need to start (in different threads):
-* a _Coordinator_ (as described above).
+* a _Coordinator_ (as described above),
 * an `Actor` instance listening to commands and controlling the instrument: `actor = Actor(name="inst_actor", cls=Driver)`.
-  For an example see the `pymeasure_actor.py` in the examples folder.
+  For an example see the `pymeasure_actor.py` in the examples folder,
 * a `TransparentDirector`: `director=TransparentDirector(actor="inst_actor")`. The `actor` parameter has to match the Actor's `name` parameter.
   For an example of a measurement script see `measurement_script.py` in the examples folder.
 
@@ -113,7 +113,7 @@ For more information and for examples see the docstrings of the relevant methods
   * `Coordinator` is the _Coordinator_ for the control protocol (exchanging messages).
   * `proxy_server` is the _Coordinator_ for the data protocol (broadcasting).
 * The `actors` subpackage contains _Actor_ classes to control devices.
-* The `management` subpackage contains _Components_ useful for experiment management
+* The `management` subpackage contains _Components_ useful for experiment management.
   * The `Starter` can execute tasks in separate threads.
     A task could be an _Actor_ controlling some _Device_.
   * The `DataLogger` listens to published data (via the data protocol) and collects them.
