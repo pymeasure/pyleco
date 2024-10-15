@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Added
+
+* Support for Python 3.13
+
+
 ## [0.4.0] 2024-06-19
 
 _Binary data handling facilitated with utility functions._
