@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+* Openrpc is optional (available via `openrpc` option) for Python 3.13 onwards.
+
 ### Added
 
 * Support for Python 3.13
