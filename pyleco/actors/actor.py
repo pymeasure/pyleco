@@ -29,7 +29,7 @@ from warnings import warn
 import zmq
 
 from ..utils.message_handler import MessageHandler
-from ..utils.data_publisher import DataPublisher
+from ..utils.extended_data_publisher import ExtendedDataPublisher as DataPublisher
 from ..utils.timers import RepeatingTimer
 
 
@@ -101,7 +101,9 @@ class Actor(MessageHandler, Generic[Device]):
         self.pipeL.connect(f"inproc://listenerPipe:{pipe_port}")
 
         self.timer = RepeatingTimer(interval=periodic_reading, function=self.queue_readout)
-        self.publisher = DataPublisher(full_name=name, log=self.root_logger)
+        self.publisher = DataPublisher(
+            full_name=name, log=self.root_logger, send_message_method=self.send_message
+        )
 
         if auto_connect:
             self.connect(**auto_connect)
@@ -118,6 +120,8 @@ class Actor(MessageHandler, Generic[Device]):
         self.register_rpc_method(self.set_polling_interval)
         self.register_rpc_method(self.connect)
         self.register_rpc_method(self.disconnect)
+        self.register_rpc_method(self.register_subscriber)
+        self.register_rpc_method(self.unregister_subscriber)
 
     def register_device_method(self, method: Callable) -> None:
         """Make a device method available via RPC. The method name is prefixed with `device.`."""
@@ -271,3 +275,9 @@ class Actor(MessageHandler, Generic[Device]):
         for attr in path[:-1]:
             obj = getattr(obj, attr)
         return getattr(obj, path[-1])(*args, **kwargs)
+
+    def register_subscriber(self):
+        self.publisher.register_subscriber(self.current_message.sender)
+
+    def unregister_subscriber(self):
+        self.publisher.unregister_subscriber(self.current_message.sender)
