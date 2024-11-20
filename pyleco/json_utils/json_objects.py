@@ -32,8 +32,7 @@ methods.
 from __future__ import annotations
 from dataclasses import asdict, dataclass
 import json
-from typing import Any, Optional, Union
-
+from typing import Any, Generic, Iterable, Optional, TypeVar, Union
 
 ErrorType = Union["DataError", "Error"]
 NotificationType = Union["Notification", "ParamsNotification"]
@@ -130,3 +129,31 @@ class ErrorResponse(JsonObject):
         pre_dict = asdict(self)
         pre_dict["error"] = asdict(self.error)
         return pre_dict
+
+"""
+Batch Handling.
+
+Not included in jsonrpc2-objects, but defined by JSONRPC 2.0
+"""
+BatchType = TypeVar("BatchType", RequestType, ResponseType)
+
+
+class BatchObject(list, Generic[BatchType]):
+    """A batch of requests or responses."""
+    # Not defined by jsonrpc2-objects
+
+    def __init__(self, iterable: Optional[Iterable[BatchType]] = None):
+        if iterable:
+            super().__init__(item for item in iterable)
+        else:
+            super().__init__()
+
+    def model_dump(self) -> list[dict[str, Any]]:
+        return [obj.model_dump() for obj in self]
+
+    def model_dump_json(self) -> str:
+        return json.dumps(self.model_dump(), separators=(",", ":"))
+
+
+RequestBatch = BatchObject[RequestType]
+ResponseBatch = BatchObject[ResponseType]
