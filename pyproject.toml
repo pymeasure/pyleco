@@ -88,6 +88,8 @@ omit = [
     # Omit LECO definitions
     "pyleco/errors.py",
     "pyleco/core/leco_protocols.py",
-    # exclude import file
+    # omit import file
     "pyleco/json_utils/rpc_server.py",
+    # omit files for testing only
+    "pyleco/management/test_tasks/*",
 ]
