@@ -35,6 +35,7 @@ from pyleco.json_utils.json_objects import (
     ResultResponse,
     ErrorResponse,
     DataError,
+    ResponseBatch,
 )
 from pyleco.json_utils.errors import (
     ServerError,
@@ -245,7 +246,7 @@ class Test_process_request:
             {"jsonrpc": "2.0", "method": "simple"},
             {"jsonrpc": "2.0", "method": "simple", "id": 4},
         ]
-        result = json.loads(rpc_server_local.process_request(json.dumps(requests)))
+        result = json.loads(rpc_server_local.process_request(json.dumps(requests)))  # type: ignore
         assert result == [{"jsonrpc": "2.0", "result": 7, "id": 4}]
 
     def test_batch_of_notifications(self, rpc_server_local: RPCServer):
@@ -263,4 +264,41 @@ class Test_process_request:
             {"jsonrpc": "2.0", "method": "simple"},
         ]
         result = rpc_server_local.process_request(json.dumps(requests))
+        assert result is None
+
+
+class Test_process_request_object:
+    def test_invalid_request(self, rpc_server_local: RPCServer):
+        result = rpc_server_local.process_request_object(7)
+        assert (
+            result
+            == ErrorResponse(
+                id=None, error=DataError.from_error(INVALID_REQUEST, 7)
+            )
+        )
+
+    def test_batch_entry_notification(self, rpc_server_local: RPCServer):
+        """A notification (request without id) shall not return anything."""
+        requests = [
+            {"jsonrpc": "2.0", "method": "simple"},
+            {"jsonrpc": "2.0", "method": "simple", "id": 4},
+        ]
+        result = rpc_server_local.process_request_object(requests)
+        assert result == ResponseBatch([ResultResponse(4, 7)])
+
+    def test_batch_of_notifications(self, rpc_server_local: RPCServer):
+        """A notification (request without id) shall not return anything."""
+        requests = [
+            {"jsonrpc": "2.0", "method": "simple"},
+            {"jsonrpc": "2.0", "method": "simple"},
+        ]
+        result = rpc_server_local.process_request_object(requests)
+        assert result is None
+
+    def test_notification(self, rpc_server_local: RPCServer):
+        """A notification (request without id) shall not return anything."""
+        requests = [
+            {"jsonrpc": "2.0", "method": "simple"},
+        ]
+        result = rpc_server_local.process_request_object(requests)
         assert result is None
