@@ -32,7 +32,7 @@ methods.
 from __future__ import annotations
 from dataclasses import asdict, dataclass
 import json
-from typing import Any, Generic, Iterable, Optional, TypeVar, Union
+from typing import Any, List, Optional, TypeVar, Union
 
 ErrorType = Union["DataError", "Error"]
 NotificationType = Union["Notification", "ParamsNotification"]
@@ -138,15 +138,14 @@ Not included in jsonrpc2-objects, but defined by JSONRPC 2.0
 BatchType = TypeVar("BatchType", RequestType, ResponseType)
 
 
-class BatchObject(list, Generic[BatchType]):
-    """A batch of requests or responses."""
-    # Not defined by jsonrpc2-objects
+class BatchObject(List[BatchType]):
+    """A batch of JSONRPC message objects.
 
-    def __init__(self, iterable: Optional[Iterable[BatchType]] = None):
-        if iterable:
-            super().__init__(item for item in iterable)
-        else:
-            super().__init__()
+    It works like a list of appropriate message objects and offers the possibility to dump
+    this batch object to a plain python object or to JSON.
+    """
+    # Parent class is typing.List, as Python<3.9 does not like list[BatchType]
+    # Not defined by jsonrpc2-objects
 
     def model_dump(self) -> list[dict[str, Any]]:
         return [obj.model_dump() for obj in self]

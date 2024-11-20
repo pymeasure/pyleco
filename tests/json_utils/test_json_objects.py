@@ -94,9 +94,13 @@ class Test_BatchObject:
     def batch_obj(self):
         return json_objects.BatchObject([self.element])
 
-    def test_init_with_values(self):
+    def test_init_with_value(self):
         obj = json_objects.BatchObject([self.element])
         assert obj == [self.element]
+
+    def test_init_with_values(self):
+        obj = json_objects.BatchObject([self.element, self.element])
+        assert obj == [self.element, self.element]
 
     def test_bool_value_with_element(self):
         obj = json_objects.BatchObject([self.element])
