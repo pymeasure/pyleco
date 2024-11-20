@@ -23,13 +23,26 @@
 #
 
 import json
+import logging
 
 import pytest
 
 from pyleco.json_utils.rpc_generator import RPCGenerator
 from pyleco.json_utils.rpc_server_definition import RPCServer
-from pyleco.json_utils.json_objects import Request, ParamsRequest, ResultResponse
-from pyleco.json_utils.errors import ServerError, InvalidRequest, INVALID_REQUEST, SERVER_ERROR
+from pyleco.json_utils.json_objects import (
+    Request,
+    ParamsRequest,
+    ResultResponse,
+    ErrorResponse,
+    DataError,
+)
+from pyleco.json_utils.errors import (
+    ServerError,
+    InvalidRequest,
+    INVALID_REQUEST,
+    SERVER_ERROR,
+    INTERNAL_ERROR,
+)
 
 try:
     # Load openrpc server for comparison, if available.
@@ -45,13 +58,13 @@ def rpc_generator() -> RPCGenerator:
     return RPCGenerator()
 
 
-def side_effect_method(arg=None):
+def side_effect_method(arg=None) -> int:
     global args
     args = (arg,)
     return 5
 
 
-def fail():
+def fail() -> None:
     """Fail always.
 
     This method fails always.
@@ -60,19 +73,31 @@ def fail():
     raise NotImplementedError
 
 
-def simple():
+def simple() -> int:
     """A method without parameters."""
     return 7
 
 
-def obligatory_parameter(arg1: float):
-    """Needs an argument"""
+def obligatory_parameter(arg1: float) -> float:
+    """Needs an argument."""
     return arg1 * 2
 
 
 @pytest.fixture(params=rpc_server_classes)
 def rpc_server(request) -> RPCServer:
     rpc_server = request.param()
+    rpc_server.method(name="sem")(side_effect_method)
+    rpc_server.method()(side_effect_method)
+    rpc_server.method()(fail)
+    rpc_server.method()(simple)
+    rpc_server.method()(obligatory_parameter)
+    return rpc_server
+
+
+@pytest.fixture
+def rpc_server_local() -> RPCServer:
+    """Create an instance of PyLECO's RPC Server"""
+    rpc_server = RPCServer()
     rpc_server.method(name="sem")(side_effect_method)
     rpc_server.method()(side_effect_method)
     rpc_server.method()(fail)
@@ -181,3 +206,61 @@ class Test_discover_method:
         for m in methods:
             if m.get("name") == "rpc.discover":
                 raise AssertionError("rpc.discover is listed as a method!")
+
+
+# tests regarding the local implementation of the RPC Server
+def test_process_single_notification(rpc_server_local: RPCServer):
+    result = rpc_server_local._process_single_request(
+        {"jsonrpc": "2.0", "method": "simple"}
+    )
+    assert result is None
+
+
+class Test_process_request:
+    def test_log_exception(self, rpc_server_local: RPCServer, caplog: pytest.LogCaptureFixture):
+        rpc_server_local.process_request(b"\xff")
+        records = caplog.record_tuples
+        assert records[-1] == (
+            "pyleco.json_utils.rpc_server_definition",
+            logging.ERROR,
+            "UnicodeDecodeError:",
+        )
+
+    def test_exception_response(self, rpc_server_local: RPCServer):
+        result = rpc_server_local.process_request(b"\xff")
+        assert result == ErrorResponse(id=None, error=INTERNAL_ERROR).model_dump_json()
+
+    def test_invalid_request(self, rpc_server_local: RPCServer):
+        result = rpc_server_local.process_request(b"7")
+        assert (
+            result
+            == ErrorResponse(
+                id=None, error=DataError.from_error(INVALID_REQUEST, 7)
+            ).model_dump_json()
+        )
+
+    def test_batch_entry_notification(self, rpc_server_local: RPCServer):
+        """A notification (request without id) shall not return anything."""
+        requests = [
+            {"jsonrpc": "2.0", "method": "simple"},
+            {"jsonrpc": "2.0", "method": "simple", "id": 4},
+        ]
+        result = json.loads(rpc_server_local.process_request(json.dumps(requests)))
+        assert result == [{"jsonrpc": "2.0", "result": 7, "id": 4}]
+
+    def test_batch_of_notifications(self, rpc_server_local: RPCServer):
+        """A notification (request without id) shall not return anything."""
+        requests = [
+            {"jsonrpc": "2.0", "method": "simple"},
+            {"jsonrpc": "2.0", "method": "simple"},
+        ]
+        result = rpc_server_local.process_request(json.dumps(requests))
+        assert result is None
+
+    def test_notification(self, rpc_server_local: RPCServer):
+        """A notification (request without id) shall not return anything."""
+        requests = [
+            {"jsonrpc": "2.0", "method": "simple"},
+        ]
+        result = rpc_server_local.process_request(json.dumps(requests))
+        assert result is None
