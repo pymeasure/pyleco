@@ -67,7 +67,7 @@ def director():
         thread.daemon = True
         thread.start()
     sleep(1)
-    director = StarterDirector(actor="starter", port=PORT)
+    director = StarterDirector(actor="starter", port=PORT, timeout=5)
     yield director
     log.info("Tearing down")
     stop_event.set()
@@ -82,9 +82,21 @@ def test_sign_in(director: StarterDirector):
 
 
 def test_tasks_listing(director: StarterDirector):
-    assert director.list_tasks() == [{
-        "name": "test_task",
-        "tooltip": "Example scheme for an Actor for pymeasure instruments. 'test_task'\n"}]
+    tasks = director.list_tasks()
+    expected_tasks = [
+        {"name": "failing_task", "tooltip": ""},
+        {
+            "name": "no_task",
+            "tooltip": "Task which can be imported, but not started as method `task` is missing.\n",
+        },
+        {
+            "name": "test_task",
+            "tooltip": "Example scheme for an Actor for pymeasure instruments. 'test_task'\n",
+        },
+    ]
+    for t in expected_tasks:
+        assert t in tasks
+    assert len(tasks) == len(expected_tasks), "More tasks present than expected."
 
 
 def test_start_task(director: StarterDirector):
@@ -95,8 +107,15 @@ def test_start_task(director: StarterDirector):
 
 
 def test_stop_task(director: StarterDirector):
-    sleep(1)
     director.stop_tasks("test_task")
     status = Status(director.status_tasks("test_task").get("test_task", 0))
     assert Status.STARTED not in status
     assert Status.RUNNING not in status
+
+
+def test_start_task_again(director: StarterDirector):
+    director.start_tasks(["test_task", "failing_task", "no_task"])
+    status = Status(director.status_tasks("test_task")["test_task"])
+    assert Status.STARTED in status
+    assert Status.RUNNING in status
+    director.stop_tasks(["test_task", "no_task"])

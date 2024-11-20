@@ -321,6 +321,9 @@ class Test_last:
     def test_last_returns_last_value(self, data_logger: DataLogger):
         assert data_logger.last([1, 2, 3, 4, 5]) == 5
 
+    def test_return_single_value(self, data_logger: DataLogger):
+        assert data_logger.last(5) == 5  # type: ignore
+
     def test_empty_list_returns_nan(self, data_logger: DataLogger):
         assert isnan(data_logger.last([]))
 

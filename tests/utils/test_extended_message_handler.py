@@ -42,7 +42,6 @@ def handler():
     handler.stop_event = SimpleEvent()
     handler.subscriber = FakeSocket(2)  # type: ignore
     handler.handle_subscription_message = MagicMock()  # it is not defined
-    handler.handle_subscription_message.assert_called_once_with
     return handler
 
 
@@ -52,6 +51,12 @@ def test_read_subscription_message_calls_handle(handler: ExtendedMessageHandler)
     handler.read_subscription_message()
     # assert
     handler.handle_subscription_message.assert_called_once_with(message)  # type: ignore
+
+
+def test_handle_subscription_message_raises_not_implemented():
+    handler = ExtendedMessageHandler(name="handler", context=FakeContext())  # type: ignore
+    with pytest.raises(NotImplementedError):
+        handler.handle_subscription_message(DataMessage(b"topic"))
 
 
 def test_read_subscription_message_calls_handle_legacy(handler: ExtendedMessageHandler):
@@ -67,6 +72,15 @@ def test_subscribe_single(handler: ExtendedMessageHandler):
     handler.subscribe_single(b"topic")
     assert handler.subscriber._subscriptions == [b"topic"]  # type: ignore
     assert handler._subscriptions == [b"topic"]
+
+
+def test_subscribe_single_again(handler: ExtendedMessageHandler, caplog: pytest.LogCaptureFixture):
+    # arrange
+    handler.subscribe_single(b"topic")
+    caplog.set_level(10)
+    # act
+    handler.subscribe_single(b"topic")
+    assert caplog.messages[-1] == f"Already subscribed to {b'topic'!r}."
 
 
 @pytest.mark.parametrize("topics, result", (
@@ -129,3 +143,7 @@ class Test_handle_full_legacy_subscription_message:
             handler_hfl.handle_full_legacy_subscription_message(
                 DataMessage("topic", data="", message_type=210)
             )
+
+    def test_handle_subscription_data(self, handler: ExtendedMessageHandler):
+        with pytest.raises(NotImplementedError):
+            handler.handle_subscription_data({})

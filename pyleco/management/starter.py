@@ -35,7 +35,7 @@ from typing import Any, Optional, Union
 if __name__ != "__main__":
     from ..utils.message_handler import MessageHandler
     from ..utils.parser import parser, parse_command_line_parameters
-else:
+else:  # pragma: no cover
     from pyleco.utils.message_handler import MessageHandler
     from pyleco.utils.parser import parser, parse_command_line_parameters
 
@@ -119,9 +119,7 @@ class Starter(MessageHandler):
             self.folder_name = "test_tasks"
 
         log.info(f"Starter started with tasks in folder '{self.directory}'.")
-        if tasks is not None:
-            for task in tasks:
-                self.start_task(task)
+        self.start_tasks(tasks or ())
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
@@ -140,21 +138,13 @@ class Starter(MessageHandler):
         log.info("Starter stopped.")
 
     def stop_all_tasks(self) -> None:
+        self.started_tasks = {}
         keys = list(self.threads.keys())
         for name in keys:
             # set all stop signals
             self.events[name].set()
         for name in keys:
-            # wait for threads to have stopped
-            thread = self.threads[name]
-            thread.join(2)
-            if thread.is_alive():
-                log.warning(f"Task '{name}' did not stop in time!")
-                # TODO add possibility to stop thread otherwise.
-            try:
-                del self.threads[name]
-            except Exception as exc:
-                log.exception(f"Deleting task {name} failed", exc_info=exc)
+            self.wait_for_stopped_thread(name)
 
     def heartbeat(self) -> None:
         """Check installed tasks at heartbeating."""
@@ -205,6 +195,9 @@ class Starter(MessageHandler):
             return
         log.info(f"Stopping task '{name}'.")
         self.events[name].set()
+        self.wait_for_stopped_thread(name)
+
+    def wait_for_stopped_thread(self, name: str) -> None:
         thread = self.threads[name]
         thread.join(timeout=2)
         if thread.is_alive():
@@ -265,9 +258,9 @@ class Starter(MessageHandler):
             if name.endswith(".py") and not name == "__init__.py":
                 with open(f"{self.directory}/{name}", "r") as file:
                     # Search for the first line with triple quotes
-                    i = 0
-                    while not file.readline().strip() == '"""' and i < 10:
-                        i += 1
+                    for i in range(10):
+                        if file.readline().strip() == '"""':
+                            break
                     tooltip = file.readline()  # first line after line with triple quotes
                 tasks.append({"name": name.replace(".py", ""), "tooltip": tooltip})
         log.debug(f"Tasks found: {tasks}.")

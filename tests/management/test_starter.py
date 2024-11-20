@@ -63,6 +63,17 @@ def test_sanitize_tasks(tasks):
         assert isinstance(t, str)
 
 
+@pytest.mark.parametrize("tasks, invalid_task_name", (
+        (5, 5),
+        (("valid", 6), 6),
+        ([["list"], "abc"], "['list']")),
+)
+def test_invalid_tasks(tasks, invalid_task_name, caplog):
+    assert sanitize_tasks(tasks) == ()
+    assert caplog.messages == [f"Invalid task name '{invalid_task_name}' received."]
+
+
+
 def test_init(starter: Starter):
     assert starter.started_tasks == {}
     assert starter.threads == {}
@@ -220,3 +231,20 @@ def test_restart_tasks(starter: Starter):
     starter.restart_tasks(["a", "b"])
     assert starter.stop_task.call_args_list == [call("a"), call("b")]
     assert starter.start_task.call_args_list == [call("a"), call("b")]
+
+
+def test_stop_all_tasks(starter: Starter):
+    # arrange
+    starter.started_tasks["t1"] = Status.STARTED
+    starter.threads["t1"] = FakeThread(alive=True)  # type: ignore
+    event = starter.events["t1"] = SimpleEvent()  # type: ignore
+    # act
+    starter.stop_all_tasks()
+    assert "t1" not in starter.threads
+    assert "t1" not in starter.started_tasks
+    assert event.is_set() is True
+
+
+def test_list_tasks_failing(starter: Starter):
+    starter.directory = "/abcdefghijklmno"
+    assert starter.list_tasks() == []
