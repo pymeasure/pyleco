@@ -59,6 +59,7 @@ def rpc_generator() -> RPCGenerator:
     return RPCGenerator()
 
 
+args = None
 def side_effect_method(arg=None) -> int:
     global args
     args = (arg,)
