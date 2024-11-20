@@ -1,5 +1,6 @@
 # PyLECO
 
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyleco)
 [![codecov](https://codecov.io/gh/pymeasure/pyleco/graph/badge.svg?token=9OB3GWDLRB)](https://codecov.io/gh/pymeasure/pyleco)
 [![pypi release](https://img.shields.io/pypi/v/pyleco.svg)](https://pypi.org/project/pyleco/)
 [![conda-forge release](https://anaconda.org/conda-forge/pyleco/badges/version.svg)](https://anaconda.org/conda-forge/pyleco)
