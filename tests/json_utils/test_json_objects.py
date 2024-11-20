@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #
 
+import pytest
+
 from pyleco.json_utils import json_objects
 
 
@@ -83,3 +85,39 @@ def test_generate_data_error_from_error():
     assert data_error.code == error.code
     assert data_error.message == error.message
     assert data_error.data == "data"
+
+
+class Test_BatchObject:
+    element = json_objects.Request(5, "start")
+
+    @pytest.fixture
+    def batch_obj(self):
+        return json_objects.BatchObject([self.element])
+
+    def test_init_with_value(self):
+        obj = json_objects.BatchObject([self.element])
+        assert obj == [self.element]
+
+    def test_init_with_values(self):
+        obj = json_objects.BatchObject([self.element, self.element])
+        assert obj == [self.element, self.element]
+
+    def test_bool_value_with_element(self):
+        obj = json_objects.BatchObject([self.element])
+        assert bool(obj) is True
+
+    def test_bool_value_without_element(self):
+        obj = json_objects.BatchObject()
+        assert bool(obj) is False
+
+    def test_append(self, batch_obj: json_objects.BatchObject):
+        el2 = json_objects.Request(5, "start")
+        batch_obj.append(el2)
+        assert batch_obj[-1] == el2
+
+    def test_model_dump(self, batch_obj: json_objects.BatchObject):
+        assert batch_obj.model_dump() == [self.element.model_dump()]
+
+    def test_model_dump_json(self, batch_obj: json_objects.BatchObject):
+        result = '[{"id":5,"method":"start","jsonrpc":"2.0"}]'
+        assert batch_obj.model_dump_json() == result

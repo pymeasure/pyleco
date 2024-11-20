@@ -28,7 +28,7 @@ import logging
 from typing import Any, Callable, Optional, Union
 
 from .errors import INTERNAL_ERROR, SERVER_ERROR, INVALID_REQUEST
-from .json_objects import ResultResponse, ErrorResponse, DataError
+from .json_objects import ResultResponse, ErrorResponse, DataError, ResponseType, ResponseBatch
 
 
 log = logging.getLogger(__name__)
@@ -50,15 +50,8 @@ class RPCServer:
         self.method(name="rpc.discover")(self.discover)
 
     def method(self, name: Optional[str] = None, **kwargs) -> Callable[[Callable], None]:
-        if name is None:
-
-            def method_registrar(method: Callable) -> None:
-                return self._register_method(name=method.__name__, method=method)
-        else:
-
-            def method_registrar(method: Callable) -> None:
-                return self._register_method(name=name, method=method)
-
+        def method_registrar(method: Callable) -> None:
+            return self._register_method(name=name or method.__name__, method=method)
         return method_registrar
 
     def _register_method(self, name: str, method: Callable) -> None:
@@ -67,30 +60,33 @@ class RPCServer:
     def process_request(self, data: Union[bytes, str]) -> Optional[str]:
         try:
             json_data = json.loads(data)
-            if isinstance(json_data, list):
-                results = []
-                for element in json_data:
-                    result = self._process_single_request(element)
-                    if result is not None:
-                        results.append(result.model_dump())
-                if results:
-                    return json.dumps(results, separators=(",", ":"))
-                else:
-                    return None
-            elif isinstance(json_data, dict):
-                result = self._process_single_request(json_data)
-                if result:
-                    return result.model_dump_json()
-                else:
-                    return None
-            else:
-                return ErrorResponse(
-                    id=None,
-                    error=DataError.from_error(INVALID_REQUEST, json_data),
-                ).model_dump_json()
+            result = self.process_request_object(json_data=json_data)
+            return result.model_dump_json() if result else None
         except Exception as exc:
             log.exception(f"{type(exc).__name__}:", exc_info=exc)
             return ErrorResponse(id=None, error=INTERNAL_ERROR).model_dump_json()
+
+    def process_request_object(
+        self, json_data: object
+    ) -> Optional[Union[ResponseType, ResponseBatch]]:
+        result: Optional[Union[ResponseType, ResponseBatch]]
+        if isinstance(json_data, list):
+            result = ResponseBatch()
+            for element in json_data:
+                result_element = self._process_single_request(element)
+                if result_element is not None:
+                    result.append(result_element)
+        elif isinstance(json_data, dict):
+            result = self._process_single_request(json_data)
+        else:
+            result = ErrorResponse(
+                id=None,
+                error=DataError.from_error(INVALID_REQUEST, json_data),
+            )
+        if result:
+            return result
+        else:
+            return None
 
     def _process_single_request(
         self, request: dict[str, Any]
