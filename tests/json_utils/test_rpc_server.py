@@ -137,11 +137,21 @@ def test_failing_method(rpc_generator: RPCGenerator, rpc_server: RPCServer):
 
 
 @pytest.mark.xfail(True, reason="Self written RPCServer cannot handle additional args")
-def test_wrong_method_arguments(rpc_generator: RPCGenerator, rpc_server: RPCServer):
+def test_wrong_method_arguments_are_ignored(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     request = rpc_generator.build_request_str(method="simple", arg=9)
     response = rpc_server.process_request(request)
     result = rpc_generator.get_result_from_response(response)  # type: ignore
     assert result == 7
+
+
+def test_wrong_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
+    if len(rpc_server_classes) > 1 and isinstance(rpc_server, RPCServerOpen):
+        pytest.skip(reason="RPCServerOpen does not raise error for wrong arguments")
+    request = rpc_generator.build_request_str(method="simple", arg=9)
+    response = rpc_server.process_request(request)
+    response_obj = json.loads(response)  # type: ignore
+    expected_response_obj = ErrorResponse(id=1, error=SERVER_ERROR)
+    assert response_obj == expected_response_obj.model_dump()
 
 
 def test_obligatory_parameter_missing(rpc_generator: RPCGenerator, rpc_server: RPCServer):

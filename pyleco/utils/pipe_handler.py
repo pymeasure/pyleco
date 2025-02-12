@@ -228,7 +228,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
 
     def ask_handler(self, method: str, timeout: float = 1, **kwargs) -> Any:
         """Ask the associated message handler."""
-        cid = self._send_handler(method=method, timeout=timeout, **kwargs)
+        cid = self._send_handler(method=method, **kwargs)
         return self._read_handler(cid, timeout=timeout)
 
     # Utility methods
