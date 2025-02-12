@@ -346,10 +346,11 @@ def test_handle_local_method(pipe_handler_pipe: PipeHandler, communicator: Commu
 
 def test_ask_handler(communicator: CommunicatorPipe):
     communicator._send_handler = MagicMock()  # type: ignore[method-assign]
+    communicator._send_handler.return_value = b"conversation_id;"
     communicator._read_handler = MagicMock()  # type: ignore[method-assign]
     communicator._read_handler.return_value = 5
     # act
     result = communicator.ask_handler(method="method", timeout=1)
     assert result == 5
-    communicator._send_handler.assert_called_once_with(method="method", timeout=1)
-    communicator._read_handler.assert_called_once()
+    communicator._send_handler.assert_called_once_with(method="method")
+    communicator._read_handler.assert_called_once_with(b"conversation_id;", timeout=1)
