@@ -1,14 +1,27 @@
 # CHANGELOG
 
-## [Unreleased]
+## [0.4.1] 2025-02-12
+
+_Increased test coverage and bug fixes._
 
 ### Changed
 
 * Openrpc is optional (available via `openrpc` option) for Python 3.13 onwards.
+* Rework rpc server ([#102](https://github.com/pymeasure/pyleco/pull/102))
+* Increase test coverage ([#104](https://github.com/pymeasure/pyleco/pull/104))
+* Change copyright year to 2025 ([#106](https://github.com/pymeasure/pyleco/pull/106))
 
 ### Added
 
-* Support for Python 3.13
+* Add support for Python 313 ([#98](https://github.com/pymeasure/pyleco/pull/98))
+* Add supported python versions to readme via shield. ([#103](https://github.com/pymeasure/pyleco/pull/103))
+
+### Fixed
+* Fix open rpc ([#95](https://github.com/pymeasure/pyleco/pull/95))
+* Fix ruff action ([#99](https://github.com/pymeasure/pyleco/pull/99))
+* Fix erroneous timeout argument in PipeHandler ([#109](https://github.com/pymeasure/pyleco/pull/109))
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.4.0...v0.4.1
 
 
 ## [0.4.0] 2024-06-19
@@ -168,7 +181,8 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.1
 [0.4.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.0
 [0.3.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.2
 [0.3.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.3.1
