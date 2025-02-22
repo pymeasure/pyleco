@@ -154,13 +154,13 @@ class DataLogger(ExtendedMessageHandler):
         self.publisher.full_name = full_name
 
     # Data management
-    def handle_subscription_message(self, data_message: DataMessage) -> None:
-        sender = data_message.topic.decode()
+    def handle_subscription_message(self, message: DataMessage) -> None:
+        sender = message.topic.decode()
         try:
-            content: dict[str, Any] = data_message.data  # type: ignore
+            content: dict[str, Any] = message.data  # type: ignore
             modified_dict = {".".join((sender, k)): v for k, v in content.items()}
         except Exception:
-            log.exception(f"Could not decode message {data_message}.")
+            log.exception(f"Could not decode message {message}.")
         else:
             self.handle_subscription_data(modified_dict)
 
@@ -231,10 +231,10 @@ class DataLogger(ExtendedMessageHandler):
     def start_collecting(self, *,
                          variables: Optional[list[str]] = None,
                          units: Optional[dict[str, Any]] = None,
-                         trigger_type: Optional[TriggerTypes] = None,
+                         trigger_type: Optional[TriggerTypes] = None,  # TODO also str, but openrpc
                          trigger_timeout: Optional[float] = None,
                          trigger_variable: Optional[str] = None,
-                         valuing_mode: Optional[ValuingModes] = None,
+                         valuing_mode: Optional[ValuingModes] = None,  # TODO also str, but openrpc
                          value_repeating: Optional[bool] = None,
                          ) -> None:
         """Start collecting data.
@@ -245,7 +245,7 @@ class DataLogger(ExtendedMessageHandler):
         log.info(f"Start collecting data. Trigger: {trigger_type}, {trigger_timeout}, "
                  f"{trigger_variable}; subscriptions: {variables}")
         self.today = datetime.datetime.now(datetime.timezone.utc).date()
-        self.trigger_type = trigger_type or self._last_trigger_type
+        self.trigger_type = TriggerTypes(trigger_type) if trigger_type else self._last_trigger_type
         self._last_trigger_type = self.trigger_type
         if trigger_timeout is not None:
             self.trigger_timeout = trigger_timeout
@@ -294,7 +294,7 @@ class DataLogger(ExtendedMessageHandler):
         self.timer = RepeatingTimer(timeout, self.make_datapoint)
         self.timer.start()
 
-    def set_valuing_mode(self, valuing_mode: Optional[ValuingModes]) -> None:
+    def set_valuing_mode(self, valuing_mode: Optional[ValuingModes]) -> None:  # also str
         if valuing_mode == ValuingModes.LAST:
             self.valuing = self.last
         elif valuing_mode == ValuingModes.AVERAGE:
