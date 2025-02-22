@@ -76,6 +76,10 @@ class Test_start_collecting:
         for key in ["time", "test", "2", "N1.sender.var"]:
             assert key in data_logger_sc.lists.keys()
 
+    def test_with_str_as_trigger_type(self, data_logger: DataLogger):
+        data_logger.start_collecting(trigger_type=TriggerTypes.VARIABLE.value)  # type: ignore
+        assert isinstance(data_logger.trigger_type, TriggerTypes)
+
 
 def test_start_collecting_starts_timer(data_logger: DataLogger):
     # arrange
