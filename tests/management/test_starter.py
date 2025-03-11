@@ -27,7 +27,7 @@ from unittest.mock import call, MagicMock
 
 import pytest
 
-from pyleco.test import FakeContext
+from pyleco.test import FakeContext, assert_response_is_result, handle_request_message
 from pyleco.management.starter import sanitize_tasks, Starter, Status
 from pyleco.utils.events import SimpleEvent
 
@@ -94,9 +94,13 @@ def test_install_task(starter: Starter, pre: Status, post: Status):
 
 
 def test_install_tasks(starter: Starter):
+    # arrange
     starter.install_task = MagicMock()  # type: ignore[method-assign]
-    starter.install_tasks(["a", "b"])
+    # act
+    handle_request_message(starter, "install_tasks", names=["a", "b"])
+    # assert
     assert starter.install_task.call_args_list == [call("a"), call("b")]
+    assert_response_is_result(starter)
 
 
 @pytest.mark.parametrize("pre, post", (
@@ -113,9 +117,13 @@ def test_uninstall_task(starter: Starter, pre: Status, post: Status):
 
 
 def test_uninstall_tasks(starter: Starter):
+    # arrange
     starter.uninstall_task = MagicMock()  # type: ignore[method-assign]
-    starter.uninstall_tasks(["a", "b"])
+    # act
+    handle_request_message(starter, "uninstall_tasks", names=["a", "b"])
+    # assert
     assert starter.uninstall_task.call_args_list == [call("a"), call("b")]
+    assert_response_is_result(starter)
 
 
 class Test_status_tasks:
@@ -130,7 +138,9 @@ class Test_status_tasks:
             "NS": Status.STARTED,
         }
         self.starter = starter
-        return starter.status_tasks(names=["unknown"])
+        handle_request_message(starter, "status_tasks", names=["unknown"])
+        result = assert_response_is_result(starter)
+        return result
 
     def test_started_running(self, status):
         """Test that a running task remains running."""
@@ -186,9 +196,13 @@ class Test_start_task:
 
 
 def test_start_tasks(starter: Starter):
+    # arrange
     starter.start_task = MagicMock()  # type: ignore[method-assign]
-    starter.start_tasks(["a", "b"])
+    # act
+    handle_request_message(starter, "start_tasks", names=["a", "b"])
+    # assert
     assert starter.start_task.call_args_list == [call("a"), call("b")]
+    assert_response_is_result(starter)
 
 
 class Test_stop_task:
@@ -220,9 +234,13 @@ class Test_stop_task:
 
 
 def test_stop_tasks(starter: Starter):
+    # arrange
     starter.stop_task = MagicMock()  # type: ignore[method-assign]
-    starter.stop_tasks(["a", "b"])
+    # act
+    handle_request_message(starter, "stop_tasks", names=["a", "b"])
+    # assert
     assert starter.stop_task.call_args_list == [call("a"), call("b")]
+    assert_response_is_result(starter)
 
 
 def test_restart_tasks(starter: Starter):
