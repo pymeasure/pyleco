@@ -22,7 +22,4 @@
 # THE SOFTWARE.
 #
 
-try:
-    from openrpc import RPCServer  # type: ignore  # noqa: F401
-except ModuleNotFoundError:
-    from .rpc_server_definition import RPCServer  # type: ignore  # noqa: F401
+from .rpc_server_definition import RPCServer  # type: ignore  # noqa: F401

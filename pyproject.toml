@@ -27,7 +27,6 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
   "pyzmq >= 22.3.0",
-  "openrpc >= 8.1.0; python_version >= '3.9' and python_version < '3.13'",
   "uuid6 >= 2024.1.12",
 ]
 
@@ -37,9 +36,6 @@ dev = [
   "pytest-cov",
   "sphinx",
   "sphinx_rtd_theme",
-]
-openrpc = [
-  "openrpc >= 8.1.0; python_version >= '3.9'",
 ]
 
 [project.urls]

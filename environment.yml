@@ -6,7 +6,6 @@ dependencies:
   - uuid6=2024.1.12
   - pip  # don't pin, to gain newest conda compatibility fixes
   # - pip:
-    # - openrpc==8.1.0  don't pin presence for python<3.9
 # Development dependencies below
   - pytest=7.2.0
   - pytest-cov=4.1.0

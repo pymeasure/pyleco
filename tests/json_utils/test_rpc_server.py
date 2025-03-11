@@ -45,14 +45,6 @@ from pyleco.json_utils.errors import (
     INTERNAL_ERROR,
 )
 
-try:
-    # Load openrpc server for comparison, if available.
-    from openrpc import RPCServer as RPCServerOpen  # type: ignore
-except ModuleNotFoundError:
-    rpc_server_classes: list = [RPCServer]
-else:
-    rpc_server_classes = [RPCServer, RPCServerOpen]
-
 
 @pytest.fixture
 def rpc_generator() -> RPCGenerator:
@@ -85,20 +77,8 @@ def obligatory_parameter(arg1: float) -> float:
     return arg1 * 2
 
 
-@pytest.fixture(params=rpc_server_classes)
-def rpc_server(request) -> RPCServer:
-    rpc_server = request.param()
-    rpc_server.method(name="sem")(side_effect_method)
-    rpc_server.method()(side_effect_method)
-    rpc_server.method()(fail)
-    rpc_server.method()(simple)
-    rpc_server.method()(obligatory_parameter)
-    return rpc_server
-
-
 @pytest.fixture
-def rpc_server_local() -> RPCServer:
-    """Create an instance of PyLECO's RPC Server"""
+def rpc_server() -> RPCServer:
     rpc_server = RPCServer()
     rpc_server.method(name="sem")(side_effect_method)
     rpc_server.method()(side_effect_method)
@@ -145,8 +125,6 @@ def test_wrong_method_arguments_are_ignored(rpc_generator: RPCGenerator, rpc_ser
 
 
 def test_wrong_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
-    if len(rpc_server_classes) > 1 and isinstance(rpc_server, RPCServerOpen):
-        pytest.skip(reason="RPCServerOpen does not raise error for wrong arguments")
     request = rpc_generator.build_request_str(method="simple", arg=9)
     response = rpc_server.process_request(request)
     response_obj = json.loads(response)  # type: ignore
@@ -174,8 +152,7 @@ def test_process_response(rpc_server: RPCServer, rpc_generator: RPCGenerator):
     error = exc_info.value.rpc_error
     assert error.code == INVALID_REQUEST.code
     assert error.message == INVALID_REQUEST.message
-    # ignore the following test, which depends on the openrpc version
-    # assert error.data == request.model_dump()  # type: ignore
+    assert error.data == request.model_dump()  # type: ignore
 
 
 class Test_discover_method:
@@ -221,16 +198,16 @@ class Test_discover_method:
 
 
 # tests regarding the local implementation of the RPC Server
-def test_process_single_notification(rpc_server_local: RPCServer):
-    result = rpc_server_local._process_single_request(
+def test_process_single_notification(rpc_server: RPCServer):
+    result = rpc_server._process_single_request(
         {"jsonrpc": "2.0", "method": "simple"}
     )
     assert result is None
 
 
 class Test_process_request:
-    def test_log_exception(self, rpc_server_local: RPCServer, caplog: pytest.LogCaptureFixture):
-        rpc_server_local.process_request(b"\xff")
+    def test_log_exception(self, rpc_server: RPCServer, caplog: pytest.LogCaptureFixture):
+        rpc_server.process_request(b"\xff")
         records = caplog.record_tuples
         assert records[-1] == (
             "pyleco.json_utils.rpc_server_definition",
@@ -238,12 +215,12 @@ class Test_process_request:
             "UnicodeDecodeError:",
         )
 
-    def test_exception_response(self, rpc_server_local: RPCServer):
-        result = rpc_server_local.process_request(b"\xff")
+    def test_exception_response(self, rpc_server: RPCServer):
+        result = rpc_server.process_request(b"\xff")
         assert result == ErrorResponse(id=None, error=INTERNAL_ERROR).model_dump_json()
 
-    def test_invalid_request(self, rpc_server_local: RPCServer):
-        result = rpc_server_local.process_request(b"7")
+    def test_invalid_request(self, rpc_server: RPCServer):
+        result = rpc_server.process_request(b"7")
         assert (
             result
             == ErrorResponse(
@@ -251,36 +228,36 @@ class Test_process_request:
             ).model_dump_json()
         )
 
-    def test_batch_entry_notification(self, rpc_server_local: RPCServer):
+    def test_batch_entry_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
         requests = [
             {"jsonrpc": "2.0", "method": "simple"},
             {"jsonrpc": "2.0", "method": "simple", "id": 4},
         ]
-        result = json.loads(rpc_server_local.process_request(json.dumps(requests)))  # type: ignore
+        result = json.loads(rpc_server.process_request(json.dumps(requests)))  # type: ignore
         assert result == [{"jsonrpc": "2.0", "result": 7, "id": 4}]
 
-    def test_batch_of_notifications(self, rpc_server_local: RPCServer):
+    def test_batch_of_notifications(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
         requests = [
             {"jsonrpc": "2.0", "method": "simple"},
             {"jsonrpc": "2.0", "method": "simple"},
         ]
-        result = rpc_server_local.process_request(json.dumps(requests))
+        result = rpc_server.process_request(json.dumps(requests))
         assert result is None
 
-    def test_notification(self, rpc_server_local: RPCServer):
+    def test_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
         requests = [
             {"jsonrpc": "2.0", "method": "simple"},
         ]
-        result = rpc_server_local.process_request(json.dumps(requests))
+        result = rpc_server.process_request(json.dumps(requests))
         assert result is None
 
 
 class Test_process_request_object:
-    def test_invalid_request(self, rpc_server_local: RPCServer):
-        result = rpc_server_local.process_request_object(7)
+    def test_invalid_request(self, rpc_server: RPCServer):
+        result = rpc_server.process_request_object(7)
         assert (
             result
             == ErrorResponse(
@@ -288,28 +265,28 @@ class Test_process_request_object:
             )
         )
 
-    def test_batch_entry_notification(self, rpc_server_local: RPCServer):
+    def test_batch_entry_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
         requests = [
             {"jsonrpc": "2.0", "method": "simple"},
             {"jsonrpc": "2.0", "method": "simple", "id": 4},
         ]
-        result = rpc_server_local.process_request_object(requests)
+        result = rpc_server.process_request_object(requests)
         assert result == ResponseBatch([ResultResponse(4, 7)])
 
-    def test_batch_of_notifications(self, rpc_server_local: RPCServer):
+    def test_batch_of_notifications(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
         requests = [
             {"jsonrpc": "2.0", "method": "simple"},
             {"jsonrpc": "2.0", "method": "simple"},
         ]
-        result = rpc_server_local.process_request_object(requests)
+        result = rpc_server.process_request_object(requests)
         assert result is None
 
-    def test_notification(self, rpc_server_local: RPCServer):
+    def test_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
         requests = [
             {"jsonrpc": "2.0", "method": "simple"},
         ]
-        result = rpc_server_local.process_request_object(requests)
+        result = rpc_server.process_request_object(requests)
         assert result is None
