@@ -29,7 +29,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyleco.core.data_message import DataMessage
-from pyleco.test import FakeContext, FakeSocket
+from pyleco.test import FakeContext, FakeSocket, handle_request_message, assert_response_is_result
 from pyleco.utils.events import SimpleEvent
 from pyleco.utils.extended_message_handler import ExtendedMessageHandler
 
@@ -89,7 +89,8 @@ def test_subscribe_single_again(handler: ExtendedMessageHandler, caplog: pytest.
         (("topic1", "topic2"), [b"topic1", b"topic2"]),  # tuple of strings
 ))
 def test_subscribe(handler: ExtendedMessageHandler, topics, result):
-    handler.subscribe(topics)
+    handle_request_message(handler, "subscribe", topics)
+    assert_response_is_result(handler)
     assert handler._subscriptions == result
 
 
@@ -108,13 +109,18 @@ def test_unsubscribe_single(handler: ExtendedMessageHandler):
 ))
 def test_unsubscribe(handler: ExtendedMessageHandler, topics, result):
     handler._subscriptions = result
-    handler.unsubscribe(topics)
+    # act
+    handle_request_message(handler, "unsubscribe", topics)
+    assert_response_is_result(handler)
     assert handler._subscriptions == []
 
 
 def test_unsubscribe_all(handler: ExtendedMessageHandler):
     handler._subscriptions = [b"topic1", b"topic2"]
-    handler.unsubscribe_all()
+    # act
+    handle_request_message(handler, "unsubscribe_all")
+    # assert
+    assert_response_is_result(handler)
     assert handler._subscriptions == []
 
 

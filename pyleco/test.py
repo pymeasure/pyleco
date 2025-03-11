@@ -25,9 +25,10 @@
 from __future__ import annotations
 from typing import Any, Iterable, Optional, Sequence, Union
 
-from .core.message import Message
+from .core.message import Message, MessageTypes
 from .core.internal_protocols import CommunicatorProtocol
 from .json_utils.rpc_generator import RPCGenerator
+from .utils.message_handler import MessageHandler
 
 
 class FakeContext:
@@ -122,6 +123,9 @@ class FakeSocket:
     def close(self, linger: Optional[int] = None) -> None:
         self.addr = None
         self.closed = True
+
+    def set_hwm(self, hwm: int) -> None:
+        self._hwm = hwm
 
 
 class FakePoller:
@@ -243,3 +247,16 @@ class FakeDirector:
         self.method = method
         self.kwargs = kwargs
         return b"conversation_id;"
+
+
+def handle_request_message(handler: MessageHandler, method: str, *args, **kwargs) -> None:
+    request = handler.rpc_generator.build_request_str(method, *args, **kwargs)
+    handler.handle_message(Message("Handler", "Sender", request, message_type=MessageTypes.JSON))
+
+
+def assert_response_is_result(handler: MessageHandler) -> Any:
+    """Assert that response is result, not error and return the result."""
+    response_message = Message.from_frames(*handler.socket._s[0])  # type: ignore
+    result = handler.rpc_generator.get_result_from_response(response_message.payload[0])
+    # get_result_from_response will raise an Exception if the response is an error.
+    return result

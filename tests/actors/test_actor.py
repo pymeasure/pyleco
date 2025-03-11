@@ -30,7 +30,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyleco.test import FakePoller
+from pyleco.test import FakeSocket, FakePoller, assert_response_is_result, handle_request_message
 from pyleco.actors.actor import Actor
 from pyleco.core.leco_protocols import PollingActorProtocol, ExtendedComponentProtocol, Protocol
 
@@ -113,9 +113,14 @@ class ExtendedActorProtocol(ExtendedComponentProtocol, PollingActorProtocol, Pro
 
 @pytest.fixture()
 def actor() -> FakeActor:
-    actor = FakeActor("test", FantasyInstrument, auto_connect={'adapter': MagicMock()},
-                      port=1234,
-                      protocol="inproc")
+    actor = FakeActor(
+        "test",
+        FantasyInstrument,
+        auto_connect={"adapter": MagicMock()},
+        port=1234,
+        protocol="inproc",
+    )
+    actor.socket = FakeSocket(5)  # type: ignore
     actor.next_beat = float("inf")
     return actor
 
@@ -158,57 +163,69 @@ def test_device_class_or_cls_is_necessary():
         FakeActor("test", protocol="inproc")
 
 
-def test_get_properties(actor: Actor):
-    assert actor.get_parameters(['prop']) == {'prop': 5}
+def test_get_parameters(actor: Actor):
+    handle_request_message(actor, "get_parameters", ["prop"])
+    result = assert_response_is_result(actor)
+    assert result == {"prop": 5}
 
 
-def test_get_channel_properties(actor: Actor):
-    assert actor.get_parameters(["channel.channel_property"]) == {
-        "channel.channel_property": -1}
+def test_get_channel_parameters(actor: Actor):
+    handle_request_message(actor, "get_parameters", ["channel.channel_property"])
+    result = assert_response_is_result(actor)
+    assert result == {"channel.channel_property": -1}
 
 
-def test_get_nested_channel_properties(actor: Actor):
-    assert actor.get_parameters(["channel.trace.channel_property"]) == {
-        "channel.trace.channel_property": -1}
+def test_get_nested_channel_parameters(actor: Actor):
+    handle_request_message(actor, "get_parameters", ["channel.trace.channel_property"])
+    result = assert_response_is_result(actor)
+    assert result == {"channel.trace.channel_property": -1}
 
 
-def test_set_properties(actor: Actor):
-    actor.set_parameters({'prop2': 10})
+def test_set_parameters(actor: Actor):
+    handle_request_message(actor, "set_parameters", {"prop2": 10})
+    assert_response_is_result(actor)
     assert actor.device.prop2 == 10
 
 
-def test_set_channel_properties(actor: Actor):
-    actor.set_parameters(parameters={'channel.channel_property': 10})
+def test_set_channel_parameters(actor: Actor):
+    handle_request_message(actor, "set_parameters", {"channel.channel_property": 10})
+    assert_response_is_result(actor)
     assert actor.device.channel.channel_property == 10
 
-
-def test_set_nested_channel_properties(actor: Actor):
-    actor.set_parameters(parameters={'channel.trace.channel_property': 10})
+def test_set_nested_channel_parameters(actor: Actor):
+    handle_request_message(actor, "set_parameters", {"channel.trace.channel_property": 10})
+    assert_response_is_result(actor)
     assert actor.device.channel.trace.channel_property == 10  # type: ignore
 
 
 def test_call_silent_method(actor: Actor):
-    assert actor.call_action("silent_method", kwargs=dict(value=7)) is None
+    handle_request_message(actor, "call_action", action="silent_method", kwargs=dict(value=7))
+    assert_response_is_result(actor)
     assert actor.device._method_value == 7
 
 
 def test_returning_method(actor: Actor):
-    assert actor.call_action('returning_method', kwargs=dict(value=2)) == 4
+    handle_request_message(actor, "call_action", action="returning_method", kwargs=dict(value=2))
+    result = assert_response_is_result(actor)
+    assert result == 4
 
 
 def test_channel_method(actor: Actor):
-    assert actor.call_action("channel.channel_method", args=(7,)) == 14
+    handle_request_message(actor, "call_action", action="channel.channel_method", args=(7,))
+    result = assert_response_is_result(actor)
+    assert result == 14
 
 
 def test_nested_channel_method(actor: Actor):
-    assert actor.call_action("channel.trace.channel_method", args=(7,)) == 14
+    handle_request_message(actor, "call_action", action="channel.trace.channel_method", args=(7,))
+    result = assert_response_is_result(actor)
+    assert result == 14
 
 
 def test_register_device_method(actor: Actor):
     actor.register_device_method(actor.device.returning_method)
-    response = actor.rpc.process_request(
-            '{"id": 1, "method": "device.returning_method", "params": [5], "jsonrpc": "2.0"}')
-    result = actor.rpc_generator.get_result_from_response(response)  # type: ignore
+    handle_request_message(actor, "device.returning_method", 5)
+    result = assert_response_is_result(actor)
     assert result == 25
 
 

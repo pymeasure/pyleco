@@ -31,7 +31,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyleco.core.data_message import DataMessage
-from pyleco.test import FakeContext
+from pyleco.test import FakeContext, assert_response_is_result, handle_request_message
 from pyleco.management.data_logger import DataLogger, nan, ValuingModes, TriggerTypes
 
 
@@ -81,6 +81,44 @@ class Test_start_collecting:
         assert isinstance(data_logger.trigger_type, TriggerTypes)
 
 
+class Test_start_collecting_integration:
+    @pytest.fixture
+    def data_logger_sci(self, data_logger: DataLogger):
+        handle_request_message(
+            data_logger,
+            "start_collecting",
+            variables=["time", "test", "2", "N1.sender.var"],
+            trigger_type=TriggerTypes.VARIABLE,
+            trigger_variable="test",
+            trigger_timeout=10,
+            valuing_mode=ValuingModes.LAST,
+            value_repeating=False,
+        )
+        return data_logger
+
+    def test_trigger_type(self, data_logger_sci: DataLogger):
+        assert isinstance(data_logger_sci.trigger_type, TriggerTypes)
+
+    def test_valuing_mode(self, data_logger_sci: DataLogger):
+        assert data_logger_sci.valuing == data_logger_sci.last
+
+    def test_trigger_variable(self, data_logger_sci: DataLogger):
+        assert data_logger_sci.trigger_variable == "test"
+
+    def test_trigger_timeout(self, data_logger_sci: DataLogger):
+        assert data_logger_sci.trigger_timeout == 10
+
+    def test_value_repeating(self, data_logger_sci: DataLogger):
+        assert data_logger_sci.value_repeating is False
+
+    def test_variables(self, data_logger_sci: DataLogger):
+        for key in ["time", "test", "2", "N1.sender.var"]:
+            assert key in data_logger_sci.lists.keys()
+
+    def test_response(self, data_logger_sci: DataLogger):
+        assert_response_is_result(data_logger_sci)
+
+
 def test_start_collecting_starts_timer(data_logger: DataLogger):
     # arrange
     data_logger.trigger_timeout = 1000
@@ -106,6 +144,16 @@ def test_start_collecting_starts_timer_even_second_time(data_logger: DataLogger)
     assert data_logger.timer.interval == 1000
     # cleanup
     data_logger.timer.cancel()
+
+
+def test_stop_collecting_stops_timer(data_logger: DataLogger):
+    # arrange
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)
+    # act
+    handle_request_message(data_logger, "stop_collecting")
+    # assert
+    assert not hasattr(data_logger, "timer")  # no timer left
+    assert_response_is_result(data_logger)
 
 
 def test_listen_close_stops_collecting(data_logger: DataLogger):
@@ -179,6 +227,16 @@ def test_set_valuing_mode_last(data_logger: DataLogger):
     assert data_logger.last == data_logger.valuing
 
 
+def test_set_valuing_mode_last_integration(data_logger: DataLogger):
+    handle_request_message(
+        data_logger,
+        "set_valuing_mode",
+        valuing_mode=ValuingModes.LAST,
+    )
+    assert_response_is_result(data_logger)
+    assert data_logger.last == data_logger.valuing
+
+
 def test_handle_subscription_message_calls_handle_data(data_logger: DataLogger):
     data_logger.handle_subscription_data = MagicMock()  # type: ignore[method-assign]
     message = DataMessage(topic="N1.sender", data={'var': 5, 'test': 7.3})
@@ -218,7 +276,7 @@ def test_handle_subscription_data_without_list(data_logger: DataLogger,
                                                caplog: pytest.LogCaptureFixture):
     caplog.set_level(0)
     data_logger.handle_subscription_data({'not_present': 42})
-    assert caplog.messages == ["Got value for 'not_present', but no list present."]
+    assert caplog.messages[-1] == "Got value for 'not_present', but no list present."
 
 
 def test_set_publisher_name(data_logger: DataLogger):
@@ -337,7 +395,7 @@ class Test_save_data:
     def data_logger_sd(self, data_logger: DataLogger, tmp_path_factory: pytest.TempPathFactory):
         path = tmp_path_factory.mktemp("save")
         data_logger.directory = str(path)
-        self.file_name = data_logger.save_data()
+        handle_request_message(data_logger, "save_data")
         self.today = data_logger.today
         return data_logger
 
@@ -345,8 +403,13 @@ class Test_save_data:
         result = re.match(r"20\d\d_\d\d_\d\dT\d\d_\d\d_\d\d", data_logger_sd.last_save_name)
         assert result is not None
 
+    def test_affirmative_response_with_filename(self, data_logger_sd: DataLogger):
+        file_name = assert_response_is_result(data_logger_sd)
+        assert file_name == data_logger_sd.last_save_name
+
     @pytest.fixture
     def saved_file(self, data_logger_sd: DataLogger):
+        self.file_name = data_logger_sd.last_save_name
         path = Path(data_logger_sd.directory) / data_logger_sd.last_save_name
         return path.with_suffix(".json").read_text()
 
@@ -386,7 +449,8 @@ class Test_save_data:
 
 
 def test_get_configuration(data_logger: DataLogger):
-    config = data_logger.get_configuration()
+    handle_request_message(data_logger, "get_configuration")
+    config = assert_response_is_result(data_logger)
     assert config == {
         "trigger_type": TriggerTypes.VARIABLE,
         "trigger_variable": "test",
@@ -399,15 +463,30 @@ def test_get_configuration(data_logger: DataLogger):
 
 
 def test_get_last_datapoint(data_logger: DataLogger):
+    # arrange
     data_logger.last_datapoint = {"key": "value"}
-    assert data_logger.get_last_datapoint() == data_logger.last_datapoint
+    # act
+    handle_request_message(data_logger, "get_last_datapoint")
+    # assert
+    data_point = assert_response_is_result(data_logger)
+    assert data_point == data_logger.last_datapoint
 
 
 def test_get_last_save_name(data_logger: DataLogger):
+    # arrange
     data_logger.last_save_name = "abcef"
-    assert data_logger.get_last_save_name() == data_logger.last_save_name
+    # act
+    handle_request_message(data_logger, "get_last_save_name")
+    # assert
+    save_name = assert_response_is_result(data_logger)
+    assert save_name == data_logger.last_save_name
 
 
 def test_get_list_length(data_logger: DataLogger):
+    # arrange
     data_logger.lists = {"abc": [0, 1, 2, 3, 4]}
-    assert data_logger.get_list_length() == 5
+    # act
+    handle_request_message(data_logger, "get_list_length")
+    # assert
+    list_length = assert_response_is_result(data_logger)
+    assert list_length == 5

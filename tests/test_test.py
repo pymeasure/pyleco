@@ -24,7 +24,16 @@
 
 import pytest
 
-from pyleco.test import FakeCommunicator, FakePoller, FakeSocket
+from pyleco.json_utils.errors import JSONRPCError
+from pyleco.utils.message_handler import MessageHandler
+from pyleco.test import (
+    FakeCommunicator,
+    FakePoller,
+    FakeSocket,
+    assert_response_is_result,
+    FakeContext,
+    handle_request_message,
+)
 
 
 @pytest.fixture
@@ -77,6 +86,11 @@ def test_unsubscribe_fails_for_not_SUB(socket: FakeSocket):
         socket.unsubscribe("abc")
 
 
+def test_socket_hwm(socket: FakeSocket):
+    socket.set_hwm(5)
+    assert socket._hwm == 5
+
+
 class Test_FakePoller_unregister:
     def test_no_error_at_missing(self, poller: FakePoller):
         poller.unregister(FakeSocket(1))
@@ -93,3 +107,10 @@ def test_FakeCommunicator_sign_in():
     fc = FakeCommunicator("")
     fc.sign_in()
     assert fc._signed_in is True
+
+
+def test_assert_response_is_result_raises_exception_on_error():
+    handler = MessageHandler("test", context=FakeContext())  # type: ignore
+    handle_request_message(handler, "some_non_existing_method")
+    with pytest.raises(JSONRPCError):
+        assert_response_is_result(handler)
