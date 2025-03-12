@@ -28,7 +28,7 @@ import logging
 import pytest
 
 from pyleco.json_utils.rpc_generator import RPCGenerator
-from pyleco.json_utils.rpc_server_definition import RPCServer
+from pyleco.json_utils.rpc_server import RPCServer
 from pyleco.json_utils.json_objects import (
     Request,
     ParamsRequest,
@@ -210,7 +210,7 @@ class Test_process_request:
         rpc_server.process_request(b"\xff")
         records = caplog.record_tuples
         assert records[-1] == (
-            "pyleco.json_utils.rpc_server_definition",
+            "pyleco.json_utils.rpc_server",
             logging.ERROR,
             "UnicodeDecodeError:",
         )
