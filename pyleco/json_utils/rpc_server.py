@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any, Callable, Optional, Union
+from dataclasses import dataclass
 
 from .errors import INTERNAL_ERROR, SERVER_ERROR, INVALID_REQUEST
 from .json_objects import ResultResponse, ErrorResponse, DataError, ResponseType, ResponseBatch
@@ -35,7 +36,50 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
+@dataclass
+class Method:
+    """Describe a method with its attributes."""
+    # See https://spec.open-rpc.org/#method-object for values
+    method: Callable
+    name: str
+    # params  # TODO
+    summary: Optional[str] = None
+    description: Optional[str] = None
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self.method(*args, **kwargs)
+
+    def represent_as_dict(self) -> dict:
+        """Describe this method as a dict for discovery."""
+        result = {
+            "name": self.name,
+        }
+        if self.summary:
+            result["summary"] = self.summary
+        if self.description:
+            result["description"] = self.description
+        return result
+
+
 class RPCServer:
+    """A simple JSON-RPC server.
+
+    If you register a method with the `method` decorator, it will be available
+    for remote calls.
+    The `process_request` method is used to process a JSON-RPC request and return
+    the result as a JSON string.
+
+    .. code-block:: python
+        rpc = RPCServer()
+        @rpc.method
+        def add(a, b):
+            return a + b
+
+        result = rpc.process_request('{"method": "add", "params": [1, 2], "id": 1}')
+        print(result)  # '{"jsonrpc": "2.0", "result": 3, "id": 1}'
+
+    It is similar to the RPCServer provided by the `openrpc` package, which it replaces.
+    """
     def __init__(
         self,
         title: Optional[str] = None,
@@ -46,17 +90,29 @@ class RPCServer:
         super().__init__(**kwargs)
         self.title = title or "RPC Server"
         self._version = version or "0.1.0"
-        self._rpc_methods: dict[str, Callable] = {}
+        self._rpc_methods: dict[str, Method] = {}
         self.method(name="rpc.discover")(self.discover)
 
-    def method(self, name: Optional[str] = None, **kwargs) -> Callable[[Callable], None]:
+    def method(self, name: Optional[str] = None, description=None, **kwargs) -> Callable[[Callable], None]:
         """Decorator for registering a new RPC method."""
         def method_registrar(method: Callable) -> None:
-            return self._register_method(name=name or method.__name__, method=method)
-        return method_registrar
+            store_name = name or method.__name__
+            store_description = description
+            method_dict = {}
+            if method.__doc__:
+                lines = method.__doc__.split("\n")
+                method_dict["summary"] = lines[0]
+                if not store_description and lines[1:]:
+                    store_description = " ".join(
+                        line.strip() for line in lines[1:] if line
+                    ).strip()
+            method_container = Method(
+                method=method, name=store_name, description=store_description, **method_dict
+            )
+            self._rpc_methods[store_name] = method_container
+            return None
 
-    def _register_method(self, name: str, method: Callable) -> None:
-        self._rpc_methods[name] = method
+        return method_registrar
 
     def process_request(self, data: Union[bytes, str]) -> Optional[str]:
         try:
@@ -70,6 +126,7 @@ class RPCServer:
     def process_request_object(
         self, json_data: object
     ) -> Optional[Union[ResponseType, ResponseBatch]]:
+        """Process a JSON-RPC request executing the associated method."""
         result: Optional[Union[ResponseType, ResponseBatch]]
         if isinstance(json_data, list):
             result = ResponseBatch()
@@ -120,22 +177,14 @@ class RPCServer:
             return ErrorResponse(id=id_, error=SERVER_ERROR)
 
     def discover(self) -> dict[str, Any]:
-        """list all the capabilities of the server."""
+        """List all the capabilities of the server."""
         result: dict[str, Any] = {"openrpc": "1.2.6"}
         result["info"] = {"title": self.title, "version": self._version}
         methods: list[dict[str, Any]] = []
-        for name, method in self._rpc_methods.items():
-            if name == "rpc.discover":
+        for method in self._rpc_methods.values():
+            if method.name == "rpc.discover":
                 # do not list it
                 continue
-            method_dict = {"name": name}
-            if method.__doc__:
-                lines = method.__doc__.split("\n")
-                method_dict["summary"] = lines[0]
-                if lines[1:]:
-                    method_dict["description"] = " ".join(
-                        line.strip() for line in lines[1:] if line
-                    ).strip()
-            methods.append(method_dict)
+            methods.append(method.represent_as_dict())
         result["methods"] = methods
         return result
