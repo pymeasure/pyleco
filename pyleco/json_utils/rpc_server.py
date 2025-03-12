@@ -93,7 +93,9 @@ class RPCServer:
         self._rpc_methods: dict[str, Method] = {}
         self.method(name="rpc.discover")(self.discover)
 
-    def method(self, name: Optional[str] = None, description=None, **kwargs) -> Callable[[Callable], None]:
+    def method(
+        self, name: Optional[str] = None, description=None, **kwargs
+    ) -> Callable[[Callable], None]:
         """Decorator for registering a new RPC method."""
         def method_registrar(method: Callable) -> None:
             store_name = name or method.__name__
