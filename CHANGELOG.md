@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## [0.5.0] 2025-03-28
+
+Remove openrpc dependency and rely on built in RPC server.
+
+### Removed
+* Remove openrpc dependency ([#116](https://github.com/pymeasure/pyleco/pull/116))
+
+### Changed
+* Convert unit tests to integration tests with json rpc ([#115](https://github.com/pymeasure/pyleco/pull/115))
+* Remove code coverage limits for the pipeline.
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.4.2...v0.5.0
+
+
 ## [0.4.2] 2025-02-22
 
 ### Fixed
@@ -190,7 +204,8 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.4.2...HEAD
+[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.5.0
 [0.4.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.2
 [0.4.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.1
 [0.4.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.0
