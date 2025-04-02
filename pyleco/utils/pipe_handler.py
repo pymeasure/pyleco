@@ -174,7 +174,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
             self.socket.send_multipart((typ, *content))
         except zmq.ZMQError as exc:
             raise ConnectionRefusedError(f"Connection to the handler refused with '{exc}', "
-                                         "probably the handler stopped.")
+                                         "probably the handler stopped.") from exc
 
     def send_message(self, message: Message) -> None:
         if not message.sender:

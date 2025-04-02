@@ -477,14 +477,14 @@ class Directory:
     def get_component_id(self, name: bytes) -> bytes:
         try:
             return self._components[name].identity
-        except KeyError:
-            raise ValueError(f"Component {name!r} is not known.")
+        except KeyError as exc:
+            raise ValueError(f"Component {name!r} is not known.") from exc
 
     def get_node(self, namespace: bytes) -> Node:
         try:
             return self._nodes[namespace]
-        except KeyError:
-            raise ValueError("Node not known.")
+        except KeyError as exc:
+            raise ValueError(f"Node {namespace!r} is not known.") from exc
 
     def get_node_id(self, namespace: bytes) -> bytes:
         for id, node in self._node_ids.items():
@@ -505,18 +505,11 @@ class Directory:
         return self._node_ids
 
     def send_node_message(self, namespace: bytes, message: Message) -> None:
-        try:
-            node = self._nodes[namespace]
-        except KeyError:
-            raise ValueError(f"Node {namespace!r} is not known.")
-        else:
-            node.send_message(message)
+        node = self.get_node(namespace=namespace)
+        node.send_message(message)
 
     def sign_out_from_node(self, namespace: bytes) -> None:
-        try:
-            node = self._nodes[namespace]
-        except KeyError:
-            raise ValueError("Node is not known.")
+        node = self.get_node(namespace=namespace)
         node.send_message(
             Message(
                 receiver=b".".join((namespace, b"COORDINATOR")),
