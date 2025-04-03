@@ -16,11 +16,7 @@
 ## Conda-forge
 
 1. Do the PyPI release first
-1. Rebase the `conda-forge-release` branch on the latest release
-1. Ensure correct `pyproject.toml`:
-   * State the version explicitly (e.g. `version = "1.2.3"` instead of `dynamic = ["version"]`) 
-   * Comment out the `openrpc` dependency
-   * Comment out the section (including header!) `[tool.setuptools_scm]`
-1. Create a tag with `vMajor.Minor.Patch-cf` at the head of that branch
 1. Update the conda-forge repository with the version and checksum of the tar.gz archive of that tag:
-   * On windows use `certUtil -hashfile pyleco-1.2.3-cf.tar.gz SHA256` (adjust the version) to generate the SHA256 hash
+   * On Linux use `openssl sha256 pyleco-1.2.3.tar.gz` (adjust the version)
+   * On windows use `certUtil -hashfile pyleco-1.2.3.tar.gz SHA256` (adjust the version) to generate the SHA256 hash
+1. Make sure to rerender the feedstock repository during the PR
