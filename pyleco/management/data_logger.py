@@ -291,6 +291,10 @@ class DataLogger(ExtendedMessageHandler):
         self.last_datapoint = {}
 
     def start_timer_trigger(self, timeout: float) -> None:
+        try:
+            self.timer.cancel()
+        except AttributeError:
+            pass
         self.timer = RepeatingTimer(timeout, self.make_datapoint)
         self.timer.start()
 
@@ -348,7 +352,6 @@ class DataLogger(ExtendedMessageHandler):
         self.unsubscribe_all()
         try:
             self.timer.cancel()
-            del self.timer
         except AttributeError:
             pass
 
