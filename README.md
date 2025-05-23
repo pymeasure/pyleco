@@ -126,5 +126,5 @@ For more information and for examples see the docstrings of the relevant methods
 
 ### PyLECO extras
 
-The [pyleco-extras](https://github.com/BenediktBurger/pyleco-extras) package contains additional modules.
+The [pyleco-extras](https://git.rwth-aachen.de/nloqo/general/pyleco-extras) package contains additional modules.
 Among them are GUIs controlling the `DataLogger` and the `Starter`.
