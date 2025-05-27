@@ -29,7 +29,7 @@ import zmq
 
 from pyleco.core.message import Message, MessageTypes
 from pyleco.test import FakeContext
-from pyleco.json_utils.json_objects import ResultResponse, Request
+from pyleco.json_utils.json_objects import ResultResponse, Request, Notification
 
 from pyleco.utils.pipe_handler import LockedMessageBuffer, PipeHandler, CommunicatorPipe,\
     PipeCommands
@@ -216,6 +216,13 @@ def test_handle_local_pipe_pong_request(pipe_handler: PipeHandler):
         message_type=MessageTypes.JSON,
         data=ResultResponse(5, None),
     )
+
+
+def test_handle_local_pipe_notification(pipe_handler: PipeHandler):
+    pipe_handler.handle_pipe_message(
+        [PipeCommands.LOCAL_COMMAND, b"cid", Notification("pong").model_dump_json().encode()]
+    )
+    assert len(pipe_handler.message_buffer) == 0
 
 
 class Test_get_communicator:
