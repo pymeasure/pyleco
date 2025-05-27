@@ -326,21 +326,25 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
     def handle_json_request(self, message: Message) -> None:
         response = self.process_json_message(message=message)
-        self.send_message(response)
+        if response is not None:
+            self.send_message(response)
 
-    def process_json_message(self, message: Message) -> Message:
+    def process_json_message(self, message: Message) -> Optional[Message]:
         self.current_message = message
         self.additional_response_payload = None
         self.log.info(f"Handling commands of {message}.")
         reply = self.rpc.process_request(message.payload[0])
-        response = Message(
-            message.sender,
-            conversation_id=message.conversation_id,
-            message_type=MessageTypes.JSON,
-            data=reply,
-            additional_payload=self.additional_response_payload
-        )
-        return response
+        if reply is None:
+            return None
+        else:
+            response = Message(
+                message.sender,
+                conversation_id=message.conversation_id,
+                message_type=MessageTypes.JSON,
+                data=reply,
+                additional_payload=self.additional_response_payload
+            )
+            return response
 
     def handle_json_error(self, message: Message) -> None:
         self.log.warning(f"Error message from {message.sender!r} received: {message}")

@@ -36,7 +36,7 @@ from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
-from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse
+from pyleco.json_utils.json_objects import Notification, Request, ResultResponse, ErrorResponse
 from pyleco.json_utils.errors import JSONRPCError, INVALID_REQUEST, NOT_SIGNED_IN, DUPLICATE_NAME,\
     NODE_UNKNOWN, RECEIVER_UNKNOWN
 
@@ -432,6 +432,18 @@ class Test_read_and_handle_message:
         handler.read_and_handle_message()
         assert handler.namespace == "N1"
 
+    def test_notification_does_not_cause_response(self, handler: MessageHandler):
+        handler.socket._r = [  # type: ignore
+            Message(
+                b"N3.handler",
+                b"N3.COORDINATOR",
+                message_type=MessageTypes.JSON,
+                data={"method": "pong", "jsonrpc": "2.0"},
+            ).to_frames()
+        ]
+        handler.read_and_handle_message()
+        assert handler.socket._s == []
+
     def test_handle_invalid_json_message(self, handler: MessageHandler,
                                          caplog: pytest.LogCaptureFixture):
         """An invalid message should not cause the message handler to crash."""
@@ -481,6 +493,13 @@ class Test_process_json_message:
         result = handler.process_json_message(message=message)
         assert result == response
 
+    def test_handle_rpc_notification(self, handler: MessageHandler):
+        message = Message(receiver=handler_name, sender=remote_name,
+                          data=Notification(method="pong"),
+                          conversation_id=cid, message_type=MessageTypes.JSON)
+        result = handler.process_json_message(message=message)
+        assert result is None
+
     def test_handle_json_not_request(self, handler: MessageHandler):
         """Test, that a json message, which is not a request, is handled appropriately."""
         data = ResultResponse(id=5, result=None)  # some json, which is not a request.
@@ -488,6 +507,7 @@ class Test_process_json_message:
                           data=data,
                           conversation_id=cid, message_type=MessageTypes.JSON)
         result = handler.process_json_message(message=message)
+        assert isinstance(result, Message)
         assert result.receiver == remote_name.encode()
         assert result.conversation_id == cid
         assert result.header_elements.message_type == MessageTypes.JSON
@@ -572,6 +592,7 @@ class Test_process_json_message_with_created_binary:
         m_in = Message("abc", data=data, message_type=MessageTypes.JSON)
         self.payload_out = [b"ghi"]
         response = handler_b.process_json_message(m_in)
+        assert isinstance(response, Message)
         assert response.payload[1:] == [b"ghi"]
         assert response.data == {"jsonrpc": "2.0", "id": 8, "result": 5}
 

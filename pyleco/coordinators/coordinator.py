@@ -351,13 +351,13 @@ class Coordinator:
                 )
         elif JsonContentTypes.RESULT_RESPONSE == json_type:
             if data.get("result", False) is not None:  # type: ignore
-                log.info(f"Unexpeced result received: {data}")
+                log.info(f"Unexpected result received: {data}")
         elif JsonContentTypes.ERROR in json_type:
             log.error(f"Error from {message.sender!r} received: {data}.")
         elif JsonContentTypes.RESULT in json_type:
             for element in data:
                 if element.get("result", False) is not None:  # type: ignore
-                    log.info(f"Unexpeced result received: {data}")
+                    log.info(f"Unexpected result received: {data}")
         else:
             log.error(
                 f"Invalid JSON RPC message from {message.sender!r} received: {message.payload[0]!r}"
@@ -367,6 +367,8 @@ class Coordinator:
         reply = self.rpc.process_request(message.payload[0])
         sender_namespace = message.sender_elements.namespace
         log.debug(f"Reply {reply!r} to {message.sender!r} at node {sender_namespace!r}.")
+        if reply is None:
+            return
         if sender_namespace == self.namespace or sender_namespace == b"":
             self.send_main_sock_reply(
                 sender_identity=self.current_identity,
