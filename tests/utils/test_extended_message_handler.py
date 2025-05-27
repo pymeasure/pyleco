@@ -213,11 +213,11 @@ def data_message() -> DataMessage:
         )
 
 
-def test_set_subscription_message(handler: ExtendedMessageHandler, data_message: DataMessage):
+def test_add_subscription_message(handler: ExtendedMessageHandler, data_message: DataMessage):
     handler.current_message = Message(
         "abc",
         sender="topic",
-        data={"id": 1, "method": "set_subscription_message", "jsonrpc": "2.0"},
+        data={"id": 1, "method": "add_subscription_message", "jsonrpc": "2.0"},
         conversation_id=CID,
         message_type=MessageTypes.JSON,
         additional_payload=data_message.payload,
@@ -228,5 +228,5 @@ def test_set_subscription_message(handler: ExtendedMessageHandler, data_message:
 
     handler.handle_subscription_message = store_data  # type: ignore
     # act
-    handler.set_subscription_message()
+    handler.add_subscription_message()
     assert _data == data_message
