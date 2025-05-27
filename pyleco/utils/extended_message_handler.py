@@ -59,7 +59,7 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         self.register_rpc_method(self.subscribe)
         self.register_rpc_method(self.unsubscribe)
         self.register_rpc_method(self.unsubscribe_all)
-        self.register_rpc_method(self.set_subscription_message)
+        self.register_rpc_method(self.add_subscription_message)
 
     def close(self) -> None:
         self.subscriber.close(1)
@@ -137,7 +137,7 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         """Unsubscribe to a topic via the control protocol."""
         self.ask_rpc(receiver=topic, method="unregister_subscriber")
 
-    def set_subscription_message(self) -> None:
+    def add_subscription_message(self) -> None:
         """Set a subscription message as if it had been received via data protocol."""
         msg = self.current_message
         dm = DataMessage(
