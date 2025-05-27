@@ -188,5 +188,5 @@ def test_data_via_control_protocol(director: Director):
     # teardown
     director.ask_rpc("unregister_subscriber")
 
-    assert msg.data == {"jsonrpc": "2.0", "id": 1, "method": "set_subscription_message"}
+    assert msg.data == {"jsonrpc": "2.0", "id": 1, "method": "add_subscription_message"}
     assert msg.payload[1:] == [b'super content']

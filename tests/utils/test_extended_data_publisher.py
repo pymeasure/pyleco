@@ -90,7 +90,7 @@ def test_convert(publisher: ExtendedDataPublisher, receivers, data_message: Data
     for rec, msg in zip(receivers, msgs):
         assert msg == Message(
             receiver=rec,
-            data={"id": 1, "method": "set_subscription_message", "jsonrpc": "2.0"},
+            data={"id": 1, "method": "add_subscription_message", "jsonrpc": "2.0"},
             conversation_id=CID,
             message_type=MessageTypes.JSON,
             additional_payload=data_message.payload,
@@ -109,7 +109,7 @@ def test_send_message(publisher: ExtendedDataPublisher, data_message: DataMessag
     assert messages == [
         Message(
             "abc",
-            data={"id": 1, "method": "set_subscription_message", "jsonrpc": "2.0"},
+            data={"id": 1, "method": "add_subscription_message", "jsonrpc": "2.0"},
             conversation_id=CID,
             message_type=MessageTypes.JSON,
             additional_payload=data_message.payload,

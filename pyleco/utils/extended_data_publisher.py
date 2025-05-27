@@ -57,7 +57,7 @@ class ExtendedDataPublisher(DataPublisher):
         self, data_message: DataMessage, receivers: Union[set[Union[bytes, str]], set[bytes]],
     ) -> Generator[Message, Any, Any]:
         cid = data_message.conversation_id
-        data = self.rpc_generator.build_request_str(method="set_subscription_message")
+        data = self.rpc_generator.build_request_str(method="add_subscription_message")
         for receiver in receivers:
             yield Message(
                 receiver=receiver,
