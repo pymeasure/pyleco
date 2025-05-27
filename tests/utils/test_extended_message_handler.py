@@ -29,10 +29,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyleco.core.data_message import DataMessage
+from pyleco.core.message import Message, MessageTypes
 from pyleco.test import FakeContext, FakeSocket, handle_request_message, assert_response_is_result
 from pyleco.utils.events import SimpleEvent
 from pyleco.utils.extended_message_handler import ExtendedMessageHandler
 
+
+CID = b"conversation_id;"
+_data = None  # for temporary storage
 
 @pytest.fixture
 def handler():
@@ -43,6 +47,13 @@ def handler():
     handler.subscriber = FakeSocket(2)  # type: ignore
     handler.handle_subscription_message = MagicMock()  # it is not defined
     return handler
+
+
+@pytest.fixture()
+def fake_cid_generation(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_generate_cid() -> bytes:
+        return CID
+    monkeypatch.setattr("pyleco.core.serialization.generate_conversation_id", fake_generate_cid)
 
 
 def test_read_subscription_message_calls_handle(handler: ExtendedMessageHandler):
@@ -153,3 +164,69 @@ class Test_handle_full_legacy_subscription_message:
     def test_handle_subscription_data(self, handler: ExtendedMessageHandler):
         with pytest.raises(NotImplementedError):
             handler.handle_subscription_data({})
+
+
+def test_subscribe_via_command(handler: ExtendedMessageHandler, fake_cid_generation):
+    handler.socket._r = [  # type: ignore
+        Message(
+            "handler",
+            "topic",
+            {"jsonrpc": "2.0", "id": 1, "result": None},
+            message_type=MessageTypes.JSON,
+            conversation_id=CID,
+        ).to_frames()
+    ]
+    handler.subscribe_via_control("topic")
+    assert Message.from_frames(*handler.socket._s[0]) ==  Message(  # type: ignore
+            "topic",
+            "N1.handler",
+            {"jsonrpc": "2.0", "id": 1, "method": "register_subscriber"},
+            message_type=MessageTypes.JSON,
+            conversation_id=CID,
+        )
+
+
+def test_unsubscribe_via_command(handler: ExtendedMessageHandler, fake_cid_generation):
+    handler.socket._r = [  # type: ignore
+        Message(
+            "handler",
+            "topic",
+            {"jsonrpc": "2.0", "id": 1, "result": None},
+            message_type=MessageTypes.JSON,
+            conversation_id=CID,
+        ).to_frames()
+    ]
+    handler.unsubscribe_via_control("topic")
+    assert Message.from_frames(*handler.socket._s[0]) ==  Message(  # type: ignore
+            "topic",
+            "N1.handler",
+            {"jsonrpc": "2.0", "id": 1, "method": "unregister_subscriber"},
+            message_type=MessageTypes.JSON,
+            conversation_id=CID,
+        )
+
+
+@pytest.fixture
+def data_message() -> DataMessage:
+    return DataMessage(
+            topic="topic", conversation_id=CID, data=b"0", additional_payload=[b"1", b"2"]
+        )
+
+
+def test_add_subscription_message(handler: ExtendedMessageHandler, data_message: DataMessage):
+    handler.current_message = Message(
+        "abc",
+        sender="topic",
+        data={"id": 1, "method": "add_subscription_message", "jsonrpc": "2.0"},
+        conversation_id=CID,
+        message_type=MessageTypes.JSON,
+        additional_payload=data_message.payload,
+    )
+    def store_data(data_message):
+        global _data
+        _data = data_message
+
+    handler.handle_subscription_message = store_data  # type: ignore
+    # act
+    handler.add_subscription_message()
+    assert _data == data_message
