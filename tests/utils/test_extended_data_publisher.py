@@ -27,6 +27,7 @@ import pytest
 from pyleco.test import FakeContext
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.data_message import DataMessage
+from pyleco.json_utils.json_objects import Notification
 from pyleco.utils.extended_data_publisher import ExtendedDataPublisher
 
 
@@ -86,11 +87,10 @@ def test_unregister_subscribers(publisher: ExtendedDataPublisher):
 @pytest.mark.parametrize("receivers", (set(), {b"abc"}, {b"abc", b"def"}, {"string"}))
 def test_convert(publisher: ExtendedDataPublisher, receivers, data_message: DataMessage):
     msgs = publisher.convert_data_message_to_messages(data_message, receivers=receivers)
-    assert len(receivers) == len(list(msgs)), "The lengths of receivers and messages do not match."
-    for rec, msg in zip(receivers, msgs):
+    for rec, msg in zip(receivers, msgs, strict=True):
         assert msg == Message(
             receiver=rec,
-            data={"id": 1, "method": "add_subscription_message", "jsonrpc": "2.0"},
+            data=Notification(method="add_subscription_message"),
             conversation_id=CID,
             message_type=MessageTypes.JSON,
             additional_payload=data_message.payload,
@@ -109,7 +109,7 @@ def test_send_message(publisher: ExtendedDataPublisher, data_message: DataMessag
     assert messages == [
         Message(
             "abc",
-            data={"id": 1, "method": "add_subscription_message", "jsonrpc": "2.0"},
+            data=Notification(method="add_subscription_message"),
             conversation_id=CID,
             message_type=MessageTypes.JSON,
             additional_payload=data_message.payload,

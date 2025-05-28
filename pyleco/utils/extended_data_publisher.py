@@ -23,8 +23,11 @@
 #
 
 from __future__ import annotations
+from json import JSONDecodeError
 from typing import Any, Callable, Generator, Union
 
+from ..json_utils.errors import JSONRPCError, NODE_UNKNOWN, RECEIVER_UNKNOWN
+from ..json_utils.json_objects import Notification
 from ..core.message import Message, MessageTypes
 from ..core.data_message import DataMessage
 from ..json_utils.rpc_generator import RPCGenerator
@@ -57,11 +60,10 @@ class ExtendedDataPublisher(DataPublisher):
         self, data_message: DataMessage, receivers: Union[set[Union[bytes, str]], set[bytes]],
     ) -> Generator[Message, Any, Any]:
         cid = data_message.conversation_id
-        data = self.rpc_generator.build_request_str(method="add_subscription_message")
         for receiver in receivers:
             yield Message(
                 receiver=receiver,
-                data=data,
+                data=Notification("add_subscription_message"),
                 conversation_id=cid,
                 additional_payload=data_message.payload,
                 message_type=MessageTypes.JSON,
@@ -72,3 +74,32 @@ class ExtendedDataPublisher(DataPublisher):
         for msg in self.convert_data_message_to_messages(message, self.subscribers):
             # ideas: change to ask and check, whether it succeeded, otherwise remove subscriber
             self.send_control_message(msg)
+
+    # TODO should unregister subscribers to which a message could not be forwarded
+    def handle_json_error(self, message: Message) -> None:
+        """Unregister unavailable subscribers.
+        
+        Call this method from the message handler, for example.
+        """
+        try:
+            data: dict[str, Any] = message.data  # type: ignore
+        except JSONDecodeError as exc:
+            self.log.exception(f"Could not decode json message {message}", exc_info=exc)
+            return
+        try:
+            self.rpc_generator.get_result_from_response(data)
+        except JSONRPCError as exc:
+            error_code = exc.rpc_error.code
+            try:
+                error_data = exc.rpc_error.data
+            except AttributeError:
+                return
+            if error_code == RECEIVER_UNKNOWN:
+                self.unregister_subscriber(error_data)
+            if error_code == NODE_UNKNOWN:
+                if isinstance(error_data, str):
+                    error_data = error_data.encode()
+                for subscriber in self.subscribers:
+                    if subscriber.startswith(error_data):
+                        self.unregister_subscriber(subscriber)
+
