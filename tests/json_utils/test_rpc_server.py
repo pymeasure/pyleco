@@ -38,11 +38,16 @@ from pyleco.json_utils.json_objects import (
     ResponseBatch,
 )
 from pyleco.json_utils.errors import (
-    ServerError,
+    InternalError,
+    INTERNAL_ERROR,
+    InvalidParams,
+    INVALID_PARAMS,
     InvalidRequest,
     INVALID_REQUEST,
-    SERVER_ERROR,
-    INTERNAL_ERROR,
+    MethodNotFound,
+    METHOD_NOT_FOUND,
+    ParseError,
+    PARSE_ERROR,
 )
 
 
@@ -109,11 +114,11 @@ def test_multiple_requests_success(rpc_server: RPCServer, rpc_generator: RPCGene
 def test_failing_method(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     request = rpc_generator.build_request_str(method="fail")
     response = rpc_server.process_request(request)
-    with pytest.raises(ServerError) as exc_info:
+    with pytest.raises(InternalError) as exc_info:
         rpc_generator.get_result_from_response(response)  # type: ignore
     error = exc_info.value.rpc_error
-    assert error.code == SERVER_ERROR.code
-    assert error.message == SERVER_ERROR.message
+    assert error.code == INTERNAL_ERROR.code
+    assert error.message == INTERNAL_ERROR.message
 
 
 @pytest.mark.xfail(True, reason="Self written RPCServer cannot handle additional args")
@@ -124,25 +129,51 @@ def test_wrong_method_arguments_are_ignored(rpc_generator: RPCGenerator, rpc_ser
     assert result == 7
 
 
-def test_wrong_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
-    request = rpc_generator.build_request_str(method="simple", arg=9)
+def test_failing_parsing_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
+    response = rpc_server.process_request(b"\x01basdf")
+    with pytest.raises(ParseError) as exc_info:
+        rpc_generator.get_result_from_response(response)  # type: ignore
+    error = exc_info.value.rpc_error
+    assert error.code == PARSE_ERROR.code
+    assert error.message == PARSE_ERROR.message
+
+
+def test_method_not_found_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
+    method_name = "not existing method"
+    request = rpc_generator.build_request_str(method=method_name)
     response = rpc_server.process_request(request)
-    response_obj = json.loads(response)  # type: ignore
-    expected_response_obj = ErrorResponse(id=1, error=SERVER_ERROR)
-    assert response_obj == expected_response_obj.model_dump()
+    with pytest.raises(MethodNotFound) as exc_info:
+        rpc_generator.get_result_from_response(response)  # type: ignore
+    error = exc_info.value.rpc_error
+    assert error.code == METHOD_NOT_FOUND.code
+    assert error.message == METHOD_NOT_FOUND.message
+    assert error.data == method_name  # type: ignore
+
+
+def test_wrong_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
+    args = {"arg": 9}
+    request = ParamsRequest(1, "simple", args)
+    response = rpc_server.process_request(request.model_dump_json())
+    with pytest.raises(InvalidParams) as exc_info:
+        rpc_generator.get_result_from_response(response)  # type: ignore
+    error = exc_info.value.rpc_error
+    assert error.code == INVALID_PARAMS.code
+    assert error.message == INVALID_PARAMS.message
+    assert error.data == request.model_dump()  # type: ignore
 
 
 def test_obligatory_parameter_missing(rpc_generator: RPCGenerator, rpc_server: RPCServer):
-    request = rpc_generator.build_request_str(method="obligatory_parameter")
-    response = rpc_server.process_request(request)
-    with pytest.raises(ServerError) as exc_info:
+    request = Request(1, "obligatory_parameter")
+    response = rpc_server.process_request(request.model_dump_json())
+    with pytest.raises(InvalidParams) as exc_info:
         rpc_generator.get_result_from_response(response)  # type: ignore
     error = exc_info.value.rpc_error
-    assert error.code == SERVER_ERROR.code
-    assert error.message == SERVER_ERROR.message
+    assert error.code == INVALID_PARAMS.code
+    assert error.message == INVALID_PARAMS.message
+    assert error.data == request.model_dump()  # type: ignore
 
 
-def test_process_response(rpc_server: RPCServer, rpc_generator: RPCGenerator):
+def test_process_response_raise_error(rpc_server: RPCServer, rpc_generator: RPCGenerator):
     """It should be a request, not a response!"""
     request = ResultResponse(id=7, result=9)
     request_string = request.model_dump_json()
