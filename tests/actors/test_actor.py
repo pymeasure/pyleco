@@ -33,6 +33,7 @@ import pytest
 from pyleco.test import FakeSocket, FakePoller, assert_response_is_result, handle_request_message
 from pyleco.actors.actor import Actor
 from pyleco.core.leco_protocols import PollingActorProtocol, ExtendedComponentProtocol, Protocol
+from pyleco.json_utils.json_objects import Request
 
 
 class FantasyChannel:
@@ -135,8 +136,7 @@ class TestProtocolImplemented:
 
     @pytest.fixture
     def component_methods(self, actor: Actor):
-        response = actor.rpc.process_request(
-            '{"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}')
+        response = actor.rpc.process_request(Request(1, method="rpc.discover").model_dump_json())
         result = actor.rpc_generator.get_result_from_response(response)  # type: ignore
         return result.get('methods')
 

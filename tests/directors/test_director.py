@@ -27,6 +27,7 @@ import pytest
 from pyleco.directors.director import Director
 from pyleco.test import FakeCommunicator
 from pyleco.core.message import Message, MessageTypes
+from pyleco.json_utils.json_objects import Request, ParamsRequest, ResultResponse
 
 
 cid = b"conversation_id;"
@@ -93,46 +94,46 @@ def test_ask_message(director: Director):
 def test_get_rpc_capabilities(director: Director):
     data = {"name": "actor", "methods": []}
     director.communicator._r = [  # type: ignore
-        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
-            "id": 1, "result": data, "jsonrpc": "2.0"
-            })]
+        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data=
+            ResultResponse(id=1, result=data)
+            )]
     result = director.get_rpc_capabilities()
     assert director.communicator._s == [  # type: ignore
-        Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data={
-            "id": 1, "method": "rpc.discover", "jsonrpc": "2.0"
-            })]
+        Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data=
+            Request(id=1, method="rpc.discover")
+            )]
     assert result == data
 
 
 def test_shutdown_actor(director: Director):
     director.communicator._r = [  # type: ignore
-        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
-            "id": 1, "result": None, "jsonrpc": "2.0"
-            })]
+        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data=
+            ResultResponse(id=1, result=None)
+            )]
     director.shut_down_actor()
     assert director.communicator._s == [  # type: ignore
-        Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data={
-            "id": 1, "method": "shut_down", "jsonrpc": "2.0"
-            })]
+        Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data=
+            Request(id=1, method="shut_down")
+            )]
 
 
 def test_set_actor_log_level(director: Director):
     director.communicator._r = [  # type: ignore
-        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
-            "id": 1, "result": None, "jsonrpc": "2.0"
-            })]
+        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data=
+            ResultResponse(id=1, result=None)
+            )]
     director.set_actor_log_level(30)
     assert director.communicator._s == [  # type: ignore
-        Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data={
-            "id": 1, "method": "set_log_level", "jsonrpc": "2.0", "params": {"level": "WARNING"}
-            })]
+        Message("actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data=
+            ParamsRequest(id=1, method="set_log_level", params={"level": "WARNING"})
+            )]
 
 
 def test_read_rpc_response(director: Director):
     director.communicator._r = [  # type: ignore
-        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
-            "id": 1, "result": 7.5, "jsonrpc": "2.0"
-            })]
+        Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data=
+            ResultResponse(id=1, result=7.5)
+            )]
     assert director.read_rpc_response(conversation_id=cid) == 7.5
 
 
@@ -143,7 +144,7 @@ def test_read_binary_rpc_response(director: Director):
             "actor",
             conversation_id=cid,
             message_type=MessageTypes.JSON,
-            data={"id": 1, "result": None, "jsonrpc": "2.0"},
+            data=ResultResponse(id=1, result=None),
             additional_payload=[b"123"],
         )
     ]
@@ -158,8 +159,7 @@ def test_get_properties_async(director: Director):
     cid = director.get_parameters_async(parameters=properties)
     assert director.communicator._s == [Message(  # type: ignore
         receiver="actor", sender="director", conversation_id=cid, message_type=MessageTypes.JSON,
-        data={"id": 1, "method": "get_parameters", "params": {"parameters": properties},
-              "jsonrpc": "2.0"}
+        data=ParamsRequest(id=1, method="get_parameters", params={"parameters": properties})
     )]
 
 
@@ -168,8 +168,7 @@ def test_get_properties_async_string(director: Director):
     cid = director.get_parameters_async(parameters=properties[0])
     assert director.communicator._s == [Message(  # type: ignore
         receiver="actor", sender="director", conversation_id=cid, message_type=MessageTypes.JSON,
-        data={"id": 1, "method": "get_parameters", "params": {"parameters": properties},
-              "jsonrpc": "2.0"}
+        data=ParamsRequest(id=1, method="get_parameters", params={"parameters": properties})
     )]
 
 
@@ -178,8 +177,7 @@ def test_set_properties_async(director: Director):
     cid = director.set_parameters_async(parameters=properties)
     assert director.communicator._s == [Message(  # type: ignore
         receiver="actor", sender="director", conversation_id=cid, message_type=MessageTypes.JSON,
-        data={"id": 1, "method": "set_parameters", "params": {"parameters": properties},
-              "jsonrpc": "2.0"}
+        data=ParamsRequest(id=1, method="set_parameters", params={"parameters": properties})
     )]
 
 
@@ -187,9 +185,8 @@ def test_call_action_async_with_args_and_kwargs(director: Director):
     cid = director.call_action_async("action_name", "arg1", key1=1)
     assert director.communicator._s == [Message(  # type: ignore
         receiver="actor", sender="director", conversation_id=cid, message_type=MessageTypes.JSON,
-        data={"id": 1, "method": "call_action", "params": {"action": "action_name",
-                                                           "args": ["arg1"], "kwargs": {"key1": 1}},
-              "jsonrpc": "2.0"}
+        data=ParamsRequest(id=1, method="call_action", params={"action": "action_name",
+                                                           "args": ["arg1"], "kwargs": {"key1": 1}})
         )]
 
 
@@ -197,9 +194,8 @@ def test_call_action_async_with_args_only(director: Director):
     cid = director.call_action_async("action_name", "arg1", 5)
     assert director.communicator._s == [Message(  # type: ignore
         receiver="actor", sender="director", conversation_id=cid, message_type=MessageTypes.JSON,
-        data={"id": 1, "method": "call_action", "params": {"action": "action_name",
-                                                           "args": ["arg1", 5]},
-              "jsonrpc": "2.0"}
+        data=ParamsRequest(id=1, method="call_action", params={"action": "action_name",
+                                                           "args": ["arg1", 5]})
         )]
 
 
@@ -207,9 +203,8 @@ def test_call_action_async_with_kwargs_only(director: Director):
     cid = director.call_action_async("action_name", arg1=1, arg2="abc")
     assert director.communicator._s == [Message(  # type: ignore
         receiver="actor", sender="director", conversation_id=cid, message_type=MessageTypes.JSON,
-        data={"id": 1, "method": "call_action", "params": {"action": "action_name",
-                                                           "kwargs": {"arg1": 1, "arg2": "abc"}},
-              "jsonrpc": "2.0"}
+        data=ParamsRequest(id=1, method="call_action", params={"action": "action_name",
+                                                           "kwargs": {"arg1": 1, "arg2": "abc"}})
         )]
 
 
@@ -220,17 +215,24 @@ class Test_get_properties:
     @pytest.fixture
     def director_gp(self, director: Director):
         director.communicator._r = [  # type: ignore
-            Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data={
-                "id": 1, "result": self.expected_result, "jsonrpc": "2.0"
-                })]
+            Message("director", "actor", conversation_id=cid, message_type=MessageTypes.JSON, data=
+                ResultResponse(id=1, result=self.expected_result)
+                )]
         self.result = director.get_parameters(parameters=self.properties)
         return director
 
     def test_message_sent(self, director_gp):
-        assert director_gp.communicator._s == [Message(  # type: ignore
-            "actor", "director", conversation_id=cid, message_type=MessageTypes.JSON, data={
-                "id": 1, "method": "get_parameters", "params": {"parameters": self.properties},
-                "jsonrpc": "2.0"})]
+        assert director_gp.communicator._s == [
+            Message(  # type: ignore
+                "actor",
+                "director",
+                conversation_id=cid,
+                message_type=MessageTypes.JSON,
+                data=ParamsRequest(
+                    id=1, method="get_parameters", params={"parameters": self.properties}
+                ),
+            )
+        ]
 
     def test_result(self, director_gp):
         assert self.result == self.expected_result

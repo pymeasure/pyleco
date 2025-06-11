@@ -27,8 +27,23 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pyleco.json_utils.json_objects import Request, ErrorResponse, DataError
-from pyleco.json_utils.errors import NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME, RECEIVER_UNKNOWN
+from pyleco.json_utils.json_objects import (
+    Request,
+    ErrorResponse,
+    DataError,
+    Notification,
+    ResultResponse,
+    ResponseBatch,
+    RequestBatch,
+    ParamsRequest,
+)
+from pyleco.json_utils.errors import (
+    NODE_UNKNOWN,
+    NOT_SIGNED_IN,
+    DUPLICATE_NAME,
+    RECEIVER_UNKNOWN,
+    SERVER_ERROR,
+)
 from pyleco.core import VERSION_B
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.leco_protocols import ExtendedComponentProtocol, Protocol, CoordinatorProtocol
@@ -97,8 +112,7 @@ class TestCoordinatorImplementsProtocol:
 
     @pytest.fixture
     def component_methods(self, coordinator: Coordinator):
-        response = coordinator.rpc.process_request(
-            '{"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}')
+        response = coordinator.rpc.process_request(Request(1, "rpc.discover").model_dump_json())
         result = RPCGenerator().get_result_from_response(response)  # type: ignore
         return result.get('methods')
 
@@ -337,55 +351,58 @@ class Test_handle_commands:
         coordinator_hc.handle_commands(b"identity", msg)
         assert coordinator_hc.current_identity == b"identity"
 
-    @pytest.mark.parametrize("identity, message", (
-        (b"3", Message(b"", message_type=MessageTypes.JSON,
-                       data={"jsonrpc": "2.0", "method": "some"})),
-    ))
+    @pytest.mark.parametrize(
+        "identity, message",
+        ((b"3", Message(b"", message_type=MessageTypes.JSON, data=Notification("some"))),),
+    )
     def test_call_handle_rpc_call(self, coordinator_hc: Coordinator, identity, message):
         coordinator_hc.handle_commands(identity, message)
         assert coordinator_hc._rpc == message  # type: ignore
 
+    @pytest.mark.xfail(True, reason="Not yet written")
     def test_log_error_response(self, coordinator_hc: Coordinator):
-        pass  # TODO
+        raise NotImplementedError  # TODO
 
     def test_pass_at_null_result(self, coordinator_hc: Coordinator):
-        coordinator_hc.handle_commands(b"",
-                                       Message(b"",
-                                               message_type=MessageTypes.JSON,
-                                               data={"jsonrpc": "2.0", "result": None}))
+        coordinator_hc.handle_commands(
+            b"", Message(b"", message_type=MessageTypes.JSON, data=ResultResponse(1, None))
+        )
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
 
     def test_log_at_non_null_result(self, coordinator_hc: Coordinator,
                                     caplog: pytest.LogCaptureFixture):
         caplog.set_level(10)
-        coordinator_hc.handle_commands(b"",
-                                       Message(b"",
-                                               message_type=MessageTypes.JSON,
-                                               data={"jsonrpc": "2.0", "result": 5}))
+        coordinator_hc.handle_commands(
+            b"", Message(b"", message_type=MessageTypes.JSON, data=ResultResponse(1, result=5))
+        )
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
         caplog.records[-1].msg.startswith("Unexpected result")
 
     def test_pass_at_batch_of_null_results(self, coordinator_hc: Coordinator):
-        coordinator_hc.handle_commands(b"",
-                                       Message(b"",
-                                               message_type=MessageTypes.JSON,
-                                               data=[{"jsonrpc": "2.0", "result": None, "id": 1},
-                                                     {"jsonrpc": "2.0", "result": None, "id": 2}]
-                                               ))
+        coordinator_hc.handle_commands(
+            b"",
+            Message(
+                b"",
+                message_type=MessageTypes.JSON,
+                data=ResponseBatch([ResultResponse(1, None), ResultResponse(2, None)]),
+            ),
+        )
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
 
     def test_log_at_batch_of_non_null_results(self, coordinator_hc: Coordinator,
                                               caplog: pytest.LogCaptureFixture):
         caplog.set_level(10)
-        coordinator_hc.handle_commands(b"",
-                                       Message(b"",
-                                               message_type=MessageTypes.JSON,
-                                               data=[{"jsonrpc": "2.0", "result": None, "id": 1},
-                                                     {"jsonrpc": "2.0", "result": 5, "id": 2}]
-                                               ))
+        coordinator_hc.handle_commands(
+            b"",
+            Message(
+                b"",
+                message_type=MessageTypes.JSON,
+                data=ResponseBatch([ResultResponse(1, None), ResultResponse(2, 5)]),
+            ),
+        )
         assert not hasattr(coordinator_hc, "_rpc")
         caplog.records[-1].msg.startswith("Unexpected result")
 
@@ -422,14 +439,14 @@ class Test_sign_in:
             (b"cb", Message(b"CB", b"N1.COORDINATOR",
                             conversation_id=cid,
                             message_type=MessageTypes.JSON,
-                            data={"id": 7, "result": None, "jsonrpc": "2.0"}))]
+                            data=ResultResponse(7, None)))]
 
     def test_signin_sends_directory_update(self, coordinator: Coordinator):
         coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.sock._messages_read = [  # type: ignore
             [b'cb', Message(b"COORDINATOR", b"CB", conversation_id=cid,
                             message_type=MessageTypes.JSON,
-                            data={"jsonrpc": "2.0", "method": "sign_in", "id": 7},
+                            data=Request(7, "sign_in"),
                             )]]
         # read_and_route needs to start at routing, to check that the messages passes the heartbeats
         coordinator.read_and_route()
@@ -439,16 +456,14 @@ class Test_sign_in:
         coordinator.sock._messages_read = [  # type: ignore
             [b'cb', Message(b"COORDINATOR", b"send", conversation_id=cid,
                             message_type=MessageTypes.JSON,
-                            data={"id": 8, "method": "sign_in", "jsonrpc": "2.0"},
+                            data=Request(8, method="sign_in"),
                             )]]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [(b"cb", Message(  # type: ignore
             b"send", b"N1.COORDINATOR",
             conversation_id=cid,
             message_type=MessageTypes.JSON,
-            data={"id": None, "error": {"code": DUPLICATE_NAME.code,
-                                        "message": DUPLICATE_NAME.message},
-                  "jsonrpc": "2.0"}
+            data=ErrorResponse(None, DUPLICATE_NAME),
         ))]
 
 
@@ -457,7 +472,7 @@ class Test_sign_out_successful:
     def coordinator_signed_out(self, coordinator: Coordinator):
         sign_out_message = Message(receiver=b"N1.COORDINATOR", sender=b"rec",
                                    message_type=MessageTypes.JSON,
-                                   data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})
+                                   data=Request(10, "sign_out"))
         coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.sock._messages_read = [[b"123", sign_out_message]]  # type: ignore
         coordinator.read_and_route()
@@ -470,7 +485,7 @@ class Test_sign_out_successful:
         assert coordinator_signed_out.sock._messages_sent == [  # type: ignore
             (b"123", Message(b"rec", b"N1.COORDINATOR",
                              message_type=MessageTypes.JSON,
-                             data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
+                             data=ResultResponse(id=10, result=None)))]
 
     def test_directory_update_sent(self, coordinator_signed_out: Coordinator):
         coordinator_signed_out.publish_directory_update.assert_any_call()  # type: ignore
@@ -481,7 +496,7 @@ class Test_sign_out_successful:
         coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
             b"N1.COORDINATOR", b"rec",
             message_type=MessageTypes.JSON,
-            data={"jsonrpc": "2.0", "result": None, "id": 11})]]
+            data=ResultResponse(11, None))]]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [(b"123", Message(  # type: ignore
             b"rec", b"N1.COORDINATOR", message_type=MessageTypes.JSON,
@@ -491,22 +506,22 @@ class Test_sign_out_successful:
 def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
     coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
         b"N1.COORDINATOR", b"N1.rec", message_type=MessageTypes.JSON,
-        data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
+        data=Request(10, "sign_out"))]]
     coordinator.read_and_route()
     assert b"rec" not in coordinator.directory.get_components().keys()
     assert coordinator.sock._messages_sent == [  # type: ignore
         (b"123", Message(b"N1.rec", b"N1.COORDINATOR", message_type=MessageTypes.JSON,
-                         data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
+                         data=ResultResponse(10, None)))]
 
 
 def test_sign_out_of_not_signed_in_generates_acknowledgment_nonetheless(coordinator: Coordinator):
     coordinator.sock._messages_read = [[b'584', Message(  # type: ignore
         b"N1.COORDINATOR", b"rec584", message_type=MessageTypes.JSON,
-        data={"jsonrpc": "2.0", "method": "sign_out", "id": 10})]]
+        data=Request(10, "sign_out"))]]
     coordinator.read_and_route()
     assert coordinator.sock._messages_sent == [  # type: ignore
         (b"584", Message(b"rec584", b"N1.COORDINATOR", message_type=MessageTypes.JSON,
-                         data={"id": 10, "result": None, "jsonrpc": "2.0"}))]
+                         data=ResultResponse(10, None)))]
 
 
 class Test_coordinator_sign_in:
@@ -515,15 +530,22 @@ class Test_coordinator_sign_in:
         coordinator.sock._messages_read = [  # type: ignore
             [b'n3', Message(b"COORDINATOR", b"N3.COORDINATOR",
                             message_type=MessageTypes.JSON,
-                            data={"jsonrpc": "2.0", "method": "coordinator_sign_in", "id": 15},
+                            data=Request(15, "coordinator_sign_in"),
                             conversation_id=cid)]]
         coordinator.read_and_route()
         assert b'n3' in coordinator.directory.get_node_ids().keys()
         assert coordinator.sock._messages_sent == [  # type: ignore
-            (b'n3', Message(b"COORDINATOR", b"N1.COORDINATOR",
-                            message_type=MessageTypes.JSON,
-                            conversation_id=cid, data={"id": 15, "result": None,
-                                                       "jsonrpc": "2.0"}))]
+            (
+                b"n3",
+                Message(
+                    b"COORDINATOR",
+                    b"N1.COORDINATOR",
+                    message_type=MessageTypes.JSON,
+                    conversation_id=cid,
+                    data=ResultResponse(15, None),
+                ),
+            )
+        ]
 
     def test_co_signin_known_coordinator_successful(self, fake_counting, coordinator: Coordinator):
         """Test that a Coordinator may sign in as a response to N1's sign in."""
@@ -537,34 +559,44 @@ class Test_coordinator_sign_in:
             [b'n3', Message(b"COORDINATOR", b"N3.COORDINATOR",
                             conversation_id=cid,
                             message_type=MessageTypes.JSON,
-                            data={"jsonrpc": "2.0", "method": "coordinator_sign_in", "id": 15},)]]
+                            data=Request(15, "coordinator_sign_in"),)]]
         coordinator.read_and_route()
         assert b'n3' in coordinator.directory.get_node_ids().keys()
         assert coordinator.sock._messages_sent == [(b'n3', Message(  # type: ignore
             b"COORDINATOR", b"N1.COORDINATOR", message_type=MessageTypes.JSON, conversation_id=cid,
-            data={"id": 15, "result": None, "jsonrpc": "2.0"}))]
+            data=ResultResponse(15, None)))]
 
     @pytest.mark.xfail(True, reason="Additional error data is added")
     def test_co_signin_rejected(self, coordinator: Coordinator):
         """Coordinator sign in rejected due to already connected Coordinator."""
         coordinator.sock._messages_read = [  # type: ignore
             [b'n3', Message(b"COORDINATOR", b"N2.COORDINATOR",
-                            data={"jsonrpc": "2.0", "method": "coordinator_sign_in", "id": 15},
+                            data=Request(15, "coordinator_sign_in"),
                             message_type=MessageTypes.JSON,
                             conversation_id=cid)]]
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [(b"n3", Message(  # type: ignore
-            b"COORDINATOR", b"N1.COORDINATOR",
-            data={"id": 15, "error": {"code": -32000, "message": "Server error",
-                                      "data": "ValueError: Another Coordinator is known!"},
-                  "jsonrpc": "2.0"},
-            message_type=MessageTypes.JSON,
-            conversation_id=cid))]
+        assert coordinator.sock._messages_sent == [  # type: ignore
+            (
+                b"n3",
+                Message(
+                    b"COORDINATOR",
+                    b"N1.COORDINATOR",
+                    data=ErrorResponse(
+                        15,
+                        error=DataError.from_error(
+                            SERVER_ERROR, data="ValueError: Another Coordinator is known!"
+                        ),
+                    ),
+                    message_type=MessageTypes.JSON,
+                    conversation_id=cid,
+                ),
+            )
+        ]
 
     def test_coordinator_sign_in_fails_at_duplicate_name(self, coordinator: Coordinator):
         coordinator.current_message = Message(
             b"COORDINATOR", b"N2.COORDINATOR",
-            data={"jsonrpc": "2.0", "method": "coordinator_sign_in", "id": 15},
+            data=Request(15, "coordinator_sign_in"),
             message_type=MessageTypes.JSON,
             conversation_id=cid)
         coordinator.current_identity = b"n3"
@@ -576,7 +608,7 @@ class Test_coordinator_sign_in:
         coordinator.sock._messages_read = [  # type: ignore
             [b'n3', Message(b"COORDINATOR", b"N1.COORDINATOR", conversation_id=cid,
                             message_type=MessageTypes.JSON,
-                            data={"jsonrpc": "2.0", "method": "coordinator_sign_in", "id": 15})]]
+                            data=Request(15, "coordinator_sign_in"))]]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [  # type: ignore
             (b'n3', Message(b"N1.COORDINATOR", b"N1.COORDINATOR", conversation_id=cid,
@@ -590,14 +622,14 @@ class Test_coordinator_sign_out:
             [b'n2', Message(b"COORDINATOR", b"N2.COORDINATOR",
                             conversation_id=cid,
                             message_type=MessageTypes.JSON,
-                            data={"id": 10, "method": "coordinator_sign_out", "jsonrpc": "2.0"})]]
+                            data=Request(10, "coordinator_sign_out"))]]
         node = coordinator.directory.get_node(b"N2")
         coordinator.read_and_route()
         assert b"n2" not in coordinator.directory.get_node_ids()
         assert node._messages_sent == [Message(  # type: ignore
             b"N2.COORDINATOR", b"N1.COORDINATOR", conversation_id=cid,
             message_type=MessageTypes.JSON,
-            data={"id": 100, "method": "coordinator_sign_out", "jsonrpc": "2.0"})]
+            data=Request(100, "coordinator_sign_out"))]
 
     @pytest.mark.xfail(True, reason="Not yet defined.")
     def test_co_signout_rejected_due_to_different_identity(self, coordinator: Coordinator):
@@ -607,7 +639,7 @@ class Test_coordinator_sign_out:
             [b'n4', Message(
                 receiver=b"COORDINATOR", sender=b"N2.COORDINATOR", conversation_id=cid,
                 message_type=MessageTypes.JSON,
-                data={"id": 10, "method": "coordinator_sign_out", "jsonrpc": "2.0"})]]
+                data=Request(10, "coordinator_sign_out"))]]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [  # type: ignore
             (b"n4", Message(
@@ -620,7 +652,7 @@ class Test_coordinator_sign_out:
         coordinator.sock._messages_read = [  # type: ignore
             (b"n4", Message(b"COORDINATOR", b"N4.COORDINATOR",
                             message_type=MessageTypes.JSON,
-                            data={"id": 10, "method": "coordinator_sign_out", "jsonrpc": "2.0"}))]
+                            data=Request(10, "coordinator_sign_out")))]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == []  # type: ignore
 
@@ -637,7 +669,7 @@ class Test_shutdown:
         assert self.n2._messages_sent == [  # type: ignore
             Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
                     message_type=MessageTypes.JSON,
-                    data={"id": 2, "method": "coordinator_sign_out", "jsonrpc": "2.0"})]
+                    data=Request(2, "coordinator_sign_out"))]
 
     def test_event_set(self, shutdown_coordinator: Coordinator):
         assert shutdown_coordinator.stop_event.is_set() is True
@@ -682,14 +714,20 @@ def test_publish_directory_updates(coordinator: Coordinator):
     coordinator.publish_directory_update()
     assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
         Message(
-            b'N2.COORDINATOR', b'N1.COORDINATOR',
+            b"N2.COORDINATOR",
+            b"N1.COORDINATOR",
             message_type=MessageTypes.JSON,
-            data=[
-                {"id": 5, "method": "add_nodes",
-                    "params": {"nodes": {"N1": "N1host:12300", "N2": "N2host:12300"}},
-                    "jsonrpc": "2.0"},
-                {"id": 6, "method": "record_components",
-                    "params": {"components": ["send", "rec"]},
-                    "jsonrpc": "2.0"}]
+            data=RequestBatch(
+                [
+                    ParamsRequest(
+                        5,
+                        method="add_nodes",
+                        params={"nodes": {"N1": "N1host:12300", "N2": "N2host:12300"}},
+                    ),
+                    ParamsRequest(
+                        6, method="record_components", params={"components": ["send", "rec"]}
+                    ),
+                ]
+            ),
         ),
     ]

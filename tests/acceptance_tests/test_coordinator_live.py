@@ -32,6 +32,7 @@ import pytest
 from pyleco.core.message import Message, MessageTypes
 from pyleco.utils.listener import Listener
 from pyleco.utils.communicator import Communicator
+from pyleco.json_utils.json_objects import Request, ResultResponse
 
 # Test the Coordinator and its Director in a live test
 from pyleco.directors.coordinator_director import CoordinatorDirector
@@ -116,10 +117,10 @@ def test_Component_to_Component_via_1_Coordinator(leco: Communicator):
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
 def test_Component_to_Component_via_2_Coordinators(leco: Communicator):
     with Communicator(name="whatever", port=PORT2) as c:
-        response = c.ask("N1.Controller", data={"id": 1, "method": "pong", "jsonrpc": "2.0"},
+        response = c.ask("N1.Controller", data=Request(1, method= "pong"),
                          message_type=MessageTypes.JSON)
         assert response == Message(
-            b'N2.whatever', b'N1.Controller', data={"id": 1, "result": None, "jsonrpc": "2.0"},
+            b'N2.whatever', b'N1.Controller', data=ResultResponse(1, None),
             header=response.header)
 
 

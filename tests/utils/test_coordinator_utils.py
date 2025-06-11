@@ -26,8 +26,9 @@ import pytest
 
 from pyleco.test import FakeContext
 from pyleco.core.message import Message, MessageTypes
-from pyleco.json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME
-from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse
+from pyleco.json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME, INVALID_REQUEST
+from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse, ParamsRequest,\
+    RequestBatch
 from pyleco.utils.coordinator_utils import CommunicationError, ZmqNode, ZmqMultiSocket, Node,\
     Directory, FakeNode
 
@@ -289,8 +290,8 @@ class Test_handle_node_message:
                     data=ErrorResponse(id=None, error=NOT_SIGNED_IN)),
             Message("N1.COORDINATOR", "N5.COORDINATOR",
                     message_type=MessageTypes.JSON,
-                    data={"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"},
-                          "id": None})
+                    data=ErrorResponse(id=None, error=INVALID_REQUEST),
+            )
     ))
     def test_rejected_sign_in(self, directory: Directory, message):
         directory._waiting_nodes["N5host"] = n = FakeNode()
@@ -301,10 +302,10 @@ class Test_handle_node_message:
     @pytest.mark.parametrize("message", (
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
                     message_type=MessageTypes.JSON,
-                    data={"jsonrpc": "2.0", "result": None, "id": 1}),
+                    data=ResultResponse(1, None)),
             Message(b"N1.COORDINATOR", b"N5.COORDINATOR",
                     message_type=MessageTypes.JSON,
-                    data={"jsonrpc": "2.0", "result": None, "id": 5}),
+                    data=ResultResponse(5, None)),
     ))
     def test_successful_sign_in(self, directory: Directory, message):
         directory._waiting_nodes["N5host"] = n = FakeNode()
@@ -324,7 +325,7 @@ class Test_finish_sign_in_to_remote:
             receiver=b"N1.COORDINATOR",
             sender=b"N3.COORDINATOR",
             message_type=MessageTypes.JSON,
-            data={"id": 1, "result": None, "jsonrpc": "2.0"},
+            data=ResultResponse(1, None),
         ))
         return directory
 
@@ -339,20 +340,38 @@ class Test_finish_sign_in_to_remote:
 
     def test_directory_sent(self, directory_sirn: Directory):
         assert directory_sirn._nodes[b"N3"]._messages_sent == [  # type: ignore
-            Message(b'COORDINATOR', b'N1.COORDINATOR',
-                    {"id": 1, "method": "coordinator_sign_in", "jsonrpc": "2.0"},
-                    message_type=MessageTypes.JSON,
-                    conversation_id=cid),
             Message(
-                b'N3.COORDINATOR', b'N1.COORDINATOR',
-                data=[{"id": 2, "method": "add_nodes", "params":
-                       {"nodes": {"N1": "N1host:12300", "N2": "N2host", "N3": "N3host:12300"}},
-                       "jsonrpc": "2.0"},
-                      {"id": 3, "method": "record_components", "params":
-                       {"components": ["send", "rec"]}, "jsonrpc": "2.0"}],
+                b"COORDINATOR",
+                b"N1.COORDINATOR",
+                Request(1, "coordinator_sign_in"),
                 message_type=MessageTypes.JSON,
                 conversation_id=cid,
-            )]
+            ),
+            Message(
+                b"N3.COORDINATOR",
+                b"N1.COORDINATOR",
+                data=RequestBatch(
+                    [
+                        ParamsRequest(
+                            2,
+                            method="add_nodes",
+                            params={
+                                "nodes": {
+                                    "N1": "N1host:12300",
+                                    "N2": "N2host",
+                                    "N3": "N3host:12300",
+                                }
+                            },
+                        ),
+                        ParamsRequest(
+                            3, method="record_components", params={"components": ["send", "rec"]}
+                        ),
+                    ]
+                ),
+                message_type=MessageTypes.JSON,
+                conversation_id=cid,
+            ),
+        ]
 
 
 class Test_combine_sender_and_receiver_nodes:
@@ -412,14 +431,14 @@ class Test_update_heartbeat:
     def test_local_component_signs_in(self, directory: Directory):
         directory.update_heartbeat(b"new_id", Message.from_frames(
             b"", b"COORDINATOR", b"send2", b"",
-            b'{"id": 2, "method": "sign_in", "jsonrpc": "2.0"}'))
+            b'Request(2, "sign_in")'))
         # test that no error is raised
 
     def test_not_signed_in_component_signs_out(self, directory: Directory):
         # TODO not determined by LECO
         directory.update_heartbeat(b"new_id", Message.from_frames(
             b"", b"COORDINATOR", b"send2", b"",
-            b'{"id": 2, "method": "sign_out", "jsonrpc": "2.0"}'))
+            b'Request(2, "sign_out")'))
         # test that no error is raised
 
     def test_local_component_with_wrong_id(self, directory: Directory):
@@ -432,15 +451,15 @@ class Test_update_heartbeat:
             directory.update_heartbeat(b"new_id", Message(
                 receiver=b"COORDINATOR", sender=b"send",
                 message_type=MessageTypes.JSON,
-                data={"jsonrpc": "2.0", "id": 2, "method": "sign_in"}))
+                data=Request(2, "sign_in")))
 
     def test_known_node(self, fake_counting, directory: Directory):
         directory.update_heartbeat(b"n2", Message.from_frames(b"", b"COORDINATOR", b"N2.send", b""))
         assert directory.get_node_ids()[b"n2"].heartbeat == 0
 
     @pytest.mark.parametrize("data", (
-            {"jsonrpc": "2.0", "method": "coordinator_sign_in", "id": 7},
-            {"jsonrpc": "2.0", "method": "coordinator_sign_out", "id": 7},
+        Request(7, "coordinator_sign_in"),
+        Request(7, "coordinator_sign_out"),
     ))
     def test_signing_in_out_node(self, directory: Directory, data):
         directory.update_heartbeat(b"n3", Message(
@@ -524,7 +543,7 @@ class Test_sign_out_from_node:
     def test_message_sent(self, directory_wo_n2: Directory):
         assert directory_wo_n2._test._messages_sent == [  # type: ignore
             Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
-                    data={"id": 1, "method": "coordinator_sign_out", "jsonrpc": "2.0"},
+                    data=Request(1, "coordinator_sign_out"),
                     message_type=MessageTypes.JSON,
                     conversation_id=cid)]
 

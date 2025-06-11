@@ -30,6 +30,7 @@ from pyleco.core import VERSION_B
 from pyleco.core.message import Message, MessageTypes
 from pyleco.core.serialization import serialize_data
 from pyleco.json_utils.errors import JSONRPCError, NOT_SIGNED_IN, NODE_UNKNOWN
+from pyleco.json_utils.json_objects import ErrorResponse, Request, ParamsRequest, ResultResponse
 
 from pyleco.utils.communicator import Communicator
 from pyleco.test import FakeSocket, FakeContext
@@ -162,7 +163,7 @@ class Test_ask_message:
     def test_ignore_ping(self, communicator: Communicator):
         ping_message = Message(receiver=b"N1.Test", sender=b"N1.COORDINATOR",
                                message_type=MessageTypes.JSON,
-                               data={"id": 0, "method": "pong", "jsonrpc": "2.0"})
+                               data=Request(0, "pong"))
         communicator.socket._r = [  # type: ignore
             ping_message.to_frames(),
             self.response.to_frames()]
@@ -174,9 +175,7 @@ class Test_ask_message:
         not_signed_in = Message(receiver="N1.Test", sender="N1.COORDINATOR",
                                 message_type=MessageTypes.JSON,
                                 conversation_id=cid,
-                                data={"id": None,
-                                      "error": NOT_SIGNED_IN.model_dump(),
-                                      "jsonrpc": "2.0"},
+                                data=ErrorResponse(None, error=NOT_SIGNED_IN),
                                 )
         communicator.socket._r = [  # type: ignore
             not_signed_in.to_frames(),
@@ -203,9 +202,7 @@ class Test_ask_message:
     def test_sign_in_fails_several_times(self, communicator: Communicator, fake_cid_generation):
         not_signed_in = Message(receiver="communicator", sender="N1.COORDINATOR",
                                 message_type=MessageTypes.JSON,
-                                data={"id": None,
-                                      "error": NOT_SIGNED_IN.model_dump(),
-                                      "jsonrpc": "2.0"},
+                                data=ErrorResponse(None, error=NOT_SIGNED_IN),
                                 ).to_frames()
         communicator.sign_in = MagicMock()  # type: ignore
         communicator.socket._r = [not_signed_in, not_signed_in]  # type: ignore
@@ -216,9 +213,7 @@ class Test_ask_message:
     def test_ask_message_with_error(self, communicator: Communicator):
         response = Message(receiver="communicator", sender="N1.COORDINATOR",
                         message_type=MessageTypes.JSON, conversation_id=cid,
-                        data={"id": None,
-                                "error": NODE_UNKNOWN.model_dump(),
-                                "jsonrpc": "2.0"},
+                        data=ErrorResponse(None, NODE_UNKNOWN),
                         )
         communicator.socket._r = [response.to_frames()]  # type: ignore
         with pytest.raises(JSONRPCError, match=NODE_UNKNOWN.message):
@@ -228,15 +223,14 @@ class Test_ask_message:
 def test_ask_rpc(communicator: Communicator, fake_cid_generation):
     received = Message(receiver=b"N1.Test", sender=b"N1.receiver",
                        conversation_id=cid)
-    received.payload = [b"""{"jsonrpc": "2.0", "result": 123.45, "id": "1"}"""]
+    received.payload = [ResultResponse(1, 123.45).model_dump_json().encode()]
     communicator.socket._r = [received.to_frames()]  # type: ignore
     response = communicator.ask_rpc(receiver="N1.receiver", method="test_method", some_arg=4)
     assert communicator.socket._s == [
         Message(b'N1.receiver', b'Test',
                 conversation_id=cid,
                 message_type=MessageTypes.JSON,
-                data={"id": 1, "method": "test_method",
-                      "params": {"some_arg": 4}, "jsonrpc": "2.0"}).to_frames()]
+                data=ParamsRequest(1, "test_method", params={"some_arg": 4})).to_frames()]
     assert response == 123.45
 
 
@@ -244,7 +238,7 @@ def test_communicator_sign_in(fake_cid_generation, communicator: Communicator):
     communicator.socket._r = [  # type: ignore
         Message(b"N2.n", b"N2.COORDINATOR",
                 conversation_id=cid, message_type=MessageTypes.JSON,
-                data={"id": 1, "result": None, "jsonrpc": "2.0"}).to_frames()]
+                data=ResultResponse(1, None)).to_frames()]
     communicator.sign_in()
     assert communicator.namespace == "N2"
 
@@ -253,12 +247,12 @@ def test_get_capabilities(communicator: Communicator, fake_cid_generation):
     communicator.socket._r = [  # type: ignore
         Message("communicator", "sender", conversation_id=cid,
                 message_type=MessageTypes.JSON,
-                data={"id": 1, "result": 6, "jsonrpc": "2.0"}
+                data=ResultResponse(1, 6)
                 ).to_frames()
     ]
     result = communicator.get_capabilities(receiver="rec")
     sent = Message.from_frames(*communicator.socket._s.pop())  # type: ignore
-    assert sent.data == {"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}
+    assert sent.data == Request(1, "rpc.discover").model_dump()
     assert result == 6
 
 

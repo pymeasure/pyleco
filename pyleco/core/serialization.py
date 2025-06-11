@@ -31,16 +31,20 @@ from typing import Any, Optional, NamedTuple, Union
 # as long as uuid does not yet support UUIDv7 use uuid6
 from uuid6 import uuid7
 from ..json_utils.json_objects import (
+    JsonObject,
     Request,
     ParamsRequest,
     ResultResponse,
     ErrorResponse,
     Notification,
     ParamsNotification,
+    BatchObject,
 )
 
 
 json_objects = (
+    JsonObject,
+    BatchObject,
     Request,
     ParamsRequest,
     ResultResponse,
