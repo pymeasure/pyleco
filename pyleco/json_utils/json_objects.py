@@ -36,7 +36,7 @@ from typing import Any, List, Optional, TypeVar, Union
 
 ErrorType = Union["DataError", "Error"]
 NotificationType = Union["Notification", "ParamsNotification"]
-RequestType = Union["ParamsRequest", "Request"]
+RequestType = Union["ParamsRequest", "Request", "ParamsNotification", "Notification"]
 ResponseType = Union["ErrorResponse", "ResultResponse"]
 
 

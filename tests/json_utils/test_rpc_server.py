@@ -36,6 +36,8 @@ from pyleco.json_utils.json_objects import (
     ErrorResponse,
     DataError,
     ResponseBatch,
+    RequestBatch,
+    Notification
 )
 from pyleco.json_utils.errors import (
     ServerError,
@@ -200,7 +202,7 @@ class Test_discover_method:
 # tests regarding the local implementation of the RPC Server
 def test_process_single_notification(rpc_server: RPCServer):
     result = rpc_server._process_single_request(
-        {"jsonrpc": "2.0", "method": "simple"}
+        Notification("simple").model_dump()
     )
     assert result is None
 
@@ -230,28 +232,20 @@ class Test_process_request:
 
     def test_batch_entry_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
-        requests = [
-            {"jsonrpc": "2.0", "method": "simple"},
-            {"jsonrpc": "2.0", "method": "simple", "id": 4},
-        ]
-        result = json.loads(rpc_server.process_request(json.dumps(requests)))  # type: ignore
-        assert result == [{"jsonrpc": "2.0", "result": 7, "id": 4}]
+        requests = RequestBatch([Notification("simple"), Request(4, "simple")]).model_dump_json()
+        result = json.loads(rpc_server.process_request(requests))  # type: ignore
+        assert result == ResponseBatch([ResultResponse(4, 7)]).model_dump()
 
     def test_batch_of_notifications(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
-        requests = [
-            {"jsonrpc": "2.0", "method": "simple"},
-            {"jsonrpc": "2.0", "method": "simple"},
-        ]
-        result = rpc_server.process_request(json.dumps(requests))
+        requests = RequestBatch([Notification("simple"), Notification("simple")]).model_dump_json()
+        result = rpc_server.process_request(requests)
         assert result is None
 
     def test_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
-        requests = [
-            {"jsonrpc": "2.0", "method": "simple"},
-        ]
-        result = rpc_server.process_request(json.dumps(requests))
+        requests = Notification("simple").model_dump_json()
+        result = rpc_server.process_request(requests)
         assert result is None
 
 
@@ -267,26 +261,18 @@ class Test_process_request_object:
 
     def test_batch_entry_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
-        requests = [
-            {"jsonrpc": "2.0", "method": "simple"},
-            {"jsonrpc": "2.0", "method": "simple", "id": 4},
-        ]
+        requests = RequestBatch([Notification("simple"), Request(4, "simple")]).model_dump()
         result = rpc_server.process_request_object(requests)
         assert result == ResponseBatch([ResultResponse(4, 7)])
 
     def test_batch_of_notifications(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
-        requests = [
-            {"jsonrpc": "2.0", "method": "simple"},
-            {"jsonrpc": "2.0", "method": "simple"},
-        ]
+        requests = RequestBatch([Notification("simple"), Notification("simple")]).model_dump()
         result = rpc_server.process_request_object(requests)
         assert result is None
 
     def test_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
-        requests = [
-            {"jsonrpc": "2.0", "method": "simple"},
-        ]
+        requests = Notification("simple").model_dump()
         result = rpc_server.process_request_object(requests)
         assert result is None

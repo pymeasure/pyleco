@@ -36,7 +36,8 @@ from pyleco.core.leco_protocols import ExtendedComponentProtocol, LogLevels
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
-from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse
+from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse,\
+    ParamsRequest, Error
 from pyleco.json_utils.errors import JSONRPCError, INVALID_REQUEST, NOT_SIGNED_IN, DUPLICATE_NAME,\
     NODE_UNKNOWN, RECEIVER_UNKNOWN
 
@@ -82,7 +83,8 @@ class TestProtocolImplemented:
     @pytest.fixture
     def component_methods(self, handler: MessageHandler):
         response = handler.rpc.process_request(
-            '{"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}')
+            Request(id=1, method="rpc.discover").model_dump_json()
+        )
         result = handler.rpc_generator.get_result_from_response(response)  # type: ignore
         return result.get('methods')
 
@@ -132,9 +134,7 @@ class Test_sign_in:
         message = Message(receiver=b"N3.handler", sender=b"N3.COORDINATOR",
                           conversation_id=cid,
                           message_type=MessageTypes.JSON,
-                          data={
-                              "id": 0, "result": None, "jsonrpc": "2.0",
-                              })
+                          data=ResultResponse(id=0, result=None))
         handler.socket._r = [message.to_frames()]  # type: ignore
         handler.namespace = None
         handler.sign_in()
@@ -161,9 +161,13 @@ class Test_sign_in:
     def test_handle_unknown_error(self, handler: MessageHandler, caplog: pytest.LogCaptureFixture,
                                   fake_cid_generation):
         handler.namespace = None
-        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "jsonrpc": "2.0", "error": {'code': 123545, "message": "error_msg"}, "id": 5
-        }, conversation_id=cid)
+        message = Message(
+            "handler",
+            "N3.COORDINATOR",
+            message_type=MessageTypes.JSON,
+            data=ErrorResponse(5, error=Error(12345, "error_msg")),
+            conversation_id=cid,
+        )
         handler.socket._r = [message.to_frames()]  # type: ignore
         handler.sign_in()
         assert handler.namespace is None
@@ -174,9 +178,13 @@ class Test_sign_in:
                                     ):
         """Handle a message without result or error."""
         handler.namespace = None
-        message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "jsonrpc": "2.0", "id": 5, "method": "some_method",
-        }, conversation_id=cid)
+        message = Message(
+            "handler",
+            "N3.COORDINATOR",
+            message_type=MessageTypes.JSON,
+            data=Request(5, method="some_method"),
+            conversation_id=cid,
+        )
         handler.socket._r = [message.to_frames()]  # type: ignore
         handler.sign_in()
         assert handler.namespace is None
@@ -194,7 +202,7 @@ class Test_finish_sign_in:
         handler.finish_sign_in(response_message=Message(
             b"handler", b"N5.COORDINATOR",
             message_type=MessageTypes.JSON,
-            data={"id": 10, "result": None, "jsonrpc": "2.0"}))
+            data=ResultResponse(id=10, result=None)))
         return handler
 
     def test_namespace(self, handler_fsi: MessageHandler):
@@ -210,9 +218,13 @@ class Test_finish_sign_in:
 def test_sign_out_fail(handler: MessageHandler, caplog: pytest.LogCaptureFixture,
                        fake_cid_generation):
     handler.namespace = "N3"
-    message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-        "jsonrpc": "2.0", "error": {"code": 12345}, "id": 1,
-    }, conversation_id=cid)
+    message = Message(
+        "handler",
+        "N3.COORDINATOR",
+        message_type=MessageTypes.JSON,
+        data=ErrorResponse(1, error=Error(12345, "")),
+        conversation_id=cid,
+    )
     handler.socket._r = [message.to_frames()]  # type: ignore
     handler.sign_out()
     assert handler.namespace is not None
@@ -221,9 +233,13 @@ def test_sign_out_fail(handler: MessageHandler, caplog: pytest.LogCaptureFixture
 
 def test_sign_out_success(handler: MessageHandler, fake_cid_generation):
     handler.namespace = "N3"
-    message = Message("handler", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-        "jsonrpc": "2.0", "result": None, "id": 1,
-    }, conversation_id=cid)
+    message = Message(
+        "handler",
+        "N3.COORDINATOR",
+        message_type=MessageTypes.JSON,
+        data=ResultResponse(1, None),
+        conversation_id=cid,
+    )
     handler.socket._r = [message.to_frames()]  # type: ignore
     handler.sign_out()
     assert handler.namespace is None
@@ -376,9 +392,9 @@ class Test_read_and_handle_message:
     @pytest.mark.parametrize("i, out", (
         (  # shutdown
          [VERSION_B, b"N1.handler", b"N1.CB", b"conversation_id;mid" + bytes((MessageTypes.JSON,)),
-          serialize_data({"id": 5, "method": "shut_down", "jsonrpc": "2.0"})],
+          serialize_data(Request(id=5, method="shut_down"))],
          [VERSION_B, b"N1.CB", b"N1.handler", b"conversation_id;\x00\x00\x00\x00",
-          serialize_data({"id": 5, "result": None, "jsonrpc": "2.0"})]),
+          serialize_data(ResultResponse(id=5, result=None))]),
         (  # pong
          Message("N1.handler", "N1.COORDINATOR", conversation_id=cid,
                  message_type=MessageTypes.JSON, data=Request(id=2, method="pong")
@@ -427,7 +443,7 @@ class Test_read_and_handle_message:
         """Test that an ACK does not change the Namespace, if it is already set."""
         handler.socket._r = [Message(b"N3.handler", b"N3.COORDINATOR",  # type: ignore
                                      message_type=MessageTypes.JSON,
-                                     data={"id": 3, "result": None, "jsonrpc": "2.0"}).to_frames()]
+                                     data=ResultResponse(3, None)).to_frames()]
         handler.namespace = "N1"
         handler.read_and_handle_message()
         assert handler.namespace == "N1"
@@ -488,6 +504,7 @@ class Test_process_json_message:
                           data=data,
                           conversation_id=cid, message_type=MessageTypes.JSON)
         result = handler.process_json_message(message=message)
+        assert isinstance(result, Message)
         assert result.receiver == remote_name.encode()
         assert result.conversation_id == cid
         assert result.header_elements.message_type == MessageTypes.JSON
@@ -518,11 +535,9 @@ class Test_process_json_message_with_created_binary:
             "manual, dict",
         ),
     )
-    def data(self, request):
+    def data(self, request) -> ParamsRequest:
         """Create a request with a list and a dict of other parameters."""
-        d = {"jsonrpc": "2.0", "id": 8}
-        d.update(request.param)
-        return d
+        return ParamsRequest(8, **request.param)
 
     @pytest.fixture
     def handler_b(self, handler: MessageHandler):
@@ -572,8 +587,9 @@ class Test_process_json_message_with_created_binary:
         m_in = Message("abc", data=data, message_type=MessageTypes.JSON)
         self.payload_out = [b"ghi"]
         response = handler_b.process_json_message(m_in)
+        assert isinstance(response, Message)
         assert response.payload[1:] == [b"ghi"]
-        assert response.data == {"jsonrpc": "2.0", "id": 8, "result": 5}
+        assert response.data == ResultResponse(8, 5).model_dump()
 
 
 def test_handle_binary_return_value(handler: MessageHandler):
@@ -671,7 +687,7 @@ class Test_listen:
         handler.socket._r = [  # type: ignore
             Message("handler", "N1.COORDINATOR", message_type=MessageTypes.JSON,
                     conversation_id=cid,
-                    data={"id": 2, "result": None, "jsonrpc": "2.0"}).to_frames()]
+                    data=ResultResponse(2, None)).to_frames()]
         handler.listen(stop_event=event)
         return handler
 
@@ -679,10 +695,10 @@ class Test_listen:
         assert handler_l.socket._s == [
             Message("COORDINATOR", "N1.handler", conversation_id=cid,
                     message_type=MessageTypes.JSON,
-                    data={"id": 1, "method": "sign_in", "jsonrpc": "2.0"}).to_frames(),
+                    data=Request(id=1, method="sign_in")).to_frames(),
             Message("COORDINATOR", "N1.handler", conversation_id=cid,
                     message_type=MessageTypes.JSON,
-                    data={"id": 2, "method": "sign_out", "jsonrpc": "2.0"}).to_frames(),
+                    data=Request(id=2, method="sign_out")).to_frames(),
         ]
 
     def test_next_beat(self, handler_l: MessageHandler):
@@ -730,9 +746,7 @@ class Test_listen_close:
         assert handler_lc.socket._s == [Message("COORDINATOR", "N1.handler",
                                                 conversation_id=sent.conversation_id,
                                                 message_type=MessageTypes.JSON,
-                                                data={
-                                                    "id": 1, "method": "sign_out", "jsonrpc": "2.0",
-                                                    },
+                                                data=Request(id=1, method="sign_out"),
                                                 ).to_frames()]
 
     def test_warning_log_written(self, handler_lc: MessageHandler,

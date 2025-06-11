@@ -28,6 +28,7 @@ from pyleco.core.message import Message, MessageTypes
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.test import FakeCommunicator
 from pyleco.json_utils.errors import JSONRPCError
+from pyleco.json_utils.json_objects import ResultResponse, ErrorResponse, Error, ParamsRequest
 
 cid = b"conversation_id;"
 
@@ -75,19 +76,18 @@ class Test_ask:
 
 class Test_interpret_rpc_response:
     def test_valid_message(self, communicator: FakeCommunicator):
-        message = Message(receiver="rec", data={"jsonrpc": "2.0", "result": 6.0, "id": 7})
+        message = Message(receiver="rec", data=ResultResponse(7, 6.0))
         assert communicator.interpret_rpc_response(message) == 6.0
 
     def test_error(self, communicator: FakeCommunicator):
-        message = Message(receiver="rec", data={"jsonrpc": "2.0",
-                                                "error": {"code": -1, "message": "abc"}, "id": 7})
+        message = Message(receiver="rec", data=ErrorResponse(7, error=Error(-1, "abc")))
         with pytest.raises(JSONRPCError):
             communicator.interpret_rpc_response(message)
 
     def test_json_binary_response(self, communicator: FakeCommunicator):
         message = Message(
             receiver="rec",
-            data={"jsonrpc": "2.0", "result": None, "id": 7},
+            data=ResultResponse(7, None),
             additional_payload=[b"abcd", b"efgh"],
         )
         assert communicator.interpret_rpc_response(message, extract_additional_payload=True) == (
@@ -101,7 +101,7 @@ class Test_interpret_rpc_response:
     def test_ignore_additional_payload_if_not_desired(self, communicator: FakeCommunicator):
         message = Message(
             receiver="rec",
-            data={"jsonrpc": "2.0", "result": None, "id": 7},
+            data=ResultResponse(7, None),
             additional_payload=[b"abcd"],
         )
         assert (
@@ -111,7 +111,7 @@ class Test_interpret_rpc_response:
     def test_without_additional_payload_return_empty_list(self, communicator: FakeCommunicator):
         message = Message(
             receiver="rec",
-            data={"jsonrpc": "2.0", "result": None, "id": 7},
+            data=ResultResponse(7, None),
         )
         assert communicator.interpret_rpc_response(message, extract_additional_payload=True) == (
             None,
@@ -121,7 +121,7 @@ class Test_interpret_rpc_response:
     def test_json_value_and_binary_payload(self, communicator: FakeCommunicator):
         message = Message(
             receiver="rec",
-            data={"jsonrpc": "2.0", "result": 6, "id": 7},
+            data=ResultResponse(7, 6),
             additional_payload=[b"abcd"],
         )
         assert communicator.interpret_rpc_response(message, extract_additional_payload=True) == (
@@ -133,11 +133,8 @@ class Test_interpret_rpc_response:
 class Test_ask_rpc:
     response = Message(receiver="communicator", sender="rec", conversation_id=cid,
                        message_type=MessageTypes.JSON,
-                       data={
-                           "jsonrpc": "2.0",
-                           "result": 5,
-                           "id": 1,
-                           })
+                       data=ResultResponse(1, 5),
+    )
 
     @pytest.fixture
     def communicator_asked(self, communicator: FakeCommunicator):
@@ -147,15 +144,19 @@ class Test_ask_rpc:
     def test_sent(self, communicator_asked: FakeCommunicator):
         communicator_asked.ask_rpc(receiver="rec", method="test_method", par1=5)
         sent = communicator_asked._s[0]
-        assert communicator_asked._s == [Message(receiver="rec", sender="communicator",
-                                                 conversation_id=sent.conversation_id,
-                                                 message_type=MessageTypes.JSON,
-                                                 data={
-                                                     "jsonrpc": "2.0",
-                                                     "method": "test_method",
-                                                     "id": 1,
-                                                     "params": {'par1': 5},
-                                                 })]
+        assert communicator_asked._s == [
+            Message(
+                receiver="rec",
+                sender="communicator",
+                conversation_id=sent.conversation_id,
+                message_type=MessageTypes.JSON,
+                data=ParamsRequest(
+                    1,
+                    "test_method",
+                    params={"par1": 5},
+                ),
+            )
+        ]
 
     def test_sent_with_additional_payload(self, communicator_asked: FakeCommunicator):
         communicator_asked.ask_rpc(
@@ -168,12 +169,7 @@ class Test_ask_rpc:
                 sender="communicator",
                 conversation_id=sent.conversation_id,
                 message_type=MessageTypes.JSON,
-                data={
-                    "jsonrpc": "2.0",
-                    "method": "test_method",
-                    "id": 1,
-                    "params": {"par1": 5},
-                },
+                data=ParamsRequest(1, "test_method", params= {"par1": 5}),
                 additional_payload=[b"12345"],
             )
         ]

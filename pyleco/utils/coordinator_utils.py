@@ -36,7 +36,7 @@ from ..core.message import Message, MessageTypes
 from ..core.serialization import deserialize_data
 from ..json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..json_utils.rpc_generator import RPCGenerator
-from ..json_utils.json_objects import ErrorResponse, Request
+from ..json_utils.json_objects import ErrorResponse, Request, RequestBatch, ParamsRequest
 
 
 log = logging.getLogger(__name__)
@@ -332,16 +332,17 @@ class Directory:
                 receiver=message.sender,
                 sender=self.full_name,
                 message_type=MessageTypes.JSON,
-                data=(
-                    "["
-                    + self.rpc_generator.build_request_str(
-                        method="add_nodes", nodes=self.get_nodes_str_dict()
-                    )
-                    + ", "
-                    + self.rpc_generator.build_request_str(
-                        method="record_components", components=self.get_component_names()
-                    )
-                    + "]"
+                data=RequestBatch(
+                    [
+                        ParamsRequest(
+                            id=2, method="add_nodes", params=dict(nodes=self.get_nodes_str_dict())
+                        ),
+                        ParamsRequest(
+                            id=3,
+                            method="record_components",
+                            params=dict(components=self.get_component_names()),
+                        ),
+                    ]
                 ),
             )
         )

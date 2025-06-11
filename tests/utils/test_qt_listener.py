@@ -26,6 +26,7 @@ import pytest
 
 from pyleco.test import FakeCommunicator, FakeContext
 from pyleco.core.message import Message, MessageTypes
+from pyleco.json_utils.json_objects import Request, ResultResponse
 
 try:
     from pyleco.utils.qt_listener import QtListener, QtPipeHandler, ListenerSignals
@@ -63,7 +64,7 @@ def qt_handler(signal) -> QtPipeHandler:
 class Test_handle_message:
     def test_handle_valid_jsonrpc(self, qt_handler: QtPipeHandler):
         msg = Message("N.Pipe", "sender",
-                      data={"jsonrpc": "2.0", "method": "abc", "id": 6},
+                      data=Request(6, "abc"),
                       message_type=MessageTypes.JSON,
                       conversation_id=cid,
                       )
@@ -78,10 +79,10 @@ class Test_handle_message:
     def test_local_method(self, qt_handler: QtPipeHandler):
         msg = Message("handler", "sender",
                       conversation_id=cid, message_type=MessageTypes.JSON,
-                      data={"jsonrpc": "2.0", "method": "pong", "id": 3})
+                      data=Request(3, "pong"))
         qt_handler.handle_message(msg)
         assert Message.from_frames(*qt_handler.socket._s[0]) == Message(  # type: ignore
             "sender", "handler", conversation_id=cid, message_type=MessageTypes.JSON,
-            data={"jsonrpc": "2.0", "result": None, "id": 3}
+            data=ResultResponse(3, None)
         )
 

@@ -34,7 +34,7 @@ from pyleco.test import FakeSocket
 from pyleco.core.message import Message, MessageTypes
 from pyleco.json_utils.rpc_generator import RPCGenerator
 from pyleco.json_utils.errors import DUPLICATE_NAME
-from pyleco.json_utils.json_objects import ErrorResponse
+from pyleco.json_utils.json_objects import ErrorResponse, ResultResponse, Request, Error
 
 from pyleco.utils.base_communicator import BaseCommunicator, MessageBuffer
 
@@ -170,9 +170,8 @@ class Test_sign_in:
         message = Message(receiver=b"N3.communicator", sender=b"N3.COORDINATOR",
                           conversation_id=cid,
                           message_type=MessageTypes.JSON,
-                          data={
-                              "id": 0, "result": None, "jsonrpc": "2.0",
-                              })
+                          data=ResultResponse(0, None),
+        )
         communicator._r = [message]  # type: ignore
         communicator.namespace = None
         communicator.sign_in()
@@ -202,9 +201,13 @@ class Test_sign_in:
                                   caplog: pytest.LogCaptureFixture,
                                   fake_cid_generation):
         communicator.namespace = None
-        message = Message("communicator", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "jsonrpc": "2.0", "error": {'code': 123545, "message": "error_msg"}, "id": 5
-        }, conversation_id=cid)
+        message = Message(
+            "communicator",
+            "N3.COORDINATOR",
+            message_type=MessageTypes.JSON,
+            data=ErrorResponse(5, Error(12345, "error_msg")),
+            conversation_id=cid,
+        )
         communicator._r = [message]  # type: ignore
         communicator.sign_in()
         assert communicator.namespace is None
@@ -216,9 +219,13 @@ class Test_sign_in:
                                     ):
         """Handle a message without result or error."""
         communicator.namespace = None
-        message = Message("communicator", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-            "jsonrpc": "2.0", "id": 5, "method": "some_method",
-        }, conversation_id=cid)
+        message = Message(
+            "communicator",
+            "N3.COORDINATOR",
+            message_type=MessageTypes.JSON,
+            data=Request(5, "some_method"),
+            conversation_id=cid,
+        )
         communicator._r = [message]  # type: ignore
         communicator.sign_in()
         assert communicator.namespace is None
@@ -238,7 +245,7 @@ class Test_finish_sign_in:
         communicator.finish_sign_in(response_message=Message(
             b"communicator", b"N5.COORDINATOR",
             message_type=MessageTypes.JSON,
-            data={"id": 10, "result": None, "jsonrpc": "2.0"}))
+            data=ResultResponse(10, None)))
         return communicator
 
     def test_namespace(self, communicator_fsi: FakeBaseCommunicator):
@@ -262,9 +269,13 @@ def test_heartbeat(communicator: FakeBaseCommunicator):
 def test_sign_out_fail(communicator: FakeBaseCommunicator, caplog: pytest.LogCaptureFixture,
                        fake_cid_generation):
     communicator.namespace = "N3"
-    message = Message("communicator", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-        "jsonrpc": "2.0", "error": {"code": 12345}, "id": 1,
-    }, conversation_id=cid)
+    message = Message(
+        "communicator",
+        "N3.COORDINATOR",
+        message_type=MessageTypes.JSON,
+        data=ErrorResponse(1, error=Error(12345, "")),
+        conversation_id=cid,
+    )
     communicator._r = [message]  # type: ignore
     communicator.sign_out()
     assert communicator.namespace is not None
@@ -273,9 +284,13 @@ def test_sign_out_fail(communicator: FakeBaseCommunicator, caplog: pytest.LogCap
 
 def test_sign_out_success(communicator: FakeBaseCommunicator, fake_cid_generation):
     communicator.namespace = "N3"
-    message = Message("communicator", "N3.COORDINATOR", message_type=MessageTypes.JSON, data={
-        "jsonrpc": "2.0", "result": None, "id": 1,
-    }, conversation_id=cid)
+    message = Message(
+        "communicator",
+        "N3.COORDINATOR",
+        message_type=MessageTypes.JSON,
+        data=ResultResponse(1, None),
+        conversation_id=cid,
+    )
     communicator._r = [message]  # type: ignore
     communicator.sign_out()
     assert communicator.namespace is None

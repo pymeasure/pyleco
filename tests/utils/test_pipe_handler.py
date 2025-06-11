@@ -27,8 +27,9 @@ from unittest.mock import MagicMock
 import pytest
 import zmq
 
-from pyleco.core.message import Message
+from pyleco.core.message import Message, MessageTypes
 from pyleco.test import FakeContext
+from pyleco.json_utils.json_objects import ResultResponse, Request
 
 from pyleco.utils.pipe_handler import LockedMessageBuffer, PipeHandler, CommunicatorPipe,\
     PipeCommands
@@ -198,6 +199,23 @@ def test_invalid_pipe_message(pipe_handler: PipeHandler, caplog: pytest.LogCaptu
     caplog.set_level(10)
     pipe_handler.handle_pipe_message([b"abc"])
     assert caplog.messages[0].startswith("Received unknown")
+
+
+def test_handle_local_pipe_pong_request(pipe_handler: PipeHandler):
+    pipe_handler.handle_pipe_message(
+        [
+            PipeCommands.LOCAL_COMMAND,
+            b"conversation_id;",
+            Request(5, "pong").model_dump_json().encode(),
+        ]
+    )
+    assert pipe_handler.message_buffer.retrieve_message(b"conversation_id;") == Message(
+        b"comm",
+        "ego",
+        conversation_id=b"conversation_id;",
+        message_type=MessageTypes.JSON,
+        data=ResultResponse(5, None),
+    )
 
 
 class Test_get_communicator:
