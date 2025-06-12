@@ -514,6 +514,15 @@ def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
                          data=ResultResponse(10, None)))]
 
 
+def test_sign_out_works_with_notification(coordinator: Coordinator):
+    coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
+        b"N1.COORDINATOR", b"N1.rec", message_type=MessageTypes.JSON,
+        data=Notification("sign_out"))]]
+    coordinator.read_and_route()
+    assert b"rec" not in coordinator.directory.get_components().keys()
+    assert coordinator.sock._messages_sent == []  # type: ignore
+
+
 def test_sign_out_of_not_signed_in_generates_acknowledgment_nonetheless(coordinator: Coordinator):
     coordinator.sock._messages_read = [[b'584', Message(  # type: ignore
         b"N1.COORDINATOR", b"rec584", message_type=MessageTypes.JSON,

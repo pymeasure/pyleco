@@ -55,6 +55,33 @@ def test_build_request_str_raises_error(generator: RPCGenerator):
         generator.build_request_str("some_method", "argument", keyword="whatever")
 
 
+@pytest.mark.parametrize(
+    "method, id, params, expected",
+    (
+        ("meth", None, {}, '{"id":1,"method":"meth","params":{},"jsonrpc":"2.0"}'),
+        ("meth", None, [], '{"id":1,"method":"meth","params":[],"jsonrpc":"2.0"}'),
+        (
+            "with args",
+            3,
+            [5],
+            '{"id":3,"method":"with args","params":[5],"jsonrpc":"2.0"}',
+        ),
+        (
+            "with kwargs",
+            5,
+            {"kwarg": 7},
+            '{"id":5,"method":"with kwargs","params":{"kwarg":7},"jsonrpc":"2.0"}',
+        ),
+        ("meth", False, None, '{"method":"meth","jsonrpc":"2.0"}'),
+        ("meth", False, [1, 3], '{"method":"meth","params":[1,3],"jsonrpc":"2.0"}'),
+        ("meth", False, {"1": 3}, '{"method":"meth","params":{"1":3},"jsonrpc":"2.0"}'),
+    ),
+)
+def test_build_json_str(generator: RPCGenerator, method: str, id, params, expected: str):
+    result = generator.build_json_str(method, id, params)
+    assert result == expected
+
+
 @pytest.mark.parametrize("response, result", (
         ('{"id": 5, "result": 7.9, "jsonrpc": "2.0"}', 7.9),
         (b'{"id": 5, "result": 7.9, "jsonrpc": "2.0"}', 7.9),  # bytes version

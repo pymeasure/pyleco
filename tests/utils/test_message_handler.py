@@ -37,7 +37,7 @@ from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
 from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse,\
-    ParamsRequest, Error
+    ParamsRequest, Error, Notification
 from pyleco.json_utils.errors import JSONRPCError, INVALID_REQUEST, NOT_SIGNED_IN, DUPLICATE_NAME,\
     NODE_UNKNOWN, RECEIVER_UNKNOWN
 
@@ -448,6 +448,18 @@ class Test_read_and_handle_message:
         handler.read_and_handle_message()
         assert handler.namespace == "N1"
 
+    def test_notification_does_not_cause_response(self, handler: MessageHandler):
+        handler.socket._r = [  # type: ignore
+            Message(
+                b"N3.handler",
+                b"N3.COORDINATOR",
+                message_type=MessageTypes.JSON,
+                data=Notification("pong"),
+            ).to_frames()
+        ]
+        handler.read_and_handle_message()
+        assert handler.socket._s == []
+
     def test_handle_invalid_json_message(self, handler: MessageHandler,
                                          caplog: pytest.LogCaptureFixture):
         """An invalid message should not cause the message handler to crash."""
@@ -496,6 +508,13 @@ class Test_process_json_message:
                            conversation_id=cid, message_type=MessageTypes.JSON)
         result = handler.process_json_message(message=message)
         assert result == response
+
+    def test_handle_rpc_notification(self, handler: MessageHandler):
+        message = Message(receiver=handler_name, sender=remote_name,
+                          data=Notification(method="pong"),
+                          conversation_id=cid, message_type=MessageTypes.JSON)
+        result = handler.process_json_message(message=message)
+        assert result is None
 
     def test_handle_json_not_request(self, handler: MessageHandler):
         """Test, that a json message, which is not a request, is handled appropriately."""

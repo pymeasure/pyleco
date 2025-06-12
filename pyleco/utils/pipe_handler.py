@@ -334,6 +334,8 @@ class PipeHandler(ExtendedMessageHandler):
     # Local messages
     def handle_local_request(self, conversation_id: bytes, rpc: bytes) -> None:
         result = self.rpc.process_request(data=rpc)
+        if result is None:
+            return
         self.message_buffer.add_message(
             Message(
                 "comm",

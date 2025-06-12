@@ -25,9 +25,18 @@
 from __future__ import annotations
 import json
 import logging
-from typing import Any, Union
+from typing import Any, Literal, Optional, Union
 
-from .json_objects import Request, ParamsRequest, DataError, Error, ResultResponse
+from .json_objects import (
+    Notification,
+    ParamsNotification,
+    Request,
+    ParamsRequest,
+    DataError,
+    Error,
+    ResultResponse,
+    RequestType,
+)
 from .errors import ServerError, get_exception_by_code, JSONRPCError, INVALID_SERVER_RESPONSE
 
 log = logging.getLogger(__name__)
@@ -40,18 +49,33 @@ class RPCGenerator:
     _id_counter: int = 1
 
     def build_request_str(self, method: str, *args, **kwargs) -> str:
+        params = self.sanitize_params(*args, **kwargs)
+        return self.build_json_str(method=method, params=params, id=None)
+
+    @staticmethod
+    def sanitize_params(*args, **kwargs) -> Union[dict[str, Any], list[Any], None]:
         if args and kwargs:
             raise ValueError(
                 "You may not specify list of positional arguments "
                 "and give additional keyword arguments at the same time."
             )
-        id = self._id_counter
-        self._id_counter += 1
-        r: Union[Request, ParamsRequest]
-        if args or kwargs:
-            r = ParamsRequest(id=id, method=method, params=kwargs or list(args))
+        return kwargs or list(args) or None
+
+    def build_json_str(
+        self,
+        method: str,
+        id: Union[Literal[False], None, int, str]= None,
+        params: Optional[Union[list, dict]] = None,
+    ) -> str:
+        """Build a JSON-RPC notification (`id is False`) or request string."""
+        r: RequestType
+        if id is False:
+            r = Notification(method) if params is None else ParamsNotification(method, params)
         else:
-            r = Request(id=id, method=method)
+            if id is None:
+                id = self._id_counter
+                self._id_counter += 1
+            r = Request(id, method) if params is None else ParamsRequest(id, method, params)
         return r.model_dump_json()
 
     def get_result_from_response(self, data: Union[bytes, str, dict]) -> Any:

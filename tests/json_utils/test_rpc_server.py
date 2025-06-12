@@ -37,7 +37,8 @@ from pyleco.json_utils.json_objects import (
     DataError,
     ResponseBatch,
     RequestBatch,
-    Notification
+    Notification,
+    ParamsNotification,
 )
 from pyleco.json_utils.errors import (
     ServerError,
@@ -155,6 +156,22 @@ def test_process_response(rpc_server: RPCServer, rpc_generator: RPCGenerator):
     assert error.code == INVALID_REQUEST.code
     assert error.message == INVALID_REQUEST.message
     assert error.data == request.model_dump()  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "input",
+    [
+        Notification("simple"),
+        ParamsNotification("obligatory_parameter", [5]),
+        Notification("obligatory_parameter"),  # would create error message due to invalid params
+        Notification("not_existing_method"),  # would create error message due to unknown method
+        Notification("fail"),  # would create error message due to failing method
+        RequestBatch([Notification("simple"), Notification("fail")]),
+    ],
+)
+def test_notifications_do_not_return_anything(rpc_server: RPCServer, input: Request):
+    request_str = input.model_dump_json()
+    assert rpc_server.process_request(request_str) is None
 
 
 class Test_discover_method:

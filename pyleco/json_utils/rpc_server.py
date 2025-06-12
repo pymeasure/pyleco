@@ -156,9 +156,12 @@ class RPCServer:
             id_ = request.get("id")
             method_name = request.get("method")
             if method_name is None:
-                return ErrorResponse(
-                    id=id_, error=DataError.from_error(INVALID_REQUEST, data=request)
-                )
+                if id_ is None:
+                    return None
+                else:
+                    return ErrorResponse(
+                        id=id_, error=DataError.from_error(INVALID_REQUEST, data=request)
+                    )
             params = request.get("params")
             method = self._rpc_methods[method_name]
             if isinstance(params, dict):
@@ -176,7 +179,10 @@ class RPCServer:
                 return None
         except Exception as exc:
             log.exception(f"{type(exc).__name__}:", exc_info=exc)
-            return ErrorResponse(id=id_, error=SERVER_ERROR)
+            if id_ is None:
+                return None
+            else:
+                return ErrorResponse(id=id_, error=SERVER_ERROR)
 
     def discover(self) -> dict[str, Any]:
         """List all the capabilities of the server."""
