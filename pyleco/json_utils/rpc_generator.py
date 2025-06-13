@@ -91,7 +91,7 @@ class RPCGenerator:
             # Raise error if JSON RPC error response.
             if error_content := json_data.get("error"):
                 error: Union[Error, DataError]
-                if error_content.get("data"):
+                if "data" in error_content.keys():
                     error = DataError(**error_content)
                 else:
                     error = Error(**error_content)
