@@ -28,8 +28,15 @@ import logging
 from typing import Any, Callable, Optional, Union
 from dataclasses import dataclass
 
-from .errors import INTERNAL_ERROR, SERVER_ERROR, INVALID_REQUEST
-from .json_objects import ResultResponse, ErrorResponse, DataError, ResponseType, ResponseBatch
+from .errors import INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR
+from .json_objects import (
+    ResultResponse,
+    ErrorResponse,
+    DataError,
+    ResponseType,
+    ResponseBatch,
+    ErrorType,
+)
 
 
 log = logging.getLogger(__name__)
@@ -121,6 +128,9 @@ class RPCServer:
             json_data = json.loads(data)
             result = self.process_request_object(json_data=json_data)
             return result.model_dump_json() if result else None
+        except json.JSONDecodeError as exc:
+            log.exception(f"{type(exc).__name__}:", exc_info=exc)
+            return ErrorResponse(id=None, error=PARSE_ERROR).model_dump_json()
         except Exception as exc:
             log.exception(f"{type(exc).__name__}:", exc_info=exc)
             return ErrorResponse(id=None, error=INTERNAL_ERROR).model_dump_json()
@@ -152,18 +162,21 @@ class RPCServer:
         self, request: dict[str, Any]
     ) -> Union[ResultResponse, ErrorResponse, None]:
         id_ = None
+        method_name = None
+        params = None
         try:
             id_ = request.get("id")
             method_name = request.get("method")
             if method_name is None:
-                if id_ is None:
-                    return None
-                else:
-                    return ErrorResponse(
-                        id=id_, error=DataError.from_error(INVALID_REQUEST, data=request)
-                    )
+                return self._generate_error(
+                    id_, DataError.from_error(INVALID_REQUEST, data=request)
+                )
             params = request.get("params")
-            method = self._rpc_methods[method_name]
+            method = self._rpc_methods.get(method_name)
+            if method is None:
+                return self._generate_error(
+                    id_, DataError.from_error(METHOD_NOT_FOUND, data=method_name)
+                )
             if isinstance(params, dict):
                 result = method(**params)
             elif isinstance(
@@ -177,12 +190,20 @@ class RPCServer:
                 return ResultResponse(id=id_, result=result)
             else:
                 return None
+        except TypeError as exc:
+            if method_name and str(exc).startswith(f"{method_name}()"):
+                return self._generate_error(id_, DataError.from_error(INVALID_PARAMS, data=request))
+            log.exception(f"{type(exc).__name__}:", exc_info=exc)
+            return self._generate_error(id_, INTERNAL_ERROR)
         except Exception as exc:
             log.exception(f"{type(exc).__name__}:", exc_info=exc)
-            if id_ is None:
-                return None
-            else:
-                return ErrorResponse(id=id_, error=SERVER_ERROR)
+            return self._generate_error(id_, INTERNAL_ERROR)
+
+    @staticmethod
+    def _generate_error(id: Optional[Union[int, str]], error: ErrorType) -> Optional[ErrorResponse]:
+        if id is None:
+            return None
+        return ErrorResponse(id, error)
 
     def discover(self) -> dict[str, Any]:
         """List all the capabilities of the server."""
