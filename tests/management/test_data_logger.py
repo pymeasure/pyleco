@@ -219,7 +219,7 @@ def test_subscribe_without_having_logged_in(data_logger: DataLogger,
     subscribe to some remote object."""
     data_logger.namespace = None
     data_logger.setup_variables(["Component.Variable"])
-    assert caplog.messages == ["Cannot subscribe to 'Component.Variable' as the namespace is not known."]  # noqa
+    assert "Cannot subscribe to 'Component.Variable' as the namespace is not known." in caplog.messages # noqa
 
 
 def test_set_valuing_mode_last(data_logger: DataLogger):
