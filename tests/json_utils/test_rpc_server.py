@@ -130,14 +130,6 @@ def test_failing_method(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     assert error.message == INTERNAL_ERROR.message
 
 
-@pytest.mark.xfail(True, reason="Self written RPCServer cannot handle additional args")
-def test_wrong_method_arguments_are_ignored(rpc_generator: RPCGenerator, rpc_server: RPCServer):
-    request = rpc_generator.build_request_str(method="simple", arg=9)
-    response = rpc_server.process_request(request)
-    result = rpc_generator.get_result_from_response(response)  # type: ignore
-    assert result == 7
-
-
 def test_failing_parsing_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     response = rpc_server.process_request(b"\x01basdf")
     with pytest.raises(ParseError) as exc_info:
