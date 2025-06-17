@@ -35,6 +35,7 @@ PyLECO is an implementation of LECO, for the full protocol specifications please
 LECO offers a protocol for data exchange, for example for laboratory experimental control.
 
 There exist two different communication protocols in LECO.
+
 1. The control protocol allows to exchange messages between any two _Components_ in a LECO network, which is useful for controlling devices.
 2. The data protocol is a broadcasting protocol to send information to all those, who want to receive it, which is useful for regular measurement data or for log entries.
 
@@ -59,6 +60,7 @@ For that purpose, you send a message which encodes exactly that (via jsonrpc): t
 ### Minimum Setup
 
 For a minimum setup, you need:
+
 * a _Coordinator_ (just execute `coordinator` in your terminal or run the `coordinator.py` file with your Python interpreter),
 * one _Component_.
 
@@ -78,6 +80,7 @@ print(connected_components)
 Let's say you have an instrument with a pymeasure driver `Driver`, which you want to control.
 
 You need to start (in different threads):
+
 * a _Coordinator_ (as described above),
 * an `Actor` instance listening to commands and controlling the instrument: `actor = Actor(name="inst_actor", cls=Driver)`.
   For an example see the `pymeasure_actor.py` in the examples folder,

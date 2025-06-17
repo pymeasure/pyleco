@@ -1,13 +1,22 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Changed
+
+* The rpc server returns JSON defined errors instead of `Servererror` ([#130](https://github.com/pymeasure/pyleco/pull/130))
+
+
 ## [0.5.0] 2025-03-28
 
 Remove openrpc dependency and rely on built in RPC server.
 
 ### Removed
+
 * Remove openrpc dependency ([#116](https://github.com/pymeasure/pyleco/pull/116))
 
 ### Changed
+
 * Convert unit tests to integration tests with json rpc ([#115](https://github.com/pymeasure/pyleco/pull/115))
 * Remove code coverage limits for the pipeline.
 
@@ -40,6 +49,7 @@ _Increased test coverage and bug fixes._
 * Add supported python versions to readme via shield. ([#103](https://github.com/pymeasure/pyleco/pull/103))
 
 ### Fixed
+
 * Fix open rpc ([#95](https://github.com/pymeasure/pyleco/pull/95))
 * Fix ruff action ([#99](https://github.com/pymeasure/pyleco/pull/99))
 * Fix erroneous timeout argument in PipeHandler ([#109](https://github.com/pymeasure/pyleco/pull/109))
@@ -52,6 +62,7 @@ _Increased test coverage and bug fixes._
 _Binary data handling facilitated with utility functions._
 
 ### Changed
+
 * Proxy_server stops if binding failed ([#86](https://github.com/pymeasure/pyleco/pull/86))
 
 ### Added
@@ -204,7 +215,7 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 @BenediktBurger, @bilderbuchi, @bklebel
 
 
-[unreleased]: https://github.com/pymeasure/pyleco/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/pymeasure/pyleco/compare/v0.5.0...HEAD
 [0.5.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.5.0
 [0.4.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.2
 [0.4.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.1
