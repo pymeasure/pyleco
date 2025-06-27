@@ -29,7 +29,6 @@ from time import sleep
 
 import pytest
 
-from pyleco.core.message import MessageTypes
 from pyleco.coordinators.coordinator import Coordinator
 from pyleco.actors.actor import Actor
 from pyleco.directors.director import Director
@@ -178,15 +177,9 @@ def test_data_via_control_protocol(director: Director):
     director.ask_rpc("publish")
 
     msg = director.communicator.read_message(conversation_id=None)
-    director.communicator.send(
-        receiver=director.actor,  # type: ignore
-        data={"jsonrpc": "2.0", "id": 1, "result": None},
-        conversation_id=msg.conversation_id,
-        message_type=MessageTypes.JSON,
-    )
 
     # teardown
     director.ask_rpc("unregister_subscriber")
 
-    assert msg.data == {"jsonrpc": "2.0", "id": 1, "method": "add_subscription_message"}
+    assert msg.data == {"jsonrpc": "2.0", "method": "add_subscription_message"}
     assert msg.payload[1:] == [b'super content']
