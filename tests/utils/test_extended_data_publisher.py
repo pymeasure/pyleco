@@ -86,8 +86,9 @@ def test_unregister_subscribers(publisher: ExtendedDataPublisher):
 
 @pytest.mark.parametrize("receivers", (set(), {b"abc"}, {b"abc", b"def"}, {"string"}))
 def test_convert(publisher: ExtendedDataPublisher, receivers, data_message: DataMessage):
-    msgs = publisher.convert_data_message_to_messages(data_message, receivers=receivers)
-    for rec, msg in zip(receivers, msgs, strict=True):
+    msgs = list(publisher.convert_data_message_to_messages(data_message, receivers=receivers))
+    assert len(msgs) == len(receivers)
+    for rec, msg in zip(receivers, msgs):
         assert msg == Message(
             receiver=rec,
             data=Notification(method="add_subscription_message"),

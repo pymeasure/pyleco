@@ -91,7 +91,7 @@ class ExtendedDataPublisher(DataPublisher):
         except JSONRPCError as exc:
             error_code = exc.rpc_error.code
             try:
-                error_data = exc.rpc_error.data
+                error_data = exc.rpc_error.data  # type: ignore
             except AttributeError:
                 return
             if error_code == RECEIVER_UNKNOWN:
