@@ -103,7 +103,7 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         return self._namespace
 
     @namespace.setter
-    def namespace(self, value: Union[str, None]) -> None:
+    def namespace(self, value: Union[str, None]) -> None:  # type: ignore
         self._namespace = value
         full_name = self.name if value is None else ".".join((value, self.name))
         self.set_full_name(full_name=full_name)

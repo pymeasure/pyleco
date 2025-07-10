@@ -6,6 +6,10 @@
 
 * The rpc server returns JSON defined errors instead of `Servererror` ([#130](https://github.com/pymeasure/pyleco/pull/130))
 
+### Deprecated
+
+* Deprecate `BatchObject` in favor of `JsonRpcBatch`
+
 
 ## [0.5.0] 2025-03-28
 

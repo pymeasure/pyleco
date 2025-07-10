@@ -81,6 +81,15 @@ def test_result():
     }
 
 
+def test_result_null():
+    result = json_objects.ResultResponse(id=5, result=None)
+    assert result.model_dump() == {
+        "id": 5,
+        "result": None,
+        "jsonrpc": "2.0",
+    }
+
+
 def test_error_with_data():
     """Test that the Error object is json serializable."""
     data_error = json_objects.DataError(code=5, message="whatever", data="abc")
@@ -134,3 +143,129 @@ class Test_BatchObject:
     def test_model_dump_json(self, batch_obj: json_objects.BatchObject):
         result = '[{"id":5,"method":"start","jsonrpc":"2.0"}]'
         assert batch_obj.model_dump_json() == result
+
+
+class TestJsonRpcBatch:
+    @pytest.fixture
+    def request_batch(self):
+        return json_objects.JsonRpcBatch(
+            [json_objects.Request(id=1, method="req1"), json_objects.Request(id=2, method="req2")]
+        )
+
+    @pytest.fixture
+    def response_batch(self):
+        return json_objects.JsonRpcBatch(
+            [
+                json_objects.ResultResponse(id=1, result="res1"),
+                json_objects.ResultResponse(id=2, result="res2"),
+            ]
+        )
+
+    @pytest.fixture
+    def mixed_batch(self):
+        return json_objects.JsonRpcBatch(
+            [
+                json_objects.Request(id=1, method="req1"),
+                json_objects.ResultResponse(id=2, result="res2"),  # type: ignore
+            ]
+        )
+
+    @pytest.mark.parametrize(
+        "batch_fixture, expected_type",
+        [
+            ("request_batch", json_objects.BatchContentType.REQUESTS),
+            ("response_batch", json_objects.BatchContentType.RESPONSES),
+            ("mixed_batch", json_objects.BatchContentType.MIXED),
+        ]
+    )
+    def test_batch_type(self, batch_fixture, expected_type, request):
+        batch = request.getfixturevalue(batch_fixture)
+        assert batch.batch_type == expected_type
+
+    @pytest.mark.parametrize(
+        "batch_fixture, is_request, is_response, is_mixed",
+        [
+            ("request_batch", True, False, False),
+            ("response_batch", False, True, False),
+            ("mixed_batch", False, False, True),
+        ]
+    )
+    def test_batch_flags(self, batch_fixture, is_request, is_response, is_mixed, request):
+        batch = request.getfixturevalue(batch_fixture)
+        assert batch.is_request_batch is is_request
+        assert batch.is_response_batch is is_response
+        assert batch.is_mixed_batch is is_mixed
+
+    def test_notifications_count(self):
+        batch = json_objects.JsonRpcBatch(
+            [
+                json_objects.Request(id=1, method="req1"),
+                json_objects.Notification(method="notif1"),
+                json_objects.Notification(method="notif2"),
+            ]
+        )
+        assert len(batch.notifications) == 2
+
+    def test_notifications_are_notifications(self):
+        batch = json_objects.JsonRpcBatch(
+            [
+                json_objects.Request(id=1, method="req1"),
+                json_objects.Notification(method="notif1"),
+            ]
+        )
+        assert all(n.is_notification for n in batch.notifications)
+
+    def test_get_request_by_id_exists(self, request_batch):
+        req = request_batch.get_request_by_id(2)
+        assert req is not None
+
+    def test_get_request_method(self, request_batch):
+        req = request_batch.get_request_by_id(2)
+        assert req.method == "req2"
+
+    def test_get_response_by_id_exists(self, response_batch):
+        resp = response_batch.get_response_by_id(1)
+        assert resp is not None
+
+    def test_get_response_result(self, response_batch):
+        resp = response_batch.get_response_by_id(1)
+        assert resp.result == "res1"
+
+    def test_empty_batch_raises_error(self):
+        with pytest.raises(ValueError, match="Batch must contain at least one item"):
+            json_objects.JsonRpcBatch([])
+
+    def test_invalid_item_type_raises_error(self):
+        with pytest.raises(
+            ValueError, match="All batch items must be JsonRpcRequest or JsonRpcResponse"
+        ):
+            json_objects.JsonRpcBatch([{"invalid": "item"}])  # type: ignore
+
+
+def test_request_validation():
+    with pytest.raises(ValueError, match="Method must be a non-empty string"):
+        json_objects.Request(id=1, method="")
+
+    with pytest.raises(ValueError, match="Params must be a list, dict, or None"):
+        json_objects.ParamsRequest(id=1, method="m", params="invalid")  # type: ignore
+
+    with pytest.raises(ValueError, match="ID must be a string, int, or None"):
+        json_objects.Request(id=1.5, method="m")  # type: ignore
+
+
+def test_response_validation():
+    with pytest.raises(ValueError, match="Response cannot have both result and error"):
+        json_objects.JsonRpcResponse(
+            id=1, result="ok", error=json_objects.Error(code=1, message="err")
+        )
+
+    with pytest.raises(ValueError, match="ID must be a string, int, or None"):
+        json_objects.ResultResponse(id=1.5, result="res")  # type: ignore
+
+
+def test_error_with_data_method():
+    error = json_objects.JsonRpcError(code=1, message="base")
+    data_error = error.with_data("additional info")
+    assert data_error.data == "additional info"
+    assert data_error.code == error.code
+    assert data_error.message == error.message

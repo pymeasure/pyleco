@@ -36,28 +36,36 @@ Each exception extends a base exception JSONRPCError.
 
 from typing import Optional, Type
 
-from .json_objects import DataError, Error, ErrorType
+from .json_objects import DataError, ErrorType, JsonRpcError
 
 # JSONRPC 2.0 defined errors
-INVALID_REQUEST = Error(code=-32600, message="Invalid Request")
-METHOD_NOT_FOUND = Error(code=-32601, message="Method not found")
-INVALID_PARAMS = Error(code=-32602, message="Invalid params")
-INTERNAL_ERROR = Error(code=-32603, message="Internal error")
-PARSE_ERROR = Error(code=-32700, message="Parse error")
+
+PARSE_ERROR = JsonRpcError(code=-32700, message="Parse error")
+# Invalid JSON was received by the server
+# An error occurred on the server while parsing the JSON text.
+
+INVALID_REQUEST = JsonRpcError(code=-32600, message="Invalid Request")
+# The JSON sent is not a valid Request object
+
+METHOD_NOT_FOUND = JsonRpcError(code=-32601, message="Method not found")
+# The method does not exist / is not available.
+
+INVALID_PARAMS = JsonRpcError(code=-32602, message="Invalid params")  # Invalid method parameter(s).
+INTERNAL_ERROR = JsonRpcError(code=-32603, message="Internal error")  # Internal JSON-RPC error.
 
 # -32000 to -32099  Server error    reserved for implementation-defined server-errors
 # general error: -32000
-SERVER_ERROR = Error(code=-32000, message="Server error")
+SERVER_ERROR = JsonRpcError(code=-32000, message="Server error")
 
 # LECO defined errors
 # Routing errors (Coordinator) between -32090 and -32099
-NOT_SIGNED_IN = Error(code=-32090, message="You did not sign in!")
-DUPLICATE_NAME = Error(code=-32091, message="The name is already taken.")
-NODE_UNKNOWN = Error(code=-32092, message="Node is not known.")
-RECEIVER_UNKNOWN = Error(code=-32093, message="Receiver is not in addresses list.")
+NOT_SIGNED_IN = JsonRpcError(code=-32090, message="You did not sign in!")
+DUPLICATE_NAME = JsonRpcError(code=-32091, message="The name is already taken.")
+NODE_UNKNOWN = JsonRpcError(code=-32092, message="Node is not known.")
+RECEIVER_UNKNOWN = JsonRpcError(code=-32093, message="Receiver is not in addresses list.")
 
 # Error during deserialization error of the server's response
-INVALID_SERVER_RESPONSE = Error(code=-32000, message="Invalid response from server.")
+INVALID_SERVER_RESPONSE = JsonRpcError(code=-32000, message="Invalid response from server.")
 
 
 class JSONRPCError(Exception):
