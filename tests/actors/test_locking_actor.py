@@ -32,7 +32,7 @@ import pytest
 from pyleco.core.message import Message
 from pyleco.actors.locking_actor import LockingActor, AccessDeniedError
 from pyleco.core.leco_protocols import LockingActorProtocol
-from pyleco.json_utils.json_objects import Request
+from pyleco.json_utils.json_objects import Request, JsonRpcResponse
 
 
 class FantasyChannel:
@@ -156,9 +156,9 @@ class TestProtocolImplemented:
 
     @pytest.fixture
     def component_methods(self, actor: LockingActor):
-        response = actor.rpc.process_request(Request(1, "rpc.discover").model_dump_json())
-        result = actor.rpc_generator.get_result_from_response(response)  # type: ignore
-        return result.get("methods")
+        response = actor.rpc.process_json_request_object(Request(1, method="rpc.discover"))
+        assert isinstance(response, JsonRpcResponse)
+        return response.result.get("methods")  # type: ignore
 
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):

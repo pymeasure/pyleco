@@ -37,7 +37,7 @@ from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.core.serialization import serialize_data
 from pyleco.test import FakeContext, FakePoller
 from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse,\
-    ParamsRequest, Error, Notification
+    ParamsRequest, Error, Notification, JsonRpcResponse
 from pyleco.json_utils.errors import JSONRPCError, INVALID_REQUEST, NOT_SIGNED_IN, DUPLICATE_NAME,\
     NODE_UNKNOWN, RECEIVER_UNKNOWN
 
@@ -82,11 +82,9 @@ class TestProtocolImplemented:
 
     @pytest.fixture
     def component_methods(self, handler: MessageHandler):
-        response = handler.rpc.process_request(
-            Request(id=1, method="rpc.discover").model_dump_json()
-        )
-        result = handler.rpc_generator.get_result_from_response(response)  # type: ignore
-        return result.get('methods')
+        response = handler.rpc.process_json_request_object(Request(1, method="rpc.discover"))
+        assert isinstance(response, JsonRpcResponse)
+        return response.result.get("methods")  # type: ignore:
 
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):
