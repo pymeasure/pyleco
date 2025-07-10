@@ -26,9 +26,9 @@ from typing import Union
 
 import pytest
 
-from pyleco.json_utils.json_objects import ErrorResponse
+from pyleco.json_utils.json_objects import Request, ErrorResponse
 from pyleco.json_utils.errors import (JSONRPCError, NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME,
-                                      RECEIVER_UNKNOWN)
+                                      RECEIVER_UNKNOWN, PARSE_ERROR)
 
 from pyleco.json_utils.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
 
@@ -100,9 +100,25 @@ def test_get_result_from_response_raises_suitable_error(generator: RPCGenerator,
     assert exc.value.rpc_error == error
 
 
-def test_invalid_response_raises_correct_error(generator: RPCGenerator):
+def test_invalid_json_raises_correct_error(generator: RPCGenerator):
     with pytest.raises(JSONRPCError) as exc:
         generator.get_result_from_response(b"\x00")
+    error = exc.value.rpc_error
+    assert error.code == PARSE_ERROR.code
+    assert error.message == PARSE_ERROR.message
+
+
+def test_invalid_json_object_raises_correct_error(generator: RPCGenerator):
+    with pytest.raises(JSONRPCError) as exc:
+        generator.get_result_from_response('{"method": "caller", "result": 9}')
+    error = exc.value.rpc_error
+    assert error.code == INVALID_SERVER_RESPONSE.code
+    assert error.message == INVALID_SERVER_RESPONSE.message
+
+
+def test_request_raises_correct_error(generator: RPCGenerator):
+    with pytest.raises(JSONRPCError) as exc:
+        generator.get_result_from_response(Request(1, "method").model_dump_json())
     error = exc.value.rpc_error
     assert error.code == INVALID_SERVER_RESPONSE.code
     assert error.message == INVALID_SERVER_RESPONSE.message
