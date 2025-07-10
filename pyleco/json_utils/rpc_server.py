@@ -23,21 +23,28 @@
 #
 
 from __future__ import annotations
-import json
 import logging
 import re
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, cast, Optional, Union
 from dataclasses import dataclass
 
-from .errors import INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR
+from .errors import (
+    INTERNAL_ERROR,
+    INVALID_PARAMS,
+    INVALID_REQUEST,
+    METHOD_NOT_FOUND,
+    InvalidRequest,
+    JSONRPCError,
+)
 from .json_objects import (
     ResultResponse,
     ErrorResponse,
-    DataError,
-    ResponseType,
-    ResponseBatch,
-    ErrorType,
+    JsonRpcRequest,
+    JsonRpcResponse,
+    JsonRpcBatch,
+    JsonRpcError,
 )
+from .json_parser import get_json_object, parse_string
 
 
 log = logging.getLogger(__name__)
@@ -141,85 +148,141 @@ class RPCServer:
 
     def process_request(self, data: Union[bytes, str]) -> Optional[str]:
         try:
-            json_data = json.loads(data)
-            result = self.process_request_object(json_data=json_data)
-            return result.model_dump_json() if result else None
-        except json.JSONDecodeError as exc:
-            log.exception(f"{type(exc).__name__}:", exc_info=exc)
-            return ErrorResponse(id=None, error=PARSE_ERROR).model_dump_json()
+            json_obj = parse_string(data)
+        except JSONRPCError as exc:
+            result = self._generate_error(None, error=exc.rpc_error, exc=exc)
         except Exception as exc:
-            log.exception(f"{type(exc).__name__}:", exc_info=exc)
-            return ErrorResponse(id=None, error=INTERNAL_ERROR).model_dump_json()
+            result = self._generate_error(None, INVALID_REQUEST, exc)
+        else:
+            result = self.process_request_object(json_obj)
+        return result.model_dump_json() if result is not None else None
 
     def process_request_object(
         self, json_data: object
-    ) -> Optional[Union[ResponseType, ResponseBatch]]:
+    ) -> Optional[Union[JsonRpcResponse, JsonRpcBatch]]:
         """Process a JSON-RPC request executing the associated method."""
-        result: Optional[Union[ResponseType, ResponseBatch]]
-        if isinstance(json_data, list):
-            result = ResponseBatch()
-            for element in json_data:
-                result_element = self._process_single_request(element)
-                if result_element is not None:
-                    result.append(result_element)
-        elif isinstance(json_data, dict):
-            result = self._process_single_request(json_data)
-        else:
-            result = ErrorResponse(
-                id=None,
-                error=DataError.from_error(INVALID_REQUEST, json_data),
-            )
-        if result:
-            return result
-        else:
-            return None
-
-    def _process_single_request(
-        self, request: dict[str, Any]
-    ) -> Union[ResultResponse, ErrorResponse, None]:
-        id_ = None
-        method_name = None
-        params = None
         try:
-            id_ = request.get("id")
-            method_name = request.get("method")
-            if method_name is None:
-                return self._generate_error(
-                    id_, DataError.from_error(INVALID_REQUEST, data=request)
-                )
-            params = request.get("params")
-            method = self._rpc_methods.get(method_name)
-            if method is None:
-                return self._generate_error(
-                    id_, DataError.from_error(METHOD_NOT_FOUND, data=method_name)
-                )
-            if isinstance(params, dict):
-                result = method(**params)
-            elif isinstance(
-                params,
-                list,
-            ):
-                result = method(*params)
-            else:
-                result = method()
-            if id_ is not None:
-                return ResultResponse(id=id_, result=result)
-            else:
-                return None
-        except TypeError as exc:
-            if method_name and str(exc).startswith(f"{method_name}()"):
-                return self._generate_error(id_, DataError.from_error(INVALID_PARAMS, data=request))
-            log.exception(f"{type(exc).__name__}:", exc_info=exc)
-            return self._generate_error(id_, INTERNAL_ERROR)
+            obj = get_json_object(json_data)
+        except InvalidRequest as exc:
+            return ErrorResponse(id=None, error=exc.rpc_error)
+        try:
+            return self.process_json_request_object(obj)
         except Exception as exc:
-            log.exception(f"{type(exc).__name__}:", exc_info=exc)
-            return self._generate_error(id_, INTERNAL_ERROR)
+            return self._generate_error(None, INTERNAL_ERROR, exc)
+
+    def process_json_request_object(
+        self, obj: Union[JsonRpcRequest, JsonRpcResponse, JsonRpcBatch]
+    ) -> Optional[Union[JsonRpcResponse, JsonRpcBatch]]:
+        if isinstance(obj, JsonRpcBatch) and obj.is_request_batch:
+            result = [
+                response
+                for element in obj.items
+                if (response := self._process_single_request_object(cast(JsonRpcRequest, element)))
+                is not None
+            ]
+            return JsonRpcBatch(result) if result else None
+        elif isinstance(obj, (JsonRpcRequest)):
+            return self._process_single_request_object(obj)
+        else:
+            return ErrorResponse(
+                id=None,
+                error=self._generate_invalid_request_error("Not a request", obj.model_dump()),
+            )
+
+    def _process_single_request_object(self, obj: JsonRpcRequest) -> Optional[JsonRpcResponse]:
+        id_ = obj.id
+        method = self._get_method(obj.method)
+        
+        if not method:
+            return self._handle_method_not_found(id_, obj.method)
+
+        try:
+            result = self._execute_method(method, obj)
+        except JSONRPCError as exc:
+            return self._generate_error(id_, exc.rpc_error, exc)
+        except TypeError as exc:
+            return self._handle_type_error(id_, obj, exc)
+        except Exception as exc:
+            return self._handle_general_error(id_, exc)
+
+        return ResultResponse(id=id_, result=result) if id_ is not None else None
+
+    def _get_method(self, method_name: str) -> Optional[Method]:
+        return self._rpc_methods.get(method_name)
+
+    def _execute_method(self, method: Method, obj: JsonRpcRequest) -> Any:
+        """Execute the method with appropriate parameters based on request type."""
+        if obj.params is None:
+            return method()
+        elif isinstance(obj.params, list):
+            return method(*obj.params)
+        elif isinstance(obj.params, dict):
+            return method(**obj.params)
+        raise InvalidRequest(
+            self._generate_invalid_request_error(
+                "Parameters are neither list nor dict", obj.model_dump()
+            )
+        )
+
+    def _handle_method_not_found(
+        self, id_: Optional[Union[int, str]], method_name: str
+    ) -> Optional[JsonRpcResponse]:
+        """Handle method not found error."""
+        error = METHOD_NOT_FOUND.with_data(data=method_name)
+        return self._generate_error(
+            id=id_,
+            error=error,
+            exc=None,
+            return_response=id_ is not None,
+        )
+
+    def _handle_type_error(
+        self, id_: Optional[Union[int, str]], obj: JsonRpcRequest, exc: TypeError
+    ) -> Optional[JsonRpcResponse]:
+        """Handle TypeError during method execution."""
+        if isinstance(obj.method, str) and str(exc).startswith(f"{obj.method}()"):
+            # The method complains about invalid arguments
+            error = INVALID_PARAMS.with_data(data=obj.model_dump())
+        else:
+            error = INTERNAL_ERROR.with_data(data=f"{type(exc).__name__}: {exc}")
+
+        return self._generate_error(
+            id_,
+            error,
+            exc=exc,
+            return_response=id_ is not None,
+        )
+
+    def _handle_general_error(
+        self, id_: Optional[Union[int, str]], exc: Exception
+    ) -> Optional[JsonRpcResponse]:
+        """Handle general exceptions during method execution."""
+        error = INTERNAL_ERROR.with_data(data=f"{type(exc).__name__}: {exc}")
+        return self._generate_error(
+            id_,
+            error,
+            exc=exc,
+            return_response=id_ is not None,
+        )
 
     @staticmethod
-    def _generate_error(id: Optional[Union[int, str]], error: ErrorType) -> Optional[ErrorResponse]:
-        if id is None:
-            return None
-        return ErrorResponse(id, error)
+    def _generate_invalid_request_error(reason: str, data: Any):
+        return INVALID_REQUEST.with_data(data={"reason": reason, "data": data})
+
+    @staticmethod
+    def _generate_error(
+        id: Optional[Union[int, str]],
+        error: JsonRpcError,
+        exc: Optional[Exception],
+        return_response: bool = True,
+    ) -> Optional[JsonRpcResponse]:
+        if exc is None:
+            log.error(
+                f"Error during message handling: '{error.message}': %s.", error.model_dump_json()
+            )
+        else:
+            log.exception(f"{type(exc).__name__} causes '{error.message}'.", exc_info=exc)
+        return ErrorResponse(id, error=error) if return_response else None
 
     def discover(self) -> dict[str, Any]:
         """List all the capabilities of the server."""
