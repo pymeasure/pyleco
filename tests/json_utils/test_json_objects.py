@@ -28,7 +28,16 @@ from pyleco.json_utils import json_objects
 
 
 def test_request():
-    request = json_objects.Request(id=5, method="call")
+    request = json_objects.Request(id=5, method="call", jsonrpc="2.0")
+    assert request.model_dump() == {
+        "id": 5,
+        "jsonrpc": "2.0",
+        "method": "call",
+    }
+
+
+def test_request_with_positional_arguments():
+    request = json_objects.Request(5, "call", "2.0")
     assert request.model_dump() == {
         "id": 5,
         "jsonrpc": "2.0",
@@ -76,7 +85,11 @@ def test_error_with_data():
     """Test that the Error object is json serializable."""
     data_error = json_objects.DataError(code=5, message="whatever", data="abc")
     error_response = json_objects.ErrorResponse(id=7, error=data_error)
-    assert error_response.model_dump_json() == '{"id":7,"error":{"code":5,"message":"whatever","data":"abc"},"jsonrpc":"2.0"}'  # noqa
+    assert error_response.model_dump() == {
+        "id": 7,
+        "error": {"code": 5, "message": "whatever", "data": "abc"},
+        "jsonrpc": "2.0",
+    }
 
 
 def test_generate_data_error_from_error():
