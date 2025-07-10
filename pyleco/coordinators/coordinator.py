@@ -37,7 +37,7 @@ if __name__ != "__main__":
     from ..core.message import Message, MessageTypes
     from ..core.serialization import get_json_content_type, JsonContentTypes
     from ..json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
-    from ..json_utils.json_objects import ErrorResponse, Request, ParamsRequest, DataError
+    from ..json_utils.json_objects import ErrorResponse, Request, ParamsRequest
     from ..json_utils.rpc_server import RPCServer
     from ..utils.timers import RepeatingTimer
     from ..utils.zmq_log_handler import ZmqLogHandler
@@ -50,7 +50,7 @@ else:  # pragma: no cover
     from pyleco.core.message import Message, MessageTypes
     from pyleco.core.serialization import get_json_content_type, JsonContentTypes
     from pyleco.json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
-    from pyleco.json_utils.json_objects import ErrorResponse, Request, ParamsRequest, DataError
+    from pyleco.json_utils.json_objects import ErrorResponse, Request, ParamsRequest
     from pyleco.json_utils.rpc_server import RPCServer
     from pyleco.utils.timers import RepeatingTimer
     from pyleco.utils.zmq_log_handler import ZmqLogHandler
@@ -293,7 +293,7 @@ class Coordinator:
             receiver_identity = self.directory.get_component_id(name=receiver_name)
         except ValueError:
             log.error(f"Receiver '{message.receiver!r}' is not in the addresses list.")
-            error = DataError.from_error(RECEIVER_UNKNOWN, data=message.receiver.decode())
+            error = RECEIVER_UNKNOWN.with_data(data=message.receiver.decode())
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,
@@ -307,7 +307,7 @@ class Coordinator:
         try:
             self.directory.send_node_message(namespace=receiver_namespace, message=message)
         except ValueError:
-            error = DataError.from_error(NODE_UNKNOWN, data=receiver_namespace.decode())
+            error = NODE_UNKNOWN.with_data(data=receiver_namespace.decode())
             self.send_message(
                 receiver=message.sender,
                 conversation_id=message.conversation_id,

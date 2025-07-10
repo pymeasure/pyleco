@@ -25,7 +25,7 @@
 from typing import Any
 from warnings import warn
 
-from .json_utils.json_objects import Error, DataError, ErrorResponse
+from .json_utils.json_objects import Error, ErrorResponse, JsonRpcError
 
 from .json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME, NODE_UNKNOWN, RECEIVER_UNKNOWN  # noqa
 
@@ -34,13 +34,13 @@ warn("The `pyleco.errors` module is deprecated, use the objects from the `pyleco
      "subpackage instead.", FutureWarning)
 
 
-def generate_error_with_data(error: Error, data: Any) -> DataError:
+def generate_error_with_data(error: Error, data: Any) -> JsonRpcError:
     """Generate a DataError from an Error.
 
     .. deprecated:: 0.3
         Use `DataError.from_error` instead.
     """
-    return DataError.from_error(error=error, data=data)
+    return error.with_data(data)
 
 
 class CommunicationError(ConnectionError):

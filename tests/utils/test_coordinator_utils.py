@@ -28,7 +28,7 @@ from pyleco.test import FakeContext
 from pyleco.core.message import Message, MessageTypes
 from pyleco.json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME, INVALID_REQUEST
 from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorResponse, ParamsRequest,\
-    RequestBatch
+    JsonRpcBatch
 from pyleco.utils.coordinator_utils import CommunicationError, ZmqNode, ZmqMultiSocket, Node,\
     Directory, FakeNode
 
@@ -350,7 +350,7 @@ class Test_finish_sign_in_to_remote:
             Message(
                 b"N3.COORDINATOR",
                 b"N1.COORDINATOR",
-                data=RequestBatch(
+                data=JsonRpcBatch(
                     [
                         ParamsRequest(
                             2,
