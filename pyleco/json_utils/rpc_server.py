@@ -25,6 +25,7 @@
 from __future__ import annotations
 import json
 import logging
+import re
 from typing import Any, Callable, Optional, Union
 from dataclasses import dataclass
 
@@ -46,6 +47,7 @@ log.addHandler(logging.NullHandler())
 @dataclass
 class Method:
     """Describe a method with its attributes."""
+
     # See https://spec.open-rpc.org/#method-object for values
     method: Callable
     name: str
@@ -71,6 +73,11 @@ class Method:
 class RPCServer:
     """A simple JSON-RPC server.
 
+    Security Considerations:
+    - Method names are restricted to alphanumeric characters, underscores and periods
+    - Payload size limits should be enforced at the transport layer
+    - Untrusted input should be carefully validated in method implementations
+
     If you register a method with the `method` decorator, it will be available
     for remote calls.
     The `process_request` method is used to process a JSON-RPC request and return
@@ -87,6 +94,7 @@ class RPCServer:
 
     It is similar to the RPCServer provided by the `openrpc` package, which it replaces.
     """
+
     def __init__(
         self,
         title: Optional[str] = None,
@@ -103,18 +111,26 @@ class RPCServer:
     def method(
         self, name: Optional[str] = None, description=None, **kwargs
     ) -> Callable[[Callable], None]:
-        """Decorator for registering a new RPC method."""
+        """Decorator for registering a new RPC method.
+        
+        Method names must be valid identifiers (alphanumeric + underscores + periods).
+        """
+
         def method_registrar(method: Callable) -> None:
             store_name = name or method.__name__
+            # Validate method name format
+            if not re.fullmatch(r"[\w\.]+", store_name):
+                raise ValueError(
+                    f"Invalid method name: {store_name!r}."
+                    " Only alphanumeric, underscore and period characters are allowed."
+                )
             store_description = description
             method_dict = {}
             if method.__doc__:
                 lines = method.__doc__.split("\n")
                 method_dict["summary"] = lines[0]
                 if not store_description and lines[1:]:
-                    store_description = " ".join(
-                        line.strip() for line in lines[1:] if line
-                    ).strip()
+                    store_description = " ".join(line.strip() for line in lines[1:] if line).strip()
             method_container = Method(
                 method=method, name=store_name, description=store_description, **method_dict
             )

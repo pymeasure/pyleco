@@ -163,6 +163,22 @@ def test_wrong_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_ser
     assert error.data == request.model_dump()  # type: ignore
 
 
+def test_invalid_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
+    args = "some string"
+    request = Request(1, "obligatory_parameter")
+    request.params = args  # type: ignore
+    response = rpc_server.process_request(request.model_dump_json())
+    with pytest.raises(InvalidRequest) as exc_info:
+        rpc_generator.get_result_from_response(response)  # type: ignore
+    error = exc_info.value.rpc_error
+    assert error.code == INVALID_REQUEST.code
+    assert error.message == INVALID_REQUEST.message
+    assert error.data == {
+        "reason": "TypeError: Params must be a list, dict, or None",
+        "data": request.model_dump(),
+    }  # type: ignore
+
+
 def test_obligatory_parameter_missing(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     request = Request(1, "obligatory_parameter")
     response = rpc_server.process_request(request.model_dump_json())
