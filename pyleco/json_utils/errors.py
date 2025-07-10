@@ -64,7 +64,7 @@ DUPLICATE_NAME = JsonRpcError(code=-32091, message="The name is already taken.")
 NODE_UNKNOWN = JsonRpcError(code=-32092, message="Node is not known.")
 RECEIVER_UNKNOWN = JsonRpcError(code=-32093, message="Receiver is not in addresses list.")
 
-# Error during deserialization error of the server's response
+# Error during deserialization of the server's response
 INVALID_SERVER_RESPONSE = JsonRpcError(code=-32000, message="Invalid response from server.")
 
 

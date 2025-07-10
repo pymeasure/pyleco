@@ -119,7 +119,7 @@ class RPCServer:
         self, name: Optional[str] = None, description=None, **kwargs
     ) -> Callable[[Callable], None]:
         """Decorator for registering a new RPC method.
-        
+
         Method names must be valid identifiers (alphanumeric + underscores + periods).
         """
 
@@ -147,6 +147,7 @@ class RPCServer:
         return method_registrar
 
     def process_request(self, data: Union[bytes, str]) -> Optional[str]:
+        result: Optional[Union[JsonRpcResponse, JsonRpcBatch]]
         try:
             json_obj = parse_string(data)
         except JSONRPCError as exc:
@@ -192,7 +193,7 @@ class RPCServer:
     def _process_single_request_object(self, obj: JsonRpcRequest) -> Optional[JsonRpcResponse]:
         id_ = obj.id
         method = self._get_method(obj.method)
-        
+
         if not method:
             return self._handle_method_not_found(id_, obj.method)
 

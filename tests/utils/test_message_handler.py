@@ -84,7 +84,7 @@ class TestProtocolImplemented:
     def component_methods(self, handler: MessageHandler):
         response = handler.rpc.process_json_request_object(Request(1, method="rpc.discover"))
         assert isinstance(response, JsonRpcResponse)
-        return response.result.get("methods")  # type: ignore:
+        return response.result.get("methods")  # type: ignore
 
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):
