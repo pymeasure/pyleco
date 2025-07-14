@@ -25,6 +25,7 @@
 import pytest
 
 from pyleco.core import VERSION_B
+from pyleco.json_utils.json_objects import Request, JsonRpcBatch, BatchObject
 from pyleco.core.serialization import serialize_data
 
 from pyleco.core.message import Message, MessageTypes
@@ -182,6 +183,18 @@ class Test_Message_data_payload_conversion:
         message = Message(b"r")
         message.payload = []  # make sure, that there is no payload
         assert message.data is None
+
+    def test_rpc_object_to_payload(self):
+        message = Message("r", data=Request(1, "call"))
+        assert message.payload == [b'{"id":1,"method":"call","jsonrpc":"2.0"}']
+
+    def test_rpc_batch_object_to_payload(self):
+        message = Message("r", data=JsonRpcBatch([Request(1, "call")]))
+        assert message.payload == [b'[{"id":1,"method":"call","jsonrpc":"2.0"}]']
+
+    def test_rpc_list_batch_object_to_payload(self):
+        message = Message("r", data=BatchObject([Request(1, "call")]))
+        assert message.payload == [b'[{"id":1,"method":"call","jsonrpc":"2.0"}]']
 
 
 def test_get_frames_list_raises_error_on_empty_sender():

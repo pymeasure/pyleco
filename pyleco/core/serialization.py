@@ -31,7 +31,8 @@ from typing import Any, Optional, NamedTuple, Union
 # as long as uuid does not yet support UUIDv7 use uuid6
 from uuid6 import uuid7
 from ..json_utils.json_objects import (
-    JsonObject,
+    JsonRpcBase,
+    JsonRpcBatch,
     Request,
     ParamsRequest,
     ResultResponse,
@@ -43,7 +44,7 @@ from ..json_utils.json_objects import (
 
 
 json_objects = (
-    JsonObject,
+    JsonRpcBase,
     BatchObject,
     Request,
     ParamsRequest,
@@ -51,6 +52,7 @@ json_objects = (
     ErrorResponse,
     Notification,
     ParamsNotification,
+    JsonRpcBatch,
 )
 
 

@@ -36,7 +36,7 @@ from ..core.message import Message, MessageTypes
 from ..core.serialization import deserialize_data
 from ..json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..json_utils.rpc_generator import RPCGenerator
-from ..json_utils.json_objects import ErrorResponse, Request, RequestBatch, ParamsRequest
+from ..json_utils.json_objects import ErrorResponse, Request, JsonRpcBatch, ParamsRequest
 
 
 log = logging.getLogger(__name__)
@@ -332,7 +332,7 @@ class Directory:
                 receiver=message.sender,
                 sender=self.full_name,
                 message_type=MessageTypes.JSON,
-                data=RequestBatch(
+                data=JsonRpcBatch(
                     [
                         ParamsRequest(
                             id=2, method="add_nodes", params=dict(nodes=self.get_nodes_str_dict())

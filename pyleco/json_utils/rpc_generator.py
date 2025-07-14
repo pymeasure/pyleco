@@ -23,7 +23,6 @@
 #
 
 from __future__ import annotations
-import json
 import logging
 from typing import Any, Literal, Optional, Union
 
@@ -32,11 +31,10 @@ from .json_objects import (
     ParamsNotification,
     Request,
     ParamsRequest,
-    DataError,
-    Error,
-    ResultResponse,
+    JsonRpcResponse,
     RequestType,
 )
+from .json_parser import get_json_object, parse_string
 from .errors import ServerError, get_exception_by_code, JSONRPCError, INVALID_SERVER_RESPONSE
 
 log = logging.getLogger(__name__)
@@ -64,7 +62,7 @@ class RPCGenerator:
     def build_json_str(
         self,
         method: str,
-        id: Union[Literal[False], None, int, str]= None,
+        id: Union[Literal[False], None, int, str] = None,
         params: Optional[Union[list, dict]] = None,
     ) -> str:
         """Build a JSON-RPC notification (`id is False`) or request string."""
@@ -79,43 +77,20 @@ class RPCGenerator:
         return r.model_dump_json()
 
     def get_result_from_response(self, data: Union[bytes, str, dict]) -> Any:
-        """Get the result of that object or raise an error."""
-        # copied from jsonrpc2-pyclient and modified
+        """Get the result of the serialized result object or raise an error."""
+        if isinstance(data, (str, bytearray, bytes)):
+            deserialized = parse_string(data)
+        else:
+            deserialized = data
         try:
-            # Parse string to JSON.
-            if not isinstance(data, dict):
-                json_data = json.loads(data)
+            json_obj = get_json_object(deserialized)
+        except JSONRPCError as exc:
+            raise JSONRPCError(INVALID_SERVER_RESPONSE.with_data(deserialized)) from exc
+        if isinstance(json_obj, JsonRpcResponse):
+            if json_obj.error is None:
+                return json_obj.result
             else:
-                json_data = data
-
-            # Raise error if JSON RPC error response.
-            if error_content := json_data.get("error"):
-                error: Union[Error, DataError]
-                if "data" in error_content.keys():
-                    error = DataError(**error_content)
-                else:
-                    error = Error(**error_content)
-                exc = get_exception_by_code(error.code) or ServerError
-                raise exc(error)
-
-            # Return result if JSON RPC result response.
-            if "result" in json_data.keys():
-                return ResultResponse(**json_data).result
-
-            # Not valid JSON RPC response if it has no error or result.
-            raise JSONRPCError(
-                DataError(
-                    code=INVALID_SERVER_RESPONSE.code,
-                    message=INVALID_SERVER_RESPONSE.message,
-                    data=json_data,
-                )
-            )
-        except (json.JSONDecodeError, TypeError, AttributeError) as exc:
-            log.exception(f"{type(exc).__name__}:")
-            raise JSONRPCError(
-                DataError(
-                    code=INVALID_SERVER_RESPONSE.code,
-                    message=INVALID_SERVER_RESPONSE.message,
-                    data=data,
-                )
-            ) from exc
+                exception_class = get_exception_by_code(json_obj.error.code) or ServerError
+                raise exception_class(json_obj.error)
+        else:
+            raise JSONRPCError(INVALID_SERVER_RESPONSE.with_data(deserialized))

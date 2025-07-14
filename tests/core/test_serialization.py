@@ -28,7 +28,7 @@ import uuid
 from typing import Any, Optional, Union
 
 import pytest
-from pyleco.json_utils.json_objects import Request
+from pyleco.json_utils.json_objects import Request, BatchObject, JsonRpcBatch
 
 from pyleco.core import serialization
 from pyleco.core.serialization import JsonContentTypes, get_json_content_type
@@ -85,6 +85,16 @@ class Test_serialize:
     def test_json_object(self):
         obj = Request(id=3, method="whatever")
         expected = b'{"id":3,"method":"whatever","jsonrpc":"2.0"}'
+        assert serialization.serialize_data(obj) == expected
+
+    def test_json_batch_object(self):
+        obj = JsonRpcBatch([Request(id=3, method="whatever")])
+        expected = b'[{"id":3,"method":"whatever","jsonrpc":"2.0"}]'
+        assert serialization.serialize_data(obj) == expected
+
+    def test_json_list_batch_object(self):
+        obj = BatchObject([Request(id=3, method="whatever")])
+        expected = b'[{"id":3,"method":"whatever","jsonrpc":"2.0"}]'
         assert serialization.serialize_data(obj) == expected
 
     def test_dict(self):

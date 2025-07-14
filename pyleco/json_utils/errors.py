@@ -36,37 +36,45 @@ Each exception extends a base exception JSONRPCError.
 
 from typing import Optional, Type
 
-from .json_objects import DataError, Error, ErrorType
+from .json_objects import JsonRpcError
 
 # JSONRPC 2.0 defined errors
-INVALID_REQUEST = Error(code=-32600, message="Invalid Request")
-METHOD_NOT_FOUND = Error(code=-32601, message="Method not found")
-INVALID_PARAMS = Error(code=-32602, message="Invalid params")
-INTERNAL_ERROR = Error(code=-32603, message="Internal error")
-PARSE_ERROR = Error(code=-32700, message="Parse error")
+
+PARSE_ERROR = JsonRpcError(code=-32700, message="Parse error")
+# Invalid JSON was received by the server
+# An error occurred on the server while parsing the JSON text.
+
+INVALID_REQUEST = JsonRpcError(code=-32600, message="Invalid Request")
+# The JSON sent is not a valid Request object
+
+METHOD_NOT_FOUND = JsonRpcError(code=-32601, message="Method not found")
+# The method does not exist / is not available.
+
+INVALID_PARAMS = JsonRpcError(code=-32602, message="Invalid params")  # Invalid method parameter(s).
+INTERNAL_ERROR = JsonRpcError(code=-32603, message="Internal error")  # Internal JSON-RPC error.
 
 # -32000 to -32099  Server error    reserved for implementation-defined server-errors
 # general error: -32000
-SERVER_ERROR = Error(code=-32000, message="Server error")
+SERVER_ERROR = JsonRpcError(code=-32000, message="Server error")
 
 # LECO defined errors
 # Routing errors (Coordinator) between -32090 and -32099
-NOT_SIGNED_IN = Error(code=-32090, message="You did not sign in!")
-DUPLICATE_NAME = Error(code=-32091, message="The name is already taken.")
-NODE_UNKNOWN = Error(code=-32092, message="Node is not known.")
-RECEIVER_UNKNOWN = Error(code=-32093, message="Receiver is not in addresses list.")
+NOT_SIGNED_IN = JsonRpcError(code=-32090, message="You did not sign in!")
+DUPLICATE_NAME = JsonRpcError(code=-32091, message="The name is already taken.")
+NODE_UNKNOWN = JsonRpcError(code=-32092, message="Node is not known.")
+RECEIVER_UNKNOWN = JsonRpcError(code=-32093, message="Receiver is not in addresses list.")
 
-# Error during deserialization error of the server's response
-INVALID_SERVER_RESPONSE = Error(code=-32000, message="Invalid response from server.")
+# Error during deserialization of the server's response
+INVALID_SERVER_RESPONSE = JsonRpcError(code=-32000, message="Invalid response from server.")
 
 
 class JSONRPCError(Exception):
     """Base error that all JSON RPC exceptions extend."""
 
-    def __init__(self, error: ErrorType) -> None:
+    def __init__(self, error: JsonRpcError) -> None:
         msg = f"{error.code}: {error.message}"
         self.rpc_error = error
-        if isinstance(error, DataError):
+        if error.data is not None:
             msg += f"\nError Data: {error.data}"
         super().__init__(msg)
 
@@ -74,42 +82,42 @@ class JSONRPCError(Exception):
 class ParseError(JSONRPCError):
     """Error raised when invalid JSON was received by the server."""
 
-    def __init__(self, error: Optional[ErrorType] = None) -> None:
+    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
         super().__init__(error or PARSE_ERROR)
 
 
 class InvalidRequest(JSONRPCError):
     """Error raised when the JSON sent is not a valid Request object."""
 
-    def __init__(self, error: Optional[ErrorType] = None) -> None:
+    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
         super().__init__(error or INVALID_REQUEST)
 
 
 class MethodNotFound(JSONRPCError):
     """Error raised when the method does not exist / is not available."""
 
-    def __init__(self, error: Optional[ErrorType] = None) -> None:
+    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
         super().__init__(error or METHOD_NOT_FOUND)
 
 
 class InvalidParams(JSONRPCError):
     """Error raised when invalid method parameter(s) are supplied."""
 
-    def __init__(self, error: Optional[ErrorType] = None) -> None:
+    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
         super().__init__(error or INVALID_PARAMS)
 
 
 class InternalError(JSONRPCError):
     """Error raised when there is an internal JSON-RPC error."""
 
-    def __init__(self, error: Optional[ErrorType] = None) -> None:
+    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
         super().__init__(error or INTERNAL_ERROR)
 
 
 class ServerError(JSONRPCError):
     """Error raised when a server error occurs."""
 
-    def __init__(self, error: ErrorType) -> None:
+    def __init__(self, error: JsonRpcError) -> None:
         super().__init__(error)
 
 

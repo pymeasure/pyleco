@@ -34,11 +34,11 @@ from pyleco.json_utils.json_objects import (
     ParamsRequest,
     ResultResponse,
     ErrorResponse,
-    DataError,
     ResponseBatch,
     RequestBatch,
     Notification,
     ParamsNotification,
+    JsonRpcBatch,
 )
 from pyleco.json_utils.errors import (
     InternalError,
@@ -103,7 +103,7 @@ def rpc_server() -> RPCServer:
 
 
 def test_success(rpc_generator: RPCGenerator, rpc_server: RPCServer):
-    request = rpc_generator.build_request_str(method="sem", arg=3)
+    request = ParamsRequest(1, method="sem", params=dict(arg=3)).model_dump_json()
     response = rpc_server.process_request(request)
     result = rpc_generator.get_result_from_response(response)  # type: ignore
     assert result == 5
@@ -113,7 +113,7 @@ def test_success(rpc_generator: RPCGenerator, rpc_server: RPCServer):
 def test_multiple_requests_success(rpc_server: RPCServer, rpc_generator: RPCGenerator):
     request1 = ParamsRequest(id=1, method="sem", params=[3])
     request2 = Request(id=2, method="side_effect_method")
-    message = json.dumps([request1.model_dump(), request2.model_dump()])
+    message = RequestBatch([request1, request2]).model_dump_json()
     result = rpc_server.process_request(message)
     result_obj = json.loads(result)  # type: ignore
     assert rpc_generator.get_result_from_response(result_obj[0]) == 5
@@ -121,7 +121,7 @@ def test_multiple_requests_success(rpc_server: RPCServer, rpc_generator: RPCGene
 
 
 def test_failing_method(rpc_generator: RPCGenerator, rpc_server: RPCServer):
-    request = rpc_generator.build_request_str(method="fail")
+    request = Request(1, method="fail").model_dump_json()
     response = rpc_server.process_request(request)
     with pytest.raises(InternalError) as exc_info:
         rpc_generator.get_result_from_response(response)  # type: ignore
@@ -141,7 +141,7 @@ def test_failing_parsing_raise_error(rpc_generator: RPCGenerator, rpc_server: RP
 
 def test_method_not_found_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     method_name = "not existing method"
-    request = rpc_generator.build_request_str(method=method_name)
+    request = Request(1, method=method_name).model_dump_json()
     response = rpc_server.process_request(request)
     with pytest.raises(MethodNotFound) as exc_info:
         rpc_generator.get_result_from_response(response)  # type: ignore
@@ -163,7 +163,23 @@ def test_wrong_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_ser
     assert error.data == request.model_dump()  # type: ignore
 
 
-def test_obligatory_parameter_missing(rpc_generator: RPCGenerator, rpc_server: RPCServer):
+def test_invalid_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
+    args = "some string"
+    request = Request(1, "obligatory_parameter")
+    request.params = args  # type: ignore
+    response = rpc_server.process_request(request.model_dump_json())
+    with pytest.raises(InvalidRequest) as exc_info:
+        rpc_generator.get_result_from_response(response)  # type: ignore
+    error = exc_info.value.rpc_error
+    assert error.code == INVALID_REQUEST.code
+    assert error.message == INVALID_REQUEST.message
+    assert error.data == {
+        "reason": "TypeError: Params must be a list, dict, or None",
+        "data": request.model_dump(),
+    }  # type: ignore
+
+
+def test_required_parameter_missing_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     request = Request(1, "obligatory_parameter")
     response = rpc_server.process_request(request.model_dump_json())
     with pytest.raises(InvalidParams) as exc_info:
@@ -184,7 +200,7 @@ def test_process_response_raise_error(rpc_server: RPCServer, rpc_generator: RPCG
     error = exc_info.value.rpc_error
     assert error.code == INVALID_REQUEST.code
     assert error.message == INVALID_REQUEST.message
-    assert error.data == request.model_dump()  # type: ignore
+    assert error.data == {"reason": "Not a request", "data": request.model_dump()}  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -208,9 +224,10 @@ class Test_discover_method:
 
     @pytest.fixture
     def discovered(self, rpc_server: RPCServer, rpc_generator: RPCGenerator) -> dict:
-        request = rpc_generator.build_request_str("rpc.discover")
-        response = rpc_server.process_request(request)
-        return rpc_generator.get_result_from_response(response)  # type: ignore
+        request = Request(1, "rpc.discover")
+        response = rpc_server.process_json_request_object(request)
+        assert isinstance(response, ResultResponse)
+        return response.result  # type: ignore
 
     def test_info(self, discovered: dict):
         info: dict = discovered["info"]
@@ -246,14 +263,6 @@ class Test_discover_method:
                 raise AssertionError("rpc.discover is listed as a method!")
 
 
-# tests regarding the local implementation of the RPC Server
-def test_process_single_notification(rpc_server: RPCServer):
-    result = rpc_server._process_single_request(
-        Notification("simple").model_dump()
-    )
-    assert result is None
-
-
 class Test_process_request:
     def test_log_exception(self, rpc_server: RPCServer, caplog: pytest.LogCaptureFixture):
         rpc_server.process_request(b"\xff")
@@ -261,19 +270,20 @@ class Test_process_request:
         assert records[-1] == (
             "pyleco.json_utils.rpc_server",
             logging.ERROR,
-            "UnicodeDecodeError:",
+            "ParseError causes 'Parse error'.",
         )
 
     def test_exception_response(self, rpc_server: RPCServer):
         result = rpc_server.process_request(b"\xff")
-        assert result == ErrorResponse(id=None, error=INTERNAL_ERROR).model_dump_json()
+        assert result == ErrorResponse(id=None, error=PARSE_ERROR).model_dump_json()
 
     def test_invalid_request(self, rpc_server: RPCServer):
         result = rpc_server.process_request(b"7")
         assert (
             result
             == ErrorResponse(
-                id=None, error=DataError.from_error(INVALID_REQUEST, 7)
+                id=None,
+                error=INVALID_REQUEST.with_data({"reason": "Neither list nor dict", "data": 7}),
             ).model_dump_json()
         )
 
@@ -300,17 +310,18 @@ class Test_process_request_object:
     def test_invalid_request(self, rpc_server: RPCServer):
         result = rpc_server.process_request_object(7)
         assert (
-            result
+            result.model_dump()  # type: ignore
             == ErrorResponse(
-                id=None, error=DataError.from_error(INVALID_REQUEST, 7)
-            )
+                id=None,
+                error=INVALID_REQUEST.with_data({"reason": "Neither list nor dict", "data": 7}),
+            ).model_dump()
         )
 
     def test_batch_entry_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
         requests = RequestBatch([Notification("simple"), Request(4, "simple")]).model_dump()
         result = rpc_server.process_request_object(requests)
-        assert result == ResponseBatch([ResultResponse(4, 7)])
+        assert result == JsonRpcBatch([ResultResponse(4, 7)])
 
     def test_batch_of_notifications(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
