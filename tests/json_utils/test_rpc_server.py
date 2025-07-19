@@ -334,3 +334,16 @@ class Test_process_request_object:
         requests = Notification("simple").model_dump()
         result = rpc_server.process_request_object(requests)
         assert result is None
+
+
+def test_register_method_twice_raises_error(rpc_server: RPCServer):
+    rpc_server.method(name="abc")(simple)
+    with pytest.raises(ValueError, match="Method name 'abc' already defined."):
+        rpc_server.method(name="abc")(obligatory_parameter)
+
+
+def test_unregister_method(rpc_server: RPCServer):
+    rpc_server.method(name="abc")(obligatory_parameter)
+    rpc_server.unregister_method("abc")
+    rpc_server.method(name="abc")(simple)
+    # assert that it raises no error

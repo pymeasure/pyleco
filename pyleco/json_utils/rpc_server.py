@@ -126,6 +126,8 @@ class RPCServer:
         def method_registrar(method: Callable) -> None:
             store_name = name or method.__name__
             # Validate method name format
+            if store_name in self._rpc_methods.keys():
+                raise ValueError(f"Method name '{store_name}' already defined.")
             if not re.fullmatch(r"[\w\.]+", store_name):
                 raise ValueError(
                     f"Invalid method name: {store_name!r}."
@@ -145,6 +147,9 @@ class RPCServer:
             return None
 
         return method_registrar
+
+    def unregister_method(self, name: str) -> None:
+        self._rpc_methods.pop(name, None)
 
     def process_request(self, data: Union[bytes, str]) -> Optional[str]:
         result: Optional[Union[JsonRpcResponse, JsonRpcBatch]]
