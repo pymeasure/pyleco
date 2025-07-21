@@ -40,8 +40,9 @@ from pyleco.json_utils.json_objects import Request, ResultResponse, ErrorRespons
     ParamsRequest, Error, Notification, JsonRpcResponse
 from pyleco.json_utils.errors import JSONRPCError, INVALID_REQUEST, NOT_SIGNED_IN, DUPLICATE_NAME,\
     NODE_UNKNOWN, RECEIVER_UNKNOWN
+from pyleco.utils.events import SimpleEvent
 
-from pyleco.utils.message_handler import MessageHandler, SimpleEvent
+from pyleco.utils.message_handler import MessageHandler
 
 
 handler_name = "N1.handler"

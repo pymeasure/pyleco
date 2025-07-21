@@ -26,7 +26,6 @@ from __future__ import annotations
 from functools import wraps
 from json import JSONDecodeError
 import logging
-import time
 from typing import Any, Callable, Optional, Union, TypeVar
 
 import zmq
@@ -38,20 +37,16 @@ from ..core.serialization import JsonContentTypes, get_json_content_type
 from ..json_utils.errors import JSONRPCError
 from ..json_utils.rpc_generator import RPCGenerator
 from ..json_utils.rpc_server import RPCServer
-from .base_communicator import BaseCommunicator
 from .log_levels import PythonLogLevels
+from .message_handler_base import MessageHandlerBase
 from .zmq_log_handler import ZmqLogHandler
-from .events import Event, SimpleEvent
 
-
-# Parameters
-heartbeat_interval = 10  # s
 
 
 ReturnValue = TypeVar("ReturnValue")
 
 
-class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
+class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
     """Maintain connection to the Coordinator and listen to incoming messages.
 
     This class is intended to run in a thread, maintain the connection to the coordinator
@@ -234,74 +229,7 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
             self.log.exception(f"Composing message with data {data} failed.", exc_info=exc)
             # TODO send an error message to the receiver?
 
-    # Continuous listening and message handling
-    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
-        """Listen for zmq communication until `stop_event` is set or until KeyboardInterrupt.
-
-        :param stop_event: Event to stop the listening loop.
-        :param waiting_time: Time to wait for a readout signal in ms.
-        """
-        self.stop_event = stop_event
-        poller = self._listen_setup(**kwargs)
-        # Loop
-        try:
-            while not stop_event.is_set():
-                self._listen_loop_element(poller=poller, waiting_time=waiting_time)
-        except KeyboardInterrupt:
-            pass  # User stops the loop
-        finally:
-            # Close
-            self._listen_close(waiting_time=waiting_time)
-
-    def _listen_setup(self) -> zmq.Poller:
-        """Setup for listening.
-
-        If you add your own sockets, remember to poll only for incoming messages.
-        """
-        self.log.info(f"Start to listen as '{self.name}'.")
-        # Prepare
-        poller = zmq.Poller()
-        poller.register(self.socket, zmq.POLLIN)
-
-        # open communication
-        self.sign_in()
-        self.next_beat = time.perf_counter() + heartbeat_interval
-        return poller
-
-    def _listen_loop_element(
-        self, poller: zmq.Poller, waiting_time: Optional[int]
-    ) -> dict[zmq.Socket, int]:
-        """Check the socks for incoming messages and handle them.
-
-        :param waiting_time: Timeout of the poller in ms.
-        """
-        socks = dict(poller.poll(waiting_time))
-        if self.socket in socks:
-            self.read_and_handle_message()
-            del socks[self.socket]
-        elif (now := time.perf_counter()) > self.next_beat:
-            self.heartbeat()
-            self.next_beat = now + heartbeat_interval
-        return socks
-
-    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
-        """Close the listening loop."""
-        self.log.info(f"Stop listen as '{self.name}'.")
-        self.sign_out()
-
     # Message handling in loop
-    def read_and_handle_message(self) -> None:
-        """Interpret incoming message, which have not been requested."""
-        try:
-            message = self.read_message(timeout=0)
-        except (TimeoutError, JSONRPCError):
-            # only responses / errors arrived.
-            return
-        self.log.debug(f"Handling message {message}")
-        if not message.payload:
-            return  # no payload, that means just a heartbeat
-        self.handle_message(message=message)
-
     def handle_message(self, message: Message) -> None:
         if message.header_elements.message_type == MessageTypes.JSON:
             self.handle_json_message(message=message)
