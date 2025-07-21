@@ -562,8 +562,8 @@ class Test_process_json_message_with_created_binary:
         test_class = self
         class SpecialHandler(MessageHandler):
             def do_binary_manually(self, data: int) -> int:
-                test_class.payload_in = self.current_message.payload[1:]
-                self.additional_response_payload = test_class.payload_out
+                test_class.payload_in = self.rpc_handler.current_message.payload[1:]
+                self.rpc_handler.additional_response_payload = test_class.payload_out
                 return data
 
             def do_binary(
@@ -586,12 +586,12 @@ class Test_process_json_message_with_created_binary:
     def test_message_stored(self, handler_b: MessageHandler, data):
         m_in = Message("abc", data=data, message_type=MessageTypes.JSON)
         handler_b.process_json_message(m_in)
-        assert handler_b.current_message == m_in
+        assert handler_b.rpc_handler.current_message == m_in
 
     def test_empty_additional_payload(self, handler_b: MessageHandler, data):
         m_in = Message("abc", data=data, message_type=MessageTypes.JSON)
         handler_b.process_json_message(m_in)
-        assert handler_b.additional_response_payload is None
+        assert handler_b.rpc_handler.additional_response_payload is None
 
     def test_binary_payload_available(self, handler_b: MessageHandler, data):
         m_in = Message(
@@ -608,94 +608,6 @@ class Test_process_json_message_with_created_binary:
         assert isinstance(response, Message)
         assert response.payload[1:] == [b"ghi"]
         assert response.data == ResultResponse(8, 5).model_dump()
-
-
-def test_handle_binary_return_value(handler: MessageHandler):
-    payload = [b"abc", b"def"]
-    result = handler._handle_binary_return_value((None, payload))
-    assert result is None
-    assert handler.additional_response_payload == payload
-
-
-class Test_generate_binary_method:
-    @pytest.fixture
-    def binary_method(self):
-        def binary_method(index: int, additional_payload: list[bytes]) -> tuple[None, list[bytes]]:
-            """Docstring of binary method."""
-            return None, [additional_payload[index]]
-        return binary_method
-
-    @pytest.fixture(params=(True, False))
-    def modified_binary_method(self, handler: MessageHandler, binary_method, request):
-        handler.current_message = Message(
-            "rec", "send", data=b"", additional_payload=[b"0", b"1", b"2", b"3"]
-        )
-        self._accept_binary_input = request.param
-        mod = handler._generate_binary_capable_method(
-            binary_method, accept_binary_input=self._accept_binary_input, return_binary_output=True
-        )
-        self.handler = handler
-        return mod
-
-    def test_name(self, binary_method, modified_binary_method):
-        assert modified_binary_method.__name__ == binary_method.__name__
-
-    def test_docstring(self, modified_binary_method, binary_method):
-        doc_addition = (
-            "(binary input output method)"
-            if self._accept_binary_input
-            else "(binary output method)"
-        )
-        assert modified_binary_method.__doc__ == binary_method.__doc__ + "\n" + doc_addition
-
-    @pytest.mark.parametrize(
-        "input, output, string",
-        (
-            (False, False, "(binary method)"),
-            (True, False, "(binary input method)"),
-            (False, True, "(binary output method)"),
-            (True, True, "(binary input output method)"),
-        ),
-    )
-    def test_docstring_without_original_docstring(
-        self, handler: MessageHandler, input, output, string
-    ):
-        def binary_method(additional_payload):
-            return 7
-        mod = handler._generate_binary_capable_method(
-            binary_method, accept_binary_input=input, return_binary_output=output
-        )
-        assert mod.__doc__ == string
-
-    def test_annotation(self, modified_binary_method, binary_method):
-        assert modified_binary_method.__annotations__ == binary_method.__annotations__
-
-    def test_functionality_kwargs(self, modified_binary_method):
-        if self._accept_binary_input:
-            assert modified_binary_method(index=1) is None
-        else:
-            assert (
-                modified_binary_method(index=1, additional_payload=[b"0", b"1", b"2", b"3"]) is None
-            )
-        assert self.handler.additional_response_payload == [b"1"]
-
-    def test_functionality_args(self, modified_binary_method):
-        if self._accept_binary_input:
-            assert modified_binary_method(1) is None
-        else:
-            assert modified_binary_method(1, [b"0", b"1", b"2", b"3"]) is None
-        assert self.handler.additional_response_payload == [b"1"]
-
-    def test_binary_input_from_message(self, handler: MessageHandler):
-        handler.current_message = Message("rec", "send", data=b"", additional_payload=[b"0"])
-
-        def binary_method(additional_payload = None):
-            return 7
-        mod = handler._generate_binary_capable_method(
-            binary_method, accept_binary_input=True, return_binary_output=False
-        )
-        assert mod() == 7
-
 
 class Test_listen:
     @pytest.fixture

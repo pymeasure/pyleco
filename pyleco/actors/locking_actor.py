@@ -62,7 +62,7 @@ class LockingActor(Actor, Generic[Device]):
     def lock(self, resource: Optional[str] = None) -> bool:
         """Lock the controlled device or one of its resources and return the success state."""
         if self.check_access_rights(resource):
-            self._locks[resource] = self.current_message.sender
+            self._locks[resource] = self.rpc_handler.current_message.sender
             return True
         else:
             return False
@@ -99,7 +99,7 @@ class LockingActor(Actor, Generic[Device]):
 
     # helper methods
     def check_access_rights(self, resource: Optional[str]) -> bool:
-        requester = self.current_message.sender
+        requester = self.rpc_handler.current_message.sender
         if resource is None:
             elements = []
         else:
