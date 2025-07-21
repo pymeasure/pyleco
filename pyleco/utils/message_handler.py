@@ -23,10 +23,8 @@
 #
 
 from __future__ import annotations
-from functools import wraps
 from json import JSONDecodeError
 import logging
-import time
 from typing import Any, Callable, Optional, Union, TypeVar
 
 import zmq
@@ -35,23 +33,17 @@ from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message, MessageTypes
 from ..core.serialization import JsonContentTypes, get_json_content_type
-from ..json_utils.errors import JSONRPCError
-from ..json_utils.rpc_generator import RPCGenerator
-from ..json_utils.rpc_server import RPCServer
-from .base_communicator import BaseCommunicator
 from .log_levels import PythonLogLevels
+from .message_handler_base import MessageHandlerBase
+from .rpc_handler import RpcHandler
 from .zmq_log_handler import ZmqLogHandler
-from .events import Event, SimpleEvent
 
-
-# Parameters
-heartbeat_interval = 10  # s
 
 
 ReturnValue = TypeVar("ReturnValue")
 
 
-class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
+class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
     """Maintain connection to the Coordinator and listen to incoming messages.
 
     This class is intended to run in a thread, maintain the connection to the coordinator
@@ -70,9 +62,6 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
     name: str
 
-    current_message: Message
-    additional_response_payload: Optional[list[bytes]] = None
-
     def __init__(
         self,
         name: str,
@@ -86,8 +75,9 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         self.name = name
         self._namespace: Union[str, None] = None
         self._full_name: str = name
-        self.rpc = RPCServer(title=name)
-        self.rpc_generator = RPCGenerator()
+        self.rpc_handler = RpcHandler(title=name)
+        self.rpc = self.rpc_handler.rpc
+        self.rpc_generator = self.rpc_handler.rpc_generator
         self.register_rpc_methods()
 
         self.setup_logging(log=log)
@@ -140,57 +130,7 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
 
     def register_rpc_method(self, method: Callable[..., Any], **kwargs) -> None:
         """Register a method to be available via rpc calls."""
-        self.rpc.method(**kwargs)(method)
-
-    def _handle_binary_return_value(
-        self, return_value: tuple[ReturnValue, list[bytes]]
-    ) -> ReturnValue:
-        self.additional_response_payload = return_value[1]
-        return return_value[0]
-
-    @staticmethod
-    def _pass_through(return_value: ReturnValue) -> ReturnValue:
-        return return_value
-
-    def _generate_binary_capable_method(
-        self,
-        method: Callable[..., Union[ReturnValue, tuple[ReturnValue, list[bytes]]]],
-        accept_binary_input: bool = False,
-        return_binary_output: bool = False,
-    ) -> Callable[..., ReturnValue]:
-        returner = self._handle_binary_return_value if return_binary_output else self._pass_through
-        if accept_binary_input is True:
-
-            @wraps(method)
-            def modified_method(*args, **kwargs) -> ReturnValue:  # type: ignore
-                if args:
-                    args_l = list(args)
-                    if args_l[-1] is None:
-                        args_l[-1] = self.current_message.payload[1:]
-                    else:
-                        args_l.append(self.current_message.payload[1:])
-                    args = args_l  # type: ignore[assignment]
-                else:
-                    kwargs["additional_payload"] = self.current_message.payload[1:]
-                return_value = method(
-                    *args, **kwargs
-                )
-                return returner(return_value=return_value)  # type: ignore
-        else:
-
-            @wraps(method)
-            def modified_method(*args, **kwargs) -> ReturnValue:
-                return_value = method(*args, **kwargs)
-                return returner(return_value=return_value)  # type: ignore
-
-        doc_addition = (
-            f"(binary{' input' * accept_binary_input}{' output' * return_binary_output} method)"
-        )
-        try:
-            modified_method.__doc__ += "\n" + doc_addition  # type: ignore[operator]
-        except TypeError:
-            modified_method.__doc__ = doc_addition
-        return modified_method  # type: ignore
+        self.rpc_handler.register_rpc_method(method=method, **kwargs)
 
     def register_binary_rpc_method(
         self,
@@ -206,18 +146,18 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
         :param return_binary_output: the method must return a tuple of a JSON-able python object
             (e.g. `None`) and of a list of bytes objects, to be sent as additional payload.
         """
-        modified_method = self._generate_binary_capable_method(
+        self.rpc_handler.register_binary_rpc_method(
             method=method,
             accept_binary_input=accept_binary_input,
             return_binary_output=return_binary_output,
+            **kwargs,
         )
-        self.register_rpc_method(modified_method, **kwargs)
 
     def register_rpc_methods(self) -> None:
         """Register methods for RPC."""
-        self.register_rpc_method(self.shut_down)
-        self.register_rpc_method(self.set_log_level)
-        self.register_rpc_method(self.pong)
+        self.rpc_handler.register_rpc_method(self.shut_down)
+        self.rpc_handler.register_rpc_method(self.set_log_level)
+        self.rpc_handler.register_rpc_method(self.pong)
 
     # Base communication
     def send(
@@ -234,73 +174,18 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
             self.log.exception(f"Composing message with data {data} failed.", exc_info=exc)
             # TODO send an error message to the receiver?
 
-    # Continuous listening and message handling
-    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
-        """Listen for zmq communication until `stop_event` is set or until KeyboardInterrupt.
-
-        :param stop_event: Event to stop the listening loop.
-        :param waiting_time: Time to wait for a readout signal in ms.
-        """
-        self.stop_event = stop_event
-        poller = self._listen_setup(**kwargs)
-        # Loop
-        try:
-            while not stop_event.is_set():
-                self._listen_loop_element(poller=poller, waiting_time=waiting_time)
-        except KeyboardInterrupt:
-            pass  # User stops the loop
-        finally:
-            # Close
-            self._listen_close(waiting_time=waiting_time)
-
-    def _listen_setup(self) -> zmq.Poller:
-        """Setup for listening.
-
-        If you add your own sockets, remember to poll only for incoming messages.
-        """
-        self.log.info(f"Start to listen as '{self.name}'.")
-        # Prepare
-        poller = zmq.Poller()
-        poller.register(self.socket, zmq.POLLIN)
-
-        # open communication
-        self.sign_in()
-        self.next_beat = time.perf_counter() + heartbeat_interval
-        return poller
-
-    def _listen_loop_element(
-        self, poller: zmq.Poller, waiting_time: Optional[int]
-    ) -> dict[zmq.Socket, int]:
-        """Check the socks for incoming messages and handle them.
-
-        :param waiting_time: Timeout of the poller in ms.
-        """
-        socks = dict(poller.poll(waiting_time))
-        if self.socket in socks:
-            self.read_and_handle_message()
-            del socks[self.socket]
-        elif (now := time.perf_counter()) > self.next_beat:
-            self.heartbeat()
-            self.next_beat = now + heartbeat_interval
-        return socks
-
-    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
-        """Close the listening loop."""
-        self.log.info(f"Stop listen as '{self.name}'.")
-        self.sign_out()
-
     # Message handling in loop
-    def read_and_handle_message(self) -> None:
-        """Interpret incoming message, which have not been requested."""
-        try:
-            message = self.read_message(timeout=0)
-        except (TimeoutError, JSONRPCError):
-            # only responses / errors arrived.
-            return
-        self.log.debug(f"Handling message {message}")
-        if not message.payload:
-            return  # no payload, that means just a heartbeat
-        self.handle_message(message=message)
+    @property
+    def current_message(self) -> Message:
+        return self.rpc_handler.current_message
+
+    @property
+    def additional_response_payload(self) -> Optional[list[bytes]]:
+        return self.rpc_handler.additional_response_payload
+
+    @additional_response_payload.setter
+    def additional_response_payload(self, value: Optional[list[bytes]]) -> None:
+        self.rpc_handler.additional_response_payload = value
 
     def handle_message(self, message: Message) -> None:
         if message.header_elements.message_type == MessageTypes.JSON:
@@ -330,21 +215,8 @@ class MessageHandler(BaseCommunicator, ExtendedComponentProtocol):
             self.send_message(response)
 
     def process_json_message(self, message: Message) -> Optional[Message]:
-        self.current_message = message
-        self.additional_response_payload = None
         self.log.info(f"Handling commands of {message}.")
-        reply = self.rpc.process_request(message.payload[0])
-        if reply is None:
-            return None
-        else:
-            response = Message(
-                message.sender,
-                conversation_id=message.conversation_id,
-                message_type=MessageTypes.JSON,
-                data=reply,
-                additional_payload=self.additional_response_payload
-            )
-            return response
+        return self.rpc_handler.process_request(message=message)
 
     def handle_json_error(self, message: Message) -> None:
         self.log.warning(f"Error message from {message.sender!r} received: {message}")
