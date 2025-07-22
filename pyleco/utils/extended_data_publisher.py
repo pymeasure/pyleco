@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from json import JSONDecodeError
-from typing import Any, Callable, Generator, Union
+from typing import Any, cast, Callable, Generator, Union
 
 from ..json_utils.errors import JSONRPCError, NODE_UNKNOWN, RECEIVER_UNKNOWN
 from ..json_utils.json_objects import Notification
@@ -60,14 +60,16 @@ class ExtendedDataPublisher(DataPublisher):
         self, data_message: DataMessage, receivers: Union[set[Union[bytes, str]], set[bytes]],
     ) -> Generator[Message, Any, Any]:
         cid = data_message.conversation_id
-        for receiver in receivers:
-            yield Message(
-                receiver=receiver,
+        raw_message = Message(
+                receiver="dummy",
                 data=Notification("add_subscription_message"),
                 conversation_id=cid,
                 additional_payload=data_message.payload,
                 message_type=MessageTypes.JSON,
             )
+        for receiver in receivers:
+            raw_message.receiver = receiver.encode() if isinstance(receiver, str) else receiver
+            yield raw_message
 
     def send_message(self, message: DataMessage) -> None:
         super().send_message(message)
@@ -78,7 +80,7 @@ class ExtendedDataPublisher(DataPublisher):
     # TODO should unregister subscribers to which a message could not be forwarded
     def handle_json_error(self, message: Message) -> None:
         """Unregister unavailable subscribers.
-        
+
         Call this method from the message handler, for example.
         """
         try:
@@ -91,12 +93,12 @@ class ExtendedDataPublisher(DataPublisher):
         except JSONRPCError as exc:
             error_code = exc.rpc_error.code
             try:
-                error_data = exc.rpc_error.data  # type: ignore
+                error_data = cast(str, exc.rpc_error.data)  # type: ignore
             except AttributeError:
                 return
-            if error_code == RECEIVER_UNKNOWN:
+            if error_code == RECEIVER_UNKNOWN.code:
                 self.unregister_subscriber(error_data)
-            if error_code == NODE_UNKNOWN:
+            if error_code == NODE_UNKNOWN.code:
                 if isinstance(error_data, str):
                     error_data = error_data.encode()
                 for subscriber in self.subscribers:
