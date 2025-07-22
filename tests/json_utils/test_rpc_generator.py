@@ -72,14 +72,39 @@ def test_build_request_str_raises_error(generator: RPCGenerator):
             {"kwarg": 7},
             '{"id":5,"method":"with kwargs","params":{"kwarg":7},"jsonrpc":"2.0"}',
         ),
-        ("meth", False, None, '{"method":"meth","jsonrpc":"2.0"}'),
-        ("meth", False, [1, 3], '{"method":"meth","params":[1,3],"jsonrpc":"2.0"}'),
-        ("meth", False, {"1": 3}, '{"method":"meth","params":{"1":3},"jsonrpc":"2.0"}'),
+        ("meth", 1, None, '{"id":1,"method":"meth","jsonrpc":"2.0"}'),
+        ("meth", 1, [1, 3], '{"id":1,"method":"meth","params":[1,3],"jsonrpc":"2.0"}'),
+        ("meth", 1, {"1": 3}, '{"id":1,"method":"meth","params":{"1":3},"jsonrpc":"2.0"}'),
     ),
 )
 def test_build_json_str(generator: RPCGenerator, method: str, id, params, expected: str):
-    result = generator.build_json_str(method, id, params)
+    result = generator.build_json_str(method, id=id, params=params)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    "method,notification,params,expected",
+    [
+        ("meth", True, None, '{"method":"meth","jsonrpc":"2.0"}'),
+        ("meth", True, [1, 3], '{"method":"meth","params":[1,3],"jsonrpc":"2.0"}'),
+        ("meth", True, {"1": 3}, '{"method":"meth","params":{"1":3},"jsonrpc":"2.0"}'),
+        ("meth", False, None, '{"id":1,"method":"meth","jsonrpc":"2.0"}'),
+        ("meth", False, [1, 3], '{"id":1,"method":"meth","params":[1,3],"jsonrpc":"2.0"}'),
+        ("meth", False, {"1": 3}, '{"id":1,"method":"meth","params":{"1":3},"jsonrpc":"2.0"}'),
+    ],
+)
+def test_build_json_str_notification(
+    generator: RPCGenerator, method: str, notification: bool, params, expected: str
+):
+    result = generator.build_json_str(method, notification=notification, params=params)
+    assert result == expected
+
+
+def test_build_json_str_auto_id(generator: RPCGenerator):
+    generator.build_json_str("call_one")
+    result = generator.build_json_str("meth")
+    # increase id
+    assert result == '{"id":2,"method":"meth","jsonrpc":"2.0"}'
 
 
 @pytest.mark.parametrize("response, result", (
