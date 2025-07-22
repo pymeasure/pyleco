@@ -27,7 +27,12 @@ import pytest
 from pyleco.directors.director import Director
 from pyleco.test import FakeCommunicator
 from pyleco.core.message import Message, MessageTypes
-from pyleco.json_utils.json_objects import Request, ParamsRequest, ResultResponse
+from pyleco.json_utils.json_objects import (
+    Request,
+    ParamsRequest,
+    ResultResponse,
+    ParamsNotification,
+)
 
 
 cid = b"conversation_id;"
@@ -206,6 +211,28 @@ def test_call_action_async_with_kwargs_only(director: Director):
         data=ParamsRequest(id=1, method="call_action", params={"action": "action_name",
                                                            "kwargs": {"arg1": 1, "arg2": "abc"}})
         )]
+
+
+def test_send_rpc(director: Director):
+    """Test sending an RPC notification."""
+    # Act
+    director.send_rpc(
+        receiver="target",
+        method="test_method",
+        additional_payload=[b"payload"],
+        param1=1,
+        param2="value",
+    )
+
+    # Assert
+    sent: Message = director.communicator._s[0]  # type: ignore
+    assert sent.receiver == b"target"
+    assert sent.sender == b"director"
+    assert sent.header_elements.message_type == MessageTypes.JSON
+    assert sent.data == ParamsNotification(
+        method="test_method", params={"param1": 1, "param2": "value"}
+    ).model_dump()
+    assert sent.payload[1:] == [b"payload"]
 
 
 class Test_get_properties:

@@ -192,6 +192,18 @@ class Director:
         )
         return cid0
 
+    def send_rpc(
+        self,
+        receiver: Union[bytes, str],
+        method: str,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        **kwargs,
+    ) -> None:
+        """Send a JSON-RPC notification (with method \\**kwargs) without expecting a response."""
+        self.communicator.send_rpc(
+            receiver=receiver, method=method, additional_payload=additional_payload, **kwargs
+        )
+
     def ask_rpc_async(
         self,
         method: str,
