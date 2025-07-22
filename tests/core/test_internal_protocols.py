@@ -28,7 +28,13 @@ from pyleco.core.message import Message, MessageTypes
 from pyleco.core.internal_protocols import CommunicatorProtocol
 from pyleco.test import FakeCommunicator
 from pyleco.json_utils.errors import JSONRPCError
-from pyleco.json_utils.json_objects import ResultResponse, ErrorResponse, Error, ParamsRequest
+from pyleco.json_utils.json_objects import (
+    ResultResponse,
+    ErrorResponse,
+    Error,
+    ParamsRequest,
+    ParamsNotification,
+)
 
 cid = b"conversation_id;"
 
@@ -177,3 +183,45 @@ class Test_ask_rpc:
     def test_read(self, communicator_asked: FakeCommunicator):
         result = communicator_asked.ask_rpc(receiver="rec", method="test_method", par1=5)
         assert result == 5
+
+
+class Test_send_rpc:
+    @pytest.fixture
+    def communicator_sent(self, communicator: FakeCommunicator):
+        communicator._r = []
+        return communicator
+
+    def test_sent(self, communicator_sent: FakeCommunicator):
+        communicator_sent.send_rpc(receiver="rec", method="test_method", par1=5)
+        sent = communicator_sent._s[0]
+        assert communicator_sent._s == [
+            Message(
+                receiver="rec",
+                sender="communicator",
+                conversation_id=sent.conversation_id,
+                message_type=MessageTypes.JSON,
+                data=ParamsNotification(
+                    method="test_method",
+                    params={"par1": 5},
+                ),
+            )
+        ]
+
+    def test_sent_with_additional_payload(self, communicator_sent: FakeCommunicator):
+        communicator_sent.send_rpc(
+            receiver="rec", method="test_method", par1=5, additional_payload=[b"12345"]
+        )
+        sent = communicator_sent._s[0]
+        assert communicator_sent._s == [
+            Message(
+                receiver="rec",
+                sender="communicator",
+                conversation_id=sent.conversation_id,
+                message_type=MessageTypes.JSON,
+                data=ParamsNotification(
+                    method="test_method",
+                    params={"par1": 5},
+                ),
+                additional_payload=[b"12345"],
+            )
+        ]

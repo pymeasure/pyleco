@@ -130,6 +130,23 @@ class CommunicatorProtocol(Protocol):
             response, extract_additional_payload=extract_additional_payload
         )
 
+    def send_rpc(
+        self,
+        receiver: Union[bytes, str],
+        method: str,
+        additional_payload: Optional[Iterable[bytes]] = None,
+        **kwargs,
+    ) -> None:
+        """Send a JSON-RPC notification (with method \\**kwargs) without expecting a response."""
+        params = self.rpc_generator.sanitize_params(**kwargs)
+        string = self.rpc_generator.build_json_str(method=method, notification=True, params=params)
+        self.send(
+            receiver=receiver,
+            data=string,
+            message_type=MessageTypes.JSON,
+            additional_payload=additional_payload,
+        )
+
 
 class SubscriberProtocol(Protocol):
     """A helper class to subscribe to data protocol topics."""
