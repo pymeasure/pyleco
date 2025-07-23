@@ -26,7 +26,7 @@ from __future__ import annotations
 from json import JSONDecodeError
 from typing import Any, cast, Callable, Generator, Union
 
-from ..json_utils.errors import JSONRPCError, NODE_UNKNOWN, RECEIVER_UNKNOWN
+from ..json_utils.errors import JSONRPCError, NODE_UNKNOWN, RECEIVER_UNKNOWN, METHOD_NOT_FOUND
 from ..json_utils.json_objects import Notification
 from ..core.message import Message, MessageTypes
 from ..core.data_message import DataMessage
@@ -34,7 +34,11 @@ from ..json_utils.rpc_generator import RPCGenerator
 from .data_publisher import DataPublisher
 
 class ExtendedDataPublisher(DataPublisher):
-    """A DataPublisher, which sends the data also via the control protocol."""
+    """A DataPublisher, which sends the data also via the control protocol.
+
+    Handle unsolicited error messages, e.g. unavailable subscribers or not implemented receiving
+    method, with :meth:`handle_json_error` to remove these subscribers from the list of subscribers.
+    """
 
     def __init__(
         self, full_name: str, send_message_method: Callable[[Message], None], **kwargs
@@ -74,14 +78,13 @@ class ExtendedDataPublisher(DataPublisher):
     def send_message(self, message: DataMessage) -> None:
         super().send_message(message)
         for msg in self.convert_data_message_to_messages(message, self.subscribers):
-            # ideas: change to ask and check, whether it succeeded, otherwise remove subscriber
             self.send_control_message(msg)
 
-    # TODO should unregister subscribers to which a message could not be forwarded
     def handle_json_error(self, message: Message) -> None:
-        """Unregister unavailable subscribers.
+        """Unregister unavailable subscribers in an error message.
 
-        Call this method from the message handler, for example.
+        Call this method from wherever you handle incoming json errors, for example in the
+        message handler.
         """
         try:
             data: dict[str, Any] = message.data  # type: ignore
@@ -96,7 +99,7 @@ class ExtendedDataPublisher(DataPublisher):
                 error_data = cast(str, exc.rpc_error.data)  # type: ignore
             except AttributeError:
                 return
-            if error_code == RECEIVER_UNKNOWN.code:
+            if error_code in (RECEIVER_UNKNOWN.code, METHOD_NOT_FOUND.code):
                 self.unregister_subscriber(error_data)
             if error_code == NODE_UNKNOWN.code:
                 if isinstance(error_data, str):
