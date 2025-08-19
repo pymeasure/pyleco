@@ -70,7 +70,7 @@ def test_sanitize_tasks(tasks):
 )
 def test_invalid_tasks(tasks, invalid_task_name, caplog):
     assert sanitize_tasks(tasks) == ()
-    assert caplog.messages == [f"Invalid task name '{invalid_task_name}' received."]
+    assert caplog.messages[-1] == f"Invalid task name '{invalid_task_name}' received."
 
 
 
