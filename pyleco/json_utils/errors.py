@@ -71,6 +71,8 @@ INVALID_SERVER_RESPONSE = JsonRpcError(code=-32000, message="Invalid response fr
 class JSONRPCError(Exception):
     """Base error that all JSON RPC exceptions extend."""
 
+    rpc_error: JsonRpcError
+
     def __init__(self, error: JsonRpcError) -> None:
         msg = f"{error.code}: {error.message}"
         self.rpc_error = error
