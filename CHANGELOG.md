@@ -1,15 +1,36 @@
 # CHANGELOG
 
-## [Unreleased]
+## [0.6.0] 2025-08-28
+
+_The JSON RPC objects and their parsing improved, but also the errors are more in line with JSONRPC._
 
 ### Changed
 
 * **Breaking:** Return JSON defined errors from the rpc server return instead of `Servererror` ([#130](https://github.com/pymeasure/pyleco/pull/130))
 * **Breaking:** Return `ParseError` from the rpc generator instead of `InvalidServerResponse`
+* Use json objects for testing. by @BenediktBurger ([#131](https://github.com/pymeasure/pyleco/pull/131))
+* Update github actions by @BenediktBurger ([#120, #121, #122, #123, #124 #139](https://github.com/pymeasure/pyleco/pull/120))
+* Update ruff configuration for pipeline by @BenediktBurger ([#126](https://github.com/pymeasure/pyleco/pull/126))
+* Refactor message handler by @BenediktBurger ([#137](https://github.com/pymeasure/pyleco/pull/137))
+* Better json parsing by @BenediktBurger ([#134](https://github.com/pymeasure/pyleco/pull/134))
+* Make Coordinator send a notification after coordinator sign in instead of a request by @BenediktBurger ([#140](https://github.com/pymeasure/pyleco/pull/140))
+
+### Added
+
+* Add JSON-RPC notifications by @BenediktBurger ([#127](https://github.com/pymeasure/pyleco/pull/127))
+* Add send notification by @BenediktBurger ([#138](https://github.com/pymeasure/pyleco/pull/138))
 
 ### Deprecated
 
 * Deprecate `BatchObject` in favor of `JsonRpcBatch`
+
+### Fixed
+
+* Fix exception chaining to use `from` by @BenediktBurger ([#119](https://github.com/pymeasure/pyleco/pull/119))
+* Fix link to pyleco-extras on gitlab by @BenediktBurger ([#125](https://github.com/pymeasure/pyleco/pull/125))
+* Fix rpc server to raise an exception if a method is redefined by @BenediktBurger ([#136](https://github.com/pymeasure/pyleco/pull/136))
+
+**Full Changelog**: https://github.com/pymeasure/pyleco/compare/v0.5.0...v0.6.0
 
 
 ## [0.5.0] 2025-03-28
@@ -221,6 +242,7 @@ _Initial alpha version, complies with [LECO protocol alpha-0.0.1](https://github
 
 
 [Unreleased]: https://github.com/pymeasure/pyleco/compare/v0.5.0...HEAD
+[0.6.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.6.0
 [0.5.0]: https://github.com/pymeasure/pyleco/releases/tag/v0.5.0
 [0.4.2]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.2
 [0.4.1]: https://github.com/pymeasure/pyleco/releases/tag/v0.4.1
