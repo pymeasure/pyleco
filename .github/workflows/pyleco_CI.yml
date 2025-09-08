@@ -140,8 +140,8 @@ jobs:
         run: |
           echo "::add-matcher::.github/pytest.json"
           pytest
-      - name: Run pytest under Mac without acceptance tests
+      - name: Run pytest under Mac without integration tests
         if: runner.os == 'macOS'
         run: |
           echo "::add-matcher::.github/pytest.json"
-          pytest --ignore=tests/acceptance_tests
+          pytest --ignore=tests/integration_tests
