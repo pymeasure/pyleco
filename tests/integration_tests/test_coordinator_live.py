@@ -26,6 +26,7 @@ import logging
 from socket import gethostname
 from time import sleep
 import threading
+from typing import Any
 
 import pytest
 
@@ -52,7 +53,7 @@ testlevel = 30
 # pytest.skip("Takes too long.", allow_module_level=True)
 
 
-def start_coordinator(namespace: str, port: int, coordinators=None, stop_event=None, **kwargs):
+def start_coordinator(namespace: str, port: int, coordinators=None, stop_event=None, **kwargs: Any):
     with Coordinator(namespace=namespace, port=port, **kwargs) as coordinator:
         coordinator.routing(coordinators=coordinators, stop_event=stop_event)
 

@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from time import perf_counter
-from typing import Optional
+from typing import Any, Optional
 import zmq
 
 from ..core.message import Message
@@ -51,7 +51,9 @@ class MessageHandlerBase(BaseCommunicator):
     next_beat: float  #: Time of next heartbeat
     stop_event: Event  #: Event to stop the listening loop
 
-    def listen(self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs) -> None:
+    def listen(
+        self, stop_event: Event = SimpleEvent(), waiting_time: int = 100, **kwargs: Any
+    ) -> None:
         """Listen for zmq communication until `stop_event` is set or until KeyboardInterrupt.
 
         :param stop_event: Event to stop the listening loop.

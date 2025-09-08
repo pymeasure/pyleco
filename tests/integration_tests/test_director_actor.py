@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 import threading
 from time import sleep
+from typing import Any
 
 import pytest
 
@@ -38,7 +39,7 @@ from pyleco.directors.director import Director
 PORT = 60004
 
 
-def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs):
+def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs: Any):
     with Coordinator(namespace=namespace, port=port, **kwargs) as coordinator:
         coordinator.routing(coordinators=coordinators)
 

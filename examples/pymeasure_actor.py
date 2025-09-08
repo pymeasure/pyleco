@@ -5,11 +5,11 @@ Example scheme for an Actor for pymeasure instruments. 'pymeasure_actor'
 # This first docstring is shown in the GUI corresponding to the starter, such that it may be
 # identified more easily.
 
-
 import logging
 
 from pyleco.actors.actor import Actor
 from pyleco.utils.data_publisher import DataPublisher
+from pyleco.utils.events import Event
 from pymeasure.instruments.ipgphotonics import YAR  # type:ignore[import-not-found]
 
 log = logging.getLogger(__name__)
@@ -27,14 +27,15 @@ def readout(device: YAR, publisher: DataPublisher) -> None:
     :param device: The device driver managed by the Actor.
     :param publisher: The :class:`DataPublisher` instance of the Actor to publish data.
     """
-    publisher.send_data(data={'power': device.power})
+    publisher.send_data(data={"power": device.power})
 
 
-def task(stop_event) -> None:
+def task(stop_event: Event) -> None:
     """The task which is run by the starter."""
     # Initialize
     with Actor(name="pymeasure_actor", device_class=YAR, periodic_reading=interval) as actor:
-        actor.read_publish = readout  # define the regular readout function
+        # define the regular readout function
+        actor.read_publish = readout  # type: ignore[method-assign]
         actor.connect(adapter)  # connect to the device
 
         # Continuous loop
@@ -50,8 +51,12 @@ if __name__ == "__main__":
     log.setLevel(logging.INFO)
 
     class Signal:
-        def is_set(self):
+        def set(self) -> None:
+            pass
+
+        def is_set(self) -> bool:
             return False
+
     try:
         task(Signal())
     except KeyboardInterrupt:

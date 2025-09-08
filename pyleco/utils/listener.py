@@ -67,7 +67,7 @@ class Listener:
                  data_port: int = PROXY_SENDING_PORT,
                  logger: Optional[logging.Logger] = None,
                  timeout: float = 1,
-                 **kwargs) -> None:
+                 **kwargs: Any) -> None:
         super().__init__(**kwargs)
         log.info(f"Start Listener for '{name}'.")
 
@@ -128,12 +128,12 @@ class Listener:
                 return
         raise TimeoutError("PipeHandler has not started after 0.5 s.")
 
-    def get_communicator(self, **kwargs) -> CommunicatorPipe:
+    def get_communicator(self, **kwargs: Any) -> CommunicatorPipe:
         """Get the communicator for the calling thread, creating one if necessary."""
         kwargs.setdefault("timeout", self.timeout)
         return self.message_handler.get_communicator(**kwargs)
 
-    def register_rpc_method(self, method: Callable[..., Any], **kwargs) -> None:
+    def register_rpc_method(self, method: Callable[..., Any], **kwargs: Any) -> None:
         """Register a method for calling with the current message handler.
 
         If you restart the listening, you have to register the method anew.
@@ -145,7 +145,7 @@ class Listener:
         method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
         accept_binary_input: bool = False,
         return_binary_output: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Register a binary method for calling with the current message handler.
 

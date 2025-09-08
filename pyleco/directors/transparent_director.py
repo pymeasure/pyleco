@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Generic, Optional, TypeVar, Union
+from typing import Any, Callable, Generic, Optional, TypeVar, Union
 from warnings import warn
 
 from .director import Director
@@ -59,22 +59,24 @@ class RemoteCall:
         instance of RemoteCall, in the example by 'method'.
     """
 
-    def __init__(self, name: str = "", doc: Optional[str] = None, **kwargs) -> None:
+    def __init__(self, name: str = "", doc: Optional[str] = None, **kwargs: Any) -> None:
         self._name = name
         if doc is None:
             doc = "Call '{name}' at the remote driver."
         self._doc = doc
         super().__init__(**kwargs)
 
-    def __set_name__(self, owner, name) -> None:
+    def __set_name__(self, owner: Optional[Director], name: str) -> None:
         self._name = name
         self._doc = self._doc.format(name=self._name)
 
-    def __get__(self, obj: Director, objtype=None):
+    def __get__(
+        self, obj: Optional[Director], objtype: Optional[Any] = None
+    ) -> Union[RemoteCall, Callable]:
         if obj is None:
             return self
 
-        def remote_call(*args, **kwargs):
+        def remote_call(*args: Any, **kwargs: Any) -> Any:
             obj.call_action(self._name, *args, **kwargs)
 
         remote_call.__doc__ = self._doc
@@ -90,19 +92,19 @@ class TransparentDevice:
 
     director: Director
 
-    def __init__(self, director: Director):
+    def __init__(self, director: Director) -> None:
         self.director = director
 
-    def call_action(self, action: str, *args, **kwargs):
+    def call_action(self, action: str, *args: Any, **kwargs: Any) -> Any:
         self.director.call_action(action, *args, **kwargs)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         if name in dir(self):
             return super().__getattribute__(name)
         else:
             return self.director.get_parameters(parameters=(name,)).get(name)
 
-    def __setattr__(self, name, value) -> None:
+    def __setattr__(self, name: str, value: Any) -> None:
         if name in dir(self) or name.startswith("_") or name in ("director"):
             super().__setattr__(name, value)
         else:
@@ -135,8 +137,8 @@ class TransparentDirector(Director, Generic[Device]):
         actor: Optional[Union[bytes, str]] = None,
         device_class: type[Device] = TransparentDevice,  # type: ignore[assignment]
         cls: Optional[type[Device]] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(actor=actor, **kwargs)
         if cls is not None:
             warn("Parameter `cls` is deprecated, use `device_class` instead.", FutureWarning)

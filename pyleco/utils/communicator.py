@@ -25,7 +25,7 @@
 from __future__ import annotations
 import logging
 from time import perf_counter
-from typing import Optional, Union
+from typing import Any, cast, Dict, Optional, Union, TypeVar
 
 import zmq
 
@@ -34,6 +34,8 @@ from ..core.message import Message, MessageTypes
 from ..json_utils.rpc_generator import RPCGenerator
 from ..json_utils.errors import NOT_SIGNED_IN
 from .base_communicator import BaseCommunicator
+
+_Self = TypeVar("_Self", bound="Communicator")
 
 
 class Communicator(BaseCommunicator):
@@ -68,7 +70,7 @@ class Communicator(BaseCommunicator):
         auto_open: bool = True,
         protocol: str = "tcp",
         standalone: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         self.log = logging.getLogger(f"{__name__}.Communicator")
         self.host = host
@@ -116,12 +118,12 @@ class Communicator(BaseCommunicator):
     def __del__(self) -> None:
         self.close()
 
-    def __enter__(self):  # -> typing.Self for py>=3.11
+    def __enter__(self: _Self) -> _Self:  # -> typing.Self for py>=3.11
         """Called with `with` keyword, returns the Director."""
         if not hasattr(self, "socket"):
             self.open()
         self.sign_in()
-        return self
+        return super().__enter__()
 
     def send_message(self, message: Message) -> None:
         now = perf_counter()
@@ -136,7 +138,7 @@ class Communicator(BaseCommunicator):
             timeout = self.timeout
         return self.socket.poll(timeout=int(timeout * 1000))  # in ms
 
-    def handle_not_signed_in(self):
+    def handle_not_signed_in(self) -> None:
         super().handle_not_signed_in()
         raise ConnectionResetError("Have not been signed in, signing in.")
 
@@ -164,5 +166,5 @@ class Communicator(BaseCommunicator):
         if self.namespace is None:
             raise ConnectionRefusedError("Sign in failed.")
 
-    def get_capabilities(self, receiver: Union[bytes, str]) -> dict:
-        return self.ask_rpc(receiver=receiver, method="rpc.discover")
+    def get_capabilities(self, receiver: Union[bytes, str]) -> dict[str, Any]:
+        return cast(Dict[str, Any], self.ask_rpc(receiver=receiver, method="rpc.discover"))

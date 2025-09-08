@@ -23,8 +23,6 @@
 #
 
 from __future__ import annotations
-from typing import Union, Sequence
-
 import datetime
 try:
     from enum import StrEnum  # type: ignore
@@ -37,7 +35,7 @@ except ImportError:  # pragma: no cover
 import json
 import logging
 from threading import Lock
-from typing import Any, Callable, Optional, Iterable
+from typing import Any, Callable, Optional, Iterable, Sequence, Union
 
 try:
     import numpy as np  # type: ignore[import-not-found]
@@ -46,15 +44,18 @@ except ModuleNotFoundError:
         return sum(values) / len(values)
 else:
     average = np.average  # type: ignore
+from zmq import Poller
 
 if __name__ == "__main__":  # pragma: no cover
     from pyleco.utils.timers import RepeatingTimer
-    from pyleco.utils.extended_message_handler import ExtendedMessageHandler, DataMessage
+    from pyleco.core.data_message import DataMessage
+    from pyleco.utils.extended_message_handler import ExtendedMessageHandler
     from pyleco.utils.parser import parser, parse_command_line_parameters
     from pyleco.utils.data_publisher import DataPublisher
 else:
     from ..utils.timers import RepeatingTimer
-    from ..utils.extended_message_handler import ExtendedMessageHandler, DataMessage
+    from ..core.data_message import DataMessage
+    from ..utils.extended_message_handler import ExtendedMessageHandler
     from ..utils.parser import parser, parse_command_line_parameters
     from ..utils.data_publisher import DataPublisher
 
@@ -111,9 +112,9 @@ class DataLogger(ExtendedMessageHandler):
     trigger_timeout: float = 1
     trigger_variable: str = ""
     value_repeating: bool = False
-    valuing: Callable[[list], Any]
+    valuing: Callable[[list[Any]], Any]
 
-    def __init__(self, name: str = "DataLoggerN", directory: str = ".", **kwargs) -> None:
+    def __init__(self, name: str = "DataLoggerN", directory: str = ".", **kwargs: Any) -> None:
         super().__init__(name=name, **kwargs)
         self.directory = directory
         self.publisher = DataPublisher(full_name=name)
@@ -139,7 +140,7 @@ class DataLogger(ExtendedMessageHandler):
         self.stop_collecting()
 
     def _listen_setup(self, start_data: Optional[dict[str, Any]] = None,  # type: ignore[override]
-                      **kwargs):
+                      **kwargs: Any) -> Poller:
         poller = super()._listen_setup(**kwargs)
         if start_data is not None:
             self.start_collecting(**start_data)
@@ -203,7 +204,7 @@ class DataLogger(ExtendedMessageHandler):
                 self.tmp[key].clear()
             return datapoint
 
-    def calculate_single_data(self, variable: str, tmp: list):
+    def calculate_single_data(self, variable: str, tmp: list) -> Any:
         if tmp:
             value = self.valuing(tmp)
         elif self.value_repeating:

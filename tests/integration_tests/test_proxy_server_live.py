@@ -25,6 +25,7 @@
 from __future__ import annotations
 import pytest
 from time import sleep
+from typing import Any
 
 from pyleco.utils.data_publisher import DataPublisher
 from pyleco.utils.listener import Listener
@@ -42,7 +43,7 @@ offset = 100
 
 class ModListener(Listener):
     def __init__(self, name: str, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
-                 **kwargs) -> None:
+                 **kwargs: Any) -> None:
         super().__init__(name=name, host=host, data_port=data_port, **kwargs)
         self._data: list[dict] = []
 

@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 import logging
+from typing import Any, cast, Dict, List, Optional, Union
 
 from .director import Director
 
@@ -35,21 +36,21 @@ log.addHandler(logging.NullHandler())
 class CoordinatorDirector(Director):
     """Direct a Coordinator."""
 
-    def __init__(self, actor="COORDINATOR", **kwargs) -> None:
+    def __init__(self, actor: Optional[Union[bytes, str]] = "COORDINATOR", **kwargs: Any) -> None:
         super().__init__(actor=actor, **kwargs)
 
     def get_local_components(self) -> list[str]:
         """Get the directory."""
-        return self.ask_rpc(method="send_local_components")
+        return cast(List[str], self.ask_rpc(method="send_local_components"))
 
     def get_global_components(self) -> dict[str, list[str]]:
         """Get the directory."""
-        return self.ask_rpc(method="send_global_components")
+        return cast(Dict[str, List[str]], self.ask_rpc(method="send_global_components"))
 
     def get_nodes(self) -> dict[str, str]:
         """Get all known nodes."""
-        return self.ask_rpc(method="send_nodes")
+        return cast(Dict[str, str], self.ask_rpc(method="send_nodes"))
 
     def add_nodes(self, coordinators: dict[str, str]) -> None:
         """Tell the Coordinator about other coordinators (dict)."""
-        return self.ask_rpc(method="add_nodes", nodes=coordinators)
+        return cast(None, self.ask_rpc(method="add_nodes", nodes=coordinators))

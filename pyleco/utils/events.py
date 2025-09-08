@@ -26,7 +26,7 @@ from typing import Protocol
 
 
 class Event(Protocol):
-    """Check compatibility with threading.Event."""
+    """Check compatibility with `threading.Event`."""
     def is_set(self) -> bool: ...  # pragma: no cover
 
     def set(self) -> None: ...  # pragma: no cover

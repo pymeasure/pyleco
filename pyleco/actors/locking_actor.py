@@ -47,7 +47,7 @@ class LockingActor(Actor, Generic[Device]):
         periodic_reading: float = -1,
         auto_connect: Optional[dict] = None,
         context: Optional[Context] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         super().__init__(name, device_class, periodic_reading, auto_connect, context, **kwargs)
         self._locks: dict[Optional[str], bytes] = {}

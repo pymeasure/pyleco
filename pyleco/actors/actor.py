@@ -23,7 +23,8 @@
 #
 from __future__ import annotations
 
-from typing import Any, Callable, Generic, Optional, Sequence, TypeVar, Union
+from types import TracebackType
+from typing import Any, Callable, Generic, Optional, Sequence, Type, TypeVar, Union
 from warnings import warn
 
 import zmq
@@ -80,7 +81,7 @@ class Actor(MessageHandler, Generic[Device]):
         auto_connect: Optional[dict] = None,
         context: Optional[zmq.Context] = None,
         cls: Optional[type[Device]] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         context = context or zmq.Context.instance()
         super().__init__(name=name, context=context, **kwargs)
@@ -128,9 +129,17 @@ class Actor(MessageHandler, Generic[Device]):
     def __del__(self) -> None:
         self.disconnect()
 
-    def __exit__(self, *args, **kwargs) -> None:
-        super().__exit__(*args, **kwargs)
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[TracebackType],
+    ) -> Optional[bool]:
+        result = super().__exit__(
+            exc_type, exc_value, exc_traceback
+        )
         self.disconnect()
+        return result
 
     def set_full_name(self, full_name: str) -> None:
         super().set_full_name(full_name=full_name)
@@ -215,7 +224,7 @@ class Actor(MessageHandler, Generic[Device]):
     def set_polling_interval(self, polling_interval: float) -> None:
         self.polling_interval = polling_interval
 
-    def connect(self, *args, **kwargs) -> None:
+    def connect(self, *args: Any, **kwargs: Any) -> None:
         """Connect to the device with the given arguments and keyword arguments."""
         # TODO read auto_connect?
         self.log.info("Connecting")

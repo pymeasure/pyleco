@@ -65,7 +65,7 @@ class JsonRpcRequest(JsonRpcBase):
     id: Optional[Union[str, int]] = None
     jsonrpc: str = field(default="2.0", init=True)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate the request after initialization"""
         if not isinstance(self.method, str) or not self.method:
             raise ValueError("Method must be a non-empty string")
@@ -136,7 +136,7 @@ class JsonRpcResponse(JsonRpcBase):
     error: Optional[JsonRpcError] = None
     jsonrpc: str = field(default="2.0", init=True)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate the response after initialization."""
         if self.result is not None and self.error is not None:
             raise ValueError("Response cannot have both result and error")
@@ -174,7 +174,7 @@ class JsonRpcError(JsonRpcBase):
     message: str
     data: Optional[Any] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate the error after initialization."""
         if not isinstance(self.code, int):
             raise ValueError("Error code must be an integer")
@@ -237,7 +237,7 @@ class JsonRpcBatch:
 
     items: Sequence[Union[JsonRpcRequest, JsonRpcResponse]]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate the batch after initialization"""
         if not isinstance(self.items, list) or len(self.items) == 0:
             raise ValueError("Batch must contain at least one item")
@@ -323,7 +323,7 @@ class BatchObject(List[BatchType]):
     this batch object to a plain python object or to JSON.
     """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         warn("The `BatchObject` is deprecated, use a `JsonRpcBatch` instead.", FutureWarning)
         return super().__init__(*args, **kwargs)
 

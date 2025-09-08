@@ -25,7 +25,8 @@
 from __future__ import annotations
 import logging
 from time import perf_counter
-from typing import Optional, Protocol
+from types import TracebackType
+from typing import Any, Optional, Protocol, Type, TypeVar
 
 import zmq
 
@@ -35,13 +36,14 @@ from ..json_utils.errors import JSONRPCError, DUPLICATE_NAME, NOT_SIGNED_IN
 
 
 NOT_SIGNED_IN_ERROR_CODE = str(NOT_SIGNED_IN.code).encode()
+_Self = TypeVar("_Self", bound="BaseCommunicator")
 
 
 class MessageBuffer:
     _messages: list[Message]
     _requested_ids: set[bytes]
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._messages = []
         self._requested_ids = set()
@@ -58,7 +60,7 @@ class MessageBuffer:
         """Check whether this conversation_id is requested by someone."""
         return conversation_id in self._requested_ids
 
-    def add_message(self, message: Message):
+    def add_message(self, message: Message) -> None:
         """Add a message to the buffer."""
         self._messages.append(message)
 
@@ -73,7 +75,7 @@ class MessageBuffer:
                 return self._messages.pop(i)
         return None
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._messages)
 
 
@@ -96,11 +98,17 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         self.socket.close(1)
 
     # Context manager
-    def __enter__(self):
+    def __enter__(self: _Self) -> _Self:
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[TracebackType]
+    ) -> Optional[bool]:
         self.close()
+        return None
 
     # Base communication
     def _send_socket_message(self, message: Message) -> None:

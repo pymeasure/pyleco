@@ -23,6 +23,7 @@
 #
 
 from unittest.mock import MagicMock
+from typing import Any
 
 import pytest
 
@@ -39,7 +40,7 @@ def get_parameters_fake(parameters):
 
 class FakeDirector(TransparentDirector):
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self.call_action = MagicMock()
         self.get_parameters = MagicMock()

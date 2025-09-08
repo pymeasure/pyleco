@@ -62,7 +62,7 @@ class LockedMessageBuffer(MessageBuffer):
     This is repeated until the suiting response is found or a limit is reached.
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._buffer_lock = Condition()
 
@@ -76,7 +76,7 @@ class LockedMessageBuffer(MessageBuffer):
         with self._buffer_lock:
             super().remove_conversation_id(conversation_id=conversation_id)
 
-    def add_message(self, message: Message):
+    def add_message(self, message: Message) -> None:
         """Add a message to the buffer."""
         with self._buffer_lock:
             super().add_message(message)
@@ -139,7 +139,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
                  message_buffer: LockedMessageBuffer,
                  context: Optional[zmq.Context] = None,
                  timeout: float = 1,
-                 **kwargs):
+                 **kwargs: Any):
         super().__init__(**kwargs)
         self.handler = handler
         context = context or zmq.Context.instance()
@@ -169,9 +169,9 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
     def full_name(self) -> str:
         return self.handler.full_name
 
-    def _send_pipe_message(self, typ: PipeCommands, *content: bytes) -> None:
+    def _send_pipe_message(self, command: PipeCommands, *content: bytes) -> None:
         try:
-            self.socket.send_multipart((typ, *content))
+            self.socket.send_multipart((command, *content))
         except zmq.ZMQError as exc:
             raise ConnectionRefusedError(f"Connection to the handler refused with '{exc}', "
                                          "probably the handler stopped.") from exc
@@ -215,7 +215,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         self._send_pipe_message(PipeCommands.UNSUBSCRIBE_ALL)
 
     # methods for local access
-    def _send_handler(self, method: str, **kwargs) -> bytes:
+    def _send_handler(self, method: str, **kwargs: Any) -> bytes:
         cid = generate_conversation_id()
         message_string = self.rpc_generator.build_request_str(method=method, **kwargs)
         self.message_buffer.add_conversation_id(cid)
@@ -226,13 +226,13 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         response_message = self.read_message(conversation_id=cid, timeout=timeout)
         return self.interpret_rpc_response(response_message=response_message)
 
-    def ask_handler(self, method: str, timeout: float = 1, **kwargs) -> Any:
+    def ask_handler(self, method: str, timeout: float = 1, **kwargs: Any) -> Any:
         """Ask the associated message handler."""
         cid = self._send_handler(method=method, **kwargs)
         return self._read_handler(cid, timeout=timeout)
 
     # Utility methods
-    def register_rpc_method(self, method: Callable, **kwargs) -> None:
+    def register_rpc_method(self, method: Callable, **kwargs: Any) -> None:
         """Register a method with the message handler to make it available via RPC."""
         self.handler.register_rpc_method(method=method, **kwargs)
 
@@ -253,7 +253,7 @@ class PipeHandler(ExtendedMessageHandler):
     _communicators: dict[int, CommunicatorPipe]
     _on_name_change_methods: set[Callable[[str], None]] = set()
 
-    def __init__(self, name: str, context: Optional[zmq.Context] = None, **kwargs) -> None:
+    def __init__(self, name: str, context: Optional[zmq.Context] = None, **kwargs: Any) -> None:
         context = context or zmq.Context.instance()
         super().__init__(name=name, context=context, **kwargs)
         self.internal_pipe: zmq.Socket = context.socket(zmq.PULL)
@@ -285,7 +285,7 @@ class PipeHandler(ExtendedMessageHandler):
     def unregister_on_name_change_method(self, method: Callable[[str], None]) -> None:
         self._on_name_change_methods.discard(method)
 
-    def _listen_setup(self, **kwargs) -> zmq.Poller:
+    def _listen_setup(self, **kwargs: Any) -> zmq.Poller:
         poller = super()._listen_setup(**kwargs)
         poller.register(self.internal_pipe, zmq.POLLIN)
         return poller
@@ -319,7 +319,7 @@ class PipeHandler(ExtendedMessageHandler):
         else:
             self.log.debug(f"Received unknown '{msg}'.")
 
-    def rename_handler(self, name):
+    def rename_handler(self, name: str) -> None:
         self.sign_out()
         self.name = name
         self.namespace = None  # to update the full_name
@@ -347,7 +347,7 @@ class PipeHandler(ExtendedMessageHandler):
         )
 
     # Thread safe methods for access from other threads
-    def create_communicator(self, **kwargs) -> CommunicatorPipe:
+    def create_communicator(self, **kwargs: Any) -> CommunicatorPipe:
         """Create a communicator wherever you want to access the pipe handler."""
         com = CommunicatorPipe(message_buffer=self.message_buffer, pipe_port=self.pipe_port,
                                handler=self,
@@ -355,7 +355,7 @@ class PipeHandler(ExtendedMessageHandler):
         self._communicators[get_ident()] = com
         return com
 
-    def get_communicator(self, **kwargs) -> CommunicatorPipe:
+    def get_communicator(self, **kwargs: Any) -> CommunicatorPipe:
         """Get the communicator for this thread, creating one if necessary."""
         com = self._communicators.get(get_ident())
         if com is None or com.socket.closed is True:

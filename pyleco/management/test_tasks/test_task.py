@@ -11,22 +11,22 @@ from pyleco.actors.actor import Actor
 class FakeInstrument:  # pragma: no cover
     _prop1 = 5
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def connect(self):
+    def connect(self) -> None:
         pass
 
     @property
-    def constant(self):
+    def constant(self) -> int:
         return 7
 
     @property
-    def prop1(self):
+    def prop1(self) -> int:
         return self._prop1
 
     @prop1.setter
-    def prop1(self, value):
+    def prop1(self, value: int) -> None:
         self._prop1 = value
 
     def triple(self, factor: float = 1) -> float:
@@ -39,7 +39,7 @@ def task(stop_event: Event) -> None:
     while stop_event.wait(.5):
         sleep(.1)
     return
-    with Actor(name="pymeasure_actor", device_class=FakeInstrument,
+    with Actor(name="pymeasure_actor", device_class=FakeInstrument,  # type: ignore[unreachable]
                periodic_reading=-1) as actor:
         actor.connect()  # connect to the device
 

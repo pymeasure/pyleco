@@ -24,7 +24,8 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, Iterable, Optional, Sequence, Union
+from types import TracebackType
+from typing import Any, cast, Dict, Iterable, Optional, Sequence, Type, TypeVar, Union
 
 from ..core.internal_protocols import CommunicatorProtocol
 from ..utils.communicator import Communicator
@@ -32,6 +33,7 @@ from ..utils.log_levels import get_leco_log_level
 from ..core.serialization import generate_conversation_id
 from ..core.message import Message, MessageTypes
 
+_Self = TypeVar("_Self", bound="Director")
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -52,10 +54,13 @@ class Director:
     :param name: The name of this Director.
     """
 
-    def __init__(self, actor: Optional[Union[bytes, str]] = None,
-                 communicator: Optional[CommunicatorProtocol] = None,
-                 name: str = "Director",
-                 **kwargs) -> None:
+    def __init__(
+        self,
+        actor: Optional[Union[bytes, str]] = None,
+        communicator: Optional[CommunicatorProtocol] = None,
+        name: str = "Director",
+        **kwargs: Any,
+    ) -> None:
         self.actor = actor
         if communicator is None:
             communicator = Communicator(name=name, **kwargs)
@@ -79,15 +84,22 @@ class Director:
         """Sign the communicator out."""
         self.communicator.sign_out()
 
-    def __enter__(self):
+    def __enter__(self: _Self) -> _Self:
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[TracebackType],
+    ) -> Optional[bool]:
         self.close()
+        return None
 
     # Message handling
-    def ask_message(self, actor: Optional[Union[bytes, str]] = None,
-                    data: Optional[Any] = None, **kwargs) -> Message:
+    def ask_message(
+        self, actor: Optional[Union[bytes, str]] = None, data: Optional[Any] = None, **kwargs: Any
+    ) -> Message:
         actor = self._actor_check(actor)
         log.debug(f"Asking {actor!r} with message '{data}'.")
         response = self.communicator.ask(actor, data=data, **kwargs)
@@ -101,8 +113,9 @@ class Director:
         return actor
 
     # Helper methods
-    def _prepare_call_action_params(self, args: tuple[Any, ...],
-                                    kwargs: dict[str, Any]) -> dict[str, Any]:
+    def _prepare_call_action_params(
+        self, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate a params dictionary for the call action method."""
         params: dict[str, Any] = {}
         if args:
@@ -118,7 +131,7 @@ class Director:
         actor: Optional[Union[bytes, str]] = None,
         additional_payload: Optional[Iterable[bytes]] = None,
         extract_additional_payload: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Remotely call the `method` procedure on the `actor` and return the return value."""
         receiver = self._actor_check(actor)
@@ -131,24 +144,26 @@ class Director:
         )
 
     #   Component
-    def get_rpc_capabilities(self, actor: Optional[Union[bytes, str]] = None) -> dict:
+    def get_rpc_capabilities(self, actor: Optional[Union[bytes, str]] = None) -> dict[str, Any]:
         """Get a list of the remotely callable procedures of the actor."""
-        return self.ask_rpc(method="rpc.discover", actor=actor)
+        return cast(Dict[str, Any], self.ask_rpc(method="rpc.discover", actor=actor))
 
     def shut_down_actor(self, actor: Optional[Union[bytes, str]] = None) -> None:
         """Stop the actor."""
-        self.ask_rpc(method="shut_down", actor=actor)
+        return cast(None, self.ask_rpc(method="shut_down", actor=actor))
 
-    def set_actor_log_level(self, level: Union[str, int], actor: Optional[Union[bytes, str]] = None
-                            ) -> None:
+    def set_actor_log_level(
+        self, level: Union[str, int], actor: Optional[Union[bytes, str]] = None
+    ) -> None:
         """Set the log level of the actor."""
         if isinstance(level, int):
             level = get_leco_log_level(level).value
-        self.ask_rpc("set_log_level", level=level, actor=actor)
+        return cast(None, self.ask_rpc("set_log_level", level=level, actor=actor))
 
     #   Actor
-    def get_parameters(self, parameters: Union[str, Sequence[str]],
-                       actor: Optional[Union[bytes, str]] = None) -> dict[str, Any]:
+    def get_parameters(
+        self, parameters: Union[str, Sequence[str]], actor: Optional[Union[bytes, str]] = None
+    ) -> dict[str, Any]:
         """Get the values of these `properties` (list, tuple)."""
         if isinstance(parameters, str):
             parameters = (parameters,)
@@ -157,13 +172,15 @@ class Director:
             raise ConnectionError(f"{response} returned, but dict expected.")
         return response
 
-    def set_parameters(self, parameters: dict[str, Any],
-                       actor: Optional[Union[bytes, str]] = None) -> None:
+    def set_parameters(
+        self, parameters: dict[str, Any], actor: Optional[Union[bytes, str]] = None
+    ) -> None:
         """Set the `properties` dictionary."""
-        self.ask_rpc(method="set_parameters", parameters=parameters, actor=actor)
+        return cast(None, self.ask_rpc(method="set_parameters", parameters=parameters, actor=actor))
 
-    def call_action(self, action: str, *args, actor: Optional[Union[bytes, str]] = None,
-                    **kwargs) -> Any:
+    def call_action(
+        self, action: str, *args: Any, actor: Optional[Union[bytes, str]] = None, **kwargs: Any
+    ) -> Any:
         """Call an action remotely and return its return value.
 
         :param str action: Name of the action to call. If you have positional arguments, this
@@ -180,9 +197,9 @@ class Director:
     def send(
         self,
         actor: Optional[Union[bytes, str]] = None,
-        data=None,
+        data: Optional[Any] = None,
         additional_payload: Optional[Iterable[bytes]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> bytes:
         """Send a request and return the conversation_id."""
         actor = self._actor_check(actor)
@@ -197,7 +214,7 @@ class Director:
         receiver: Union[bytes, str],
         method: str,
         additional_payload: Optional[Iterable[bytes]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Send a JSON-RPC notification (with method \\**kwargs) without expecting a response."""
         self.communicator.send_rpc(
@@ -209,7 +226,7 @@ class Director:
         method: str,
         actor: Optional[Union[bytes, str]] = None,
         additional_payload: Optional[Iterable[bytes]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> bytes:
         """Send a rpc request, the response can be read later with :meth:`read_rpc_response`."""
         string = self.generator.build_request_str(method=method, **kwargs)
@@ -224,7 +241,7 @@ class Director:
         self,
         conversation_id: Optional[bytes] = None,
         extract_additional_payload: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Read the response value corresponding to a request with a certain `conversation_id`."""
         response_message = self.communicator.read_message(conversation_id=conversation_id, **kwargs)
@@ -233,8 +250,9 @@ class Director:
         )
 
     #   Actor
-    def get_parameters_async(self, parameters: Union[str, Sequence[str]],
-                             actor: Optional[Union[bytes, str]] = None) -> bytes:
+    def get_parameters_async(
+        self, parameters: Union[str, Sequence[str]], actor: Optional[Union[bytes, str]] = None
+    ) -> bytes:
         """Request the values of these `properties` (list, tuple) and return the conversation_id.
 
         You can use :meth:`read_rpc_response` to read the response.
@@ -244,8 +262,9 @@ class Director:
         # return self.send(data=[[Commands.GET, properties]])
         return self.ask_rpc_async(method="get_parameters", parameters=parameters, actor=actor)
 
-    def set_parameters_async(self, parameters: dict[str, Any],
-                             actor: Optional[Union[bytes, str]] = None) -> bytes:
+    def set_parameters_async(
+        self, parameters: dict[str, Any], actor: Optional[Union[bytes, str]] = None
+    ) -> bytes:
         """Set the `properties` dictionary and return the conversation_id.
 
         You can use :meth:`read_rpc_response` to read the response.
@@ -253,8 +272,9 @@ class Director:
         # return self.send(data=[[Commands.SET, properties]])
         return self.ask_rpc_async(method="set_parameters", parameters=parameters, actor=actor)
 
-    def call_action_async(self, action: str, *args, actor: Optional[Union[bytes, str]] = None,
-                          **kwargs) -> bytes:
+    def call_action_async(
+        self, action: str, *args: Any, actor: Optional[Union[bytes, str]] = None, **kwargs: Any
+    ) -> bytes:
         """Call a method remotely and return the conversation_id.
 
         You can use :meth:`read_rpc_response` to read the response.

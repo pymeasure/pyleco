@@ -28,6 +28,11 @@ from typing import Any, Iterable, Optional, Union
 
 from .serialization import deserialize_data, generate_conversation_id, serialize_data, MessageTypes
 
+__all__ = [
+    "DataMessage",
+    "MessageTypes",
+]
+
 
 class DataMessage:
     """A message of the data protocol."""
@@ -43,7 +48,8 @@ class DataMessage:
                  conversation_id: Optional[bytes] = None,
                  message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
                  additional_payload: Optional[Iterable[bytes]] = None,
-                 **kwargs) -> None:
+                 **kwargs: Any
+                 ) -> None:
         super().__init__(**kwargs)
         self.topic = topic.encode() if isinstance(topic, str) else topic
         if header and (conversation_id or message_type != MessageTypes.NOT_DEFINED):
@@ -66,7 +72,7 @@ class DataMessage:
             self.payload.extend(additional_payload)
 
     @classmethod
-    def from_frames(cls, topic: bytes, header: bytes, *payload: bytes):
+    def from_frames(cls, topic: bytes, header: bytes, *payload: bytes) -> DataMessage:
         """Create a message from a frames list, for example after reading from a socket.
 
         .. code::

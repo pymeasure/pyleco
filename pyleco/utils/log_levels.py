@@ -40,4 +40,4 @@ class PythonLogLevels(IntEnum):
 def get_leco_log_level(log_level: int) -> LogLevels:
     """Get the LECO log level from an integer (or python log level) if possible."""
     name = PythonLogLevels(log_level).name
-    return LogLevels[name]
+    return LogLevels(name)
