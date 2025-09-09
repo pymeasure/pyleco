@@ -23,24 +23,26 @@
 #
 
 from __future__ import annotations
-from typing import Any, Iterable, Optional, Sequence, Union
+from typing import Any, Iterable, Optional, Sequence, TYPE_CHECKING, Union
 
 from .core.message import Message, MessageTypes
 from .core.internal_protocols import CommunicatorProtocol
 from .json_utils.rpc_generator import RPCGenerator
 from .utils.message_handler import MessageHandler
 
+if TYPE_CHECKING:
+    from .actors.actor import Actor
 
 class FakeContext:
     """A fake context instance, similar to the result of `zmq.Context.instance()."""
 
-    def socket(self, socket_type):
+    def socket(self, socket_type: int) -> FakeSocket:
         return FakeSocket(socket_type)
 
-    def term(self):
+    def term(self) -> None:
         self.closed = True
 
-    def destroy(self, linger=0):
+    def destroy(self, linger: int = 0) -> None:
         self.closed = True
 
 
@@ -51,7 +53,7 @@ class FakeSocket:
     :attr list _r: List of messages which can be read.
     """
 
-    def __init__(self, socket_type: int, *args) -> None:
+    def __init__(self, socket_type: int, *args: Any) -> None:
         self.closed: bool = False
 
         # Added for testing purposes
@@ -68,14 +70,14 @@ class FakeSocket:
     def bind(self, addr: str) -> None:
         self.addr = addr
 
-    def bind_to_random_port(self, addr: str, *args, **kwargs) -> int:
+    def bind_to_random_port(self, addr: str, *args: Any, **kwargs: Any) -> int:
         self.addr = addr
         return 5
 
     def unbind(self, addr: Optional[str] = None) -> None:
         self.addr = None
 
-    def connect(self, addr: str):
+    def connect(self, addr: str) -> None:
         self.addr = addr
 
     def disconnect(self, addr: Optional[str] = None) -> None:
@@ -94,7 +96,7 @@ class FakeSocket:
         return self._r.pop(0)
 
     def send_multipart(self, msg_parts: Sequence, flags: int = 0, copy: bool = True,
-                       track: bool = False, **kwargs) -> None:
+                       track: bool = False, **kwargs: Any) -> None:
         for i, part in enumerate(msg_parts):
             if not isinstance(part, bytes):
                 # Similar to real error message.
@@ -141,7 +143,7 @@ class FakePoller:
                 events.append((sock, 1))
         return events
 
-    def register(self, socket,
+    def register(self, socket: FakeSocket,
                  flags: int = "PollEvent.POLLIN",  # type: ignore
                  ) -> None:
         self._sockets.append(socket)
@@ -177,10 +179,12 @@ class FakeCommunicator(CommunicatorProtocol):
             message.sender = self.name.encode()
         self._s.append(message)
 
-    def read_message(self, conversation_id: Optional[bytes] = None, timeout=None):
+    def read_message(
+        self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
+    ) -> Message:
         return self._r.pop(0)
 
-    def ask_message(self, message: Message, timeout=None) -> Message:
+    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
         self.send_message(message)
         return self.read_message(timeout=timeout)
 
@@ -218,7 +222,7 @@ class FakeDirector:
     method: str  # called method
     kwargs: dict[str, Any]  # kwargs sent to the method
 
-    def __init__(self, remote_class, **kwargs):
+    def __init__(self, remote_class: Actor, **kwargs: Any) -> None:
         kwargs.setdefault("communicator", FakeCommunicator("communicator"))
         super().__init__(**kwargs)
         self.remote_class = remote_class
@@ -229,7 +233,7 @@ class FakeDirector:
         actor: Optional[Union[bytes, str]] = None,
         additional_payload: Optional[Iterable[bytes]] = None,
         extract_additional_payload: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
         self.method = method
@@ -241,7 +245,7 @@ class FakeDirector:
         method: str,
         actor: Optional[Union[bytes, str]] = None,
         additional_payload: Optional[Iterable[bytes]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> bytes:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."
         self.method = method
@@ -249,7 +253,7 @@ class FakeDirector:
         return b"conversation_id;"
 
 
-def handle_request_message(handler: MessageHandler, method: str, *args, **kwargs) -> None:
+def handle_request_message(handler: MessageHandler, method: str, *args: Any, **kwargs: Any) -> None:
     request = handler.rpc_generator.build_request_str(method, *args, **kwargs)
     handler.handle_message(Message("Handler", "Sender", request, message_type=MessageTypes.JSON))
 

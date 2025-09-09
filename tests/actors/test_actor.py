@@ -25,6 +25,7 @@
 import logging
 from sys import version_info
 import time
+from typing import Any
 
 from unittest.mock import MagicMock
 
@@ -54,7 +55,7 @@ class FantasyChannel:
 
 class FantasyInstrument:
 
-    def __init__(self, adapter, name="FantasyInstrument", *args, **kwargs):
+    def __init__(self, adapter, name: str = "FantasyInstrument", *args: Any, **kwargs: Any):
         self.name = name
         self.adapter = adapter
         super().__init__()

@@ -23,6 +23,7 @@
 #
 
 
+from typing import Any, Callable, Iterable, Mapping, Optional
 from threading import Event, Timer
 
 
@@ -34,11 +35,17 @@ class RepeatingTimer(Timer):
     :param float interval: Interval between readouts in s.
     """
 
-    def __init__(self, interval, function, args=None, kwargs=None):
+    def __init__(
+        self,
+        interval: float,
+        function: Callable,
+        args: Optional[Iterable[Any]] = None,
+        kwargs: Optional[Mapping[str, Any]] = None,
+    ):
         super().__init__(interval, function, args, kwargs)
         self.daemon = True
 
-    def run(self):
+    def run(self) -> None:
         while not self.finished.wait(self.interval):
             self.function(*self.args, **self.kwargs)
 
@@ -49,12 +56,12 @@ class SignallingTimer(RepeatingTimer):
     :param float interval: Interval in s.
     """
 
-    def __init__(self, interval):
+    def __init__(self, interval: float):
         self.signal = Event()
         super().__init__(interval, self._timeout, args=(self.signal,))
 
     @staticmethod
-    def _timeout(signal):
+    def _timeout(signal: Event) -> None:
         """Set and clear the signal event."""
         signal.set()
         signal.clear()

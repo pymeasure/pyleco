@@ -39,12 +39,14 @@ class RPCGenerator:
 
     _id_counter: int = 1
 
-    def build_request_str(self, method: str, *args, **kwargs) -> str:
+    def build_request_str(self, method: str, *args: Any, **kwargs: Any) -> str:
         params = self.sanitize_params(*args, **kwargs)
         return self.build_json_str(method=method, params=params, id=None)
 
     @staticmethod
-    def sanitize_params(*args, **kwargs) -> Union[dict[str, Any], list[Any], None]:
+    def sanitize_params(
+        *args: Any, **kwargs: Any
+    ) -> Union[dict[str, Any], list[Any], None]:
         if args and kwargs:
             raise ValueError(
                 "You may not specify list of positional arguments "

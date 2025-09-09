@@ -24,6 +24,7 @@
 
 import logging
 import time
+from typing import Any
 
 from unittest.mock import MagicMock
 
@@ -64,7 +65,7 @@ class FantasyInstrument:
 
     The prefix "l" indicates properties etc. which should be locked.
     """
-    def __init__(self, adapter, name="FantasyInstrument", *args, **kwargs):
+    def __init__(self, adapter, name="FantasyInstrument", *args: Any, **kwargs: Any):
         self.name = name
         self.adapter = adapter
         super().__init__()

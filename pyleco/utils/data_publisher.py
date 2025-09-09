@@ -25,7 +25,8 @@
 from __future__ import annotations
 import logging
 import pickle
-from typing import Any, Iterable, Optional, Union
+from types import TracebackType
+from typing import Any, Iterable, Optional, Type, Union
 
 import zmq
 
@@ -56,7 +57,7 @@ class DataPublisher:
         port: int = PROXY_RECEIVING_PORT,
         log: Optional[logging.Logger] = None,
         context: Optional[zmq.Context] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         if log is None:
             self.log = logging.getLogger(f"{__name__}.Publisher")
@@ -72,11 +73,17 @@ class DataPublisher:
     def __del__(self) -> None:
         self.close()
 
-    def __enter__(self):
+    def __enter__(self) -> DataPublisher:
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[TracebackType]
+    ) -> Optional[bool]:
         self.close()
+        return None
 
     def close(self) -> None:
         self.socket.close(1)

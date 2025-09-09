@@ -37,7 +37,7 @@ from .json_objects import (
 )
 
 
-def _generate_invalid_request_error(reason: str, data: Any):
+def _generate_invalid_request_error(reason: str, data: Any) -> InvalidRequest:
     return InvalidRequest(error=INVALID_REQUEST.with_data(data={"reason": reason, "data": data}))
 
 

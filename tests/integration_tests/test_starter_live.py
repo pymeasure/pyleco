@@ -26,6 +26,7 @@ import logging
 import os
 import threading
 from time import sleep
+from typing import Any
 
 import pytest
 
@@ -40,7 +41,7 @@ from pyleco.management.test_tasks import test_task
 PORT = 60005
 
 
-def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs):
+def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs: Any):
     with Coordinator(namespace=namespace, port=port, **kwargs) as coordinator:
         coordinator.routing(coordinators=coordinators)
 

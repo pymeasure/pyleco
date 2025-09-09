@@ -26,7 +26,8 @@ from __future__ import annotations
 from json import JSONDecodeError
 import logging
 from socket import gethostname
-from typing import Any, Optional, Union
+from types import TracebackType
+from typing import Any, Optional, Type, Union
 
 import zmq
 
@@ -92,7 +93,7 @@ class Coordinator:
         expiration_time: float = 15,
         context: Optional[zmq.Context] = None,
         multi_socket: Optional[MultiSocket] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         if namespace is None:
             self.namespace = gethostname().split(".")[0].encode()
@@ -127,7 +128,7 @@ class Coordinator:
 
         super().__init__(**kwargs)
 
-    def register_methods(self):
+    def register_methods(self) -> None:
         """Add methods to the OpenRPC register and change the name."""
         self.rpc = rpc = RPCServer(title="COORDINATOR", debug=True)
         rpc.title = self.full_name.decode()
@@ -154,11 +155,17 @@ class Coordinator:
         except AttributeError:
             pass  # if creation failed, closing may fail during deletion.
 
-    def __enter__(self):
+    def __enter__(self) -> Coordinator:
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_traceback: Optional[TracebackType]
+    ) -> Optional[bool]:
         self.close()
+        return None
 
     def close(self) -> None:
         """Sign out and close the sockets."""
@@ -171,11 +178,11 @@ class Coordinator:
             self.closed = True
 
     def create_message(
-        self, receiver: bytes, data: Optional[Union[bytes, str, object]] = None, **kwargs
+        self, receiver: bytes, data: Optional[Union[bytes, str, object]] = None, **kwargs: Any,
     ) -> Message:
         return Message(receiver=receiver, sender=self.full_name, data=data, **kwargs)
 
-    def send_message(self, receiver: bytes, data: Optional[object] = None, **kwargs) -> None:
+    def send_message(self, receiver: bytes, data: Optional[object] = None, **kwargs: Any) -> None:
         """Send a message with any socket, including routing.
 
         :param receiver: Receiver name

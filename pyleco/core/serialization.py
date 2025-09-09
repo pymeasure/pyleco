@@ -148,7 +148,7 @@ def serialize_data(data: Any) -> bytes:
     Due to json serialization, data must not contain a bytes object!
     """
     if isinstance(data, json_objects):
-        return data.model_dump_json().encode()  # type: ignore
+        return data.model_dump_json().encode()
     else:
         return json.dumps(data, separators=(',', ':')).encode()
 
@@ -183,11 +183,11 @@ def get_json_content_type(data: Any) -> JsonContentTypes:
     if isinstance(data, list):
         content = JsonContentTypes.BATCH if data else JsonContentTypes.INVALID
         for element in data:
-            element_typ = _get_json_object_type(element)
-            if element_typ == JsonContentTypes.INVALID:
+            element_type = _get_json_object_type(element)
+            if element_type == JsonContentTypes.INVALID:
                 return JsonContentTypes.INVALID
             else:
-                content |= element_typ
+                content |= element_type
         return content
     else:
         return _get_json_object_type(data)

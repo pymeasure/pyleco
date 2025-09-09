@@ -151,7 +151,8 @@ def start_proxy(
 def main(
     arguments: Optional[list[str]] = None, stop_event: Optional[threading.Event] = None
 ) -> None:
-    from pyleco.utils.parser import ArgumentParser, parse_command_line_parameters
+    from argparse import ArgumentParser
+    from pyleco.utils.parser import parse_command_line_parameters
 
     parser = ArgumentParser(prog="Proxy server")
     parser.add_argument(

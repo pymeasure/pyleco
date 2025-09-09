@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, Optional
+from typing import Any, cast, Dict, Optional
 
 from .director import Director
 from ..management.data_logger import ValuingModes, TriggerTypes
@@ -40,7 +40,7 @@ class DataLoggerDirector(Director):
     :param actor: Name of the actor to direct.
     """
 
-    def __init__(self, actor: str = "dataLogger", **kwargs) -> None:
+    def __init__(self, actor: str = "dataLogger", **kwargs: Any) -> None:
         super().__init__(actor=actor, **kwargs)
 
     def start_collecting(self, *,
@@ -64,14 +64,14 @@ class DataLoggerDirector(Director):
 
     def get_last_datapoint(self) -> dict[str, Any]:
         """Read the last datapoint."""
-        return self.ask_rpc("get_last_datapoint")
+        return cast(Dict[str, Any], self.ask_rpc("get_last_datapoint"))
 
     def save_data(self) -> str:
         """Save the data and return the name of the file."""
         # increase the timeout as saving might take longer than usual requests
         tmo = self.communicator.timeout
         self.communicator.timeout = 1000
-        name = self.ask_rpc("save_data")
+        name = cast(str, self.ask_rpc("save_data"))
         self.communicator.timeout = tmo
         return name
 
@@ -81,4 +81,4 @@ class DataLoggerDirector(Director):
 
     def stop_collecting(self) -> None:
         """Stop the data acquisition."""
-        self.ask_rpc(method="stop_collecting")
+        return cast(None, self.ask_rpc(method="stop_collecting"))

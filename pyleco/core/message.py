@@ -32,6 +32,11 @@ from .serialization import (create_header_frame, serialize_data, interpret_heade
                             deserialize_data, FullName, Header, MessageTypes,
                             )
 
+__all__ = [
+    "Message",
+    "MessageTypes",
+]
+
 
 # Control transfer protocol
 class Message:
@@ -87,7 +92,7 @@ class Message:
 
     @classmethod
     def from_frames(cls, version: bytes, receiver: bytes, sender: bytes, header: bytes,
-                    *payload: bytes):  # -> typing.Self for py>=3.11
+                    *payload: bytes) -> Message:  # -> typing.Self for py>=3.11
         """Create a message from a frames list, for example after reading from a socket.
 
         .. code::

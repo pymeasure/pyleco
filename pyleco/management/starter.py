@@ -57,7 +57,7 @@ def sanitize_tasks(
         tasks = (tasks,)
     for task in tasks:
         if not isinstance(task, str):
-            log.error(f"Invalid task name '{task}' received.")
+            log.error(f"Invalid task name '{task}' received.")  # type: ignore[unreachable]
             return ()
     return tasks
 
@@ -102,7 +102,7 @@ class Starter(MessageHandler):
         name: str = "starter",
         directory: Optional[str] = None,
         tasks: Optional[list[str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(name=name, **kwargs)
         self.threads: dict[str, threading.Thread] = {}  # List of threads

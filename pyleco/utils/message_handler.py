@@ -70,7 +70,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         protocol: str = "tcp",
         log: Optional[logging.Logger] = None,
         context: Optional[zmq.Context] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         self.name = name
         self._namespace: Union[str, None] = None
@@ -107,7 +107,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
     def full_name(self) -> str:
         return self._full_name
 
-    def setup_logging(self, log):
+    def setup_logging(self, log: Optional[logging.Logger]) -> None:
         if log is None:
             log = logging.getLogger("__main__")
         # Add the ZmqLogHandler to the root logger, unless it has already a Handler.
@@ -128,7 +128,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         self.log.info(f"MessageHandler connecting to {host}:{port}")
         self.socket.connect(f"{protocol}://{host}:{port}")
 
-    def register_rpc_method(self, method: Callable[..., Any], **kwargs) -> None:
+    def register_rpc_method(self, method: Callable[..., Any], **kwargs: Any) -> None:
         """Register a method to be available via rpc calls."""
         self.rpc_handler.register_rpc_method(method=method, **kwargs)
 
@@ -137,7 +137,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
         accept_binary_input: bool = False,
         return_binary_output: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Register a method which accepts binary input and/or returns binary values.
 
@@ -165,7 +165,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         receiver: Union[bytes, str],
         conversation_id: Optional[bytes] = None,
         data: Optional[Any] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Send a message to a receiver with serializable `data`."""
         try:

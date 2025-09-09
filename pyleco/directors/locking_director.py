@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Optional
+from typing import cast, Optional
 
 from .director import Director
 
@@ -30,10 +30,10 @@ from .director import Director
 class LockingDirector(Director):
 
     def lock(self, resource: Optional[str] = None) -> bool:
-        return self.ask_rpc("lock", resource=resource)
+        return cast(bool, self.ask_rpc("lock", resource=resource))
 
     def unlock(self, resource: Optional[str] = None) -> None:
-        return self.ask_rpc("unlock", resource=resource)
+        return cast(None, self.ask_rpc("unlock", resource=resource))
 
     def force_unlock(self, resource: Optional[str] = None) -> None:
-        return self.ask_rpc("force_unlock", resource=resource)
+        return cast(None, self.ask_rpc("force_unlock", resource=resource))

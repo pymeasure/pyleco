@@ -75,7 +75,7 @@ class CommunicatorProtocol(Protocol):
         receiver: Union[bytes, str],
         conversation_id: Optional[bytes] = None,
         data: Optional[Any] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Send a message based on kwargs."""
         self.send_message(
@@ -88,7 +88,7 @@ class CommunicatorProtocol(Protocol):
         conversation_id: Optional[bytes] = None,
         data: Optional[Any] = None,
         timeout: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Message:
         """Send a message based on kwargs and retrieve the response."""
         return self.ask_message(
@@ -115,7 +115,7 @@ class CommunicatorProtocol(Protocol):
         timeout: Optional[float] = None,
         additional_payload: Optional[Iterable[bytes]] = None,
         extract_additional_payload: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Send a JSON-RPC request (with method \\**kwargs) and return the response value."""
         string = self.rpc_generator.build_request_str(method=method, **kwargs)
@@ -135,7 +135,7 @@ class CommunicatorProtocol(Protocol):
         receiver: Union[bytes, str],
         method: str,
         additional_payload: Optional[Iterable[bytes]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Send a JSON-RPC notification (with method \\**kwargs) without expecting a response."""
         params = self.rpc_generator.sanitize_params(**kwargs)

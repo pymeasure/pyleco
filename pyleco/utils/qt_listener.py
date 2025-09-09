@@ -22,14 +22,16 @@
 # THE SOFTWARE.
 #
 
-from typing import Optional
+from typing import Any, Optional
 
+from pyleco.utils.events import Event
 from qtpy.QtCore import QObject, Signal  # type: ignore
 from zmq import Context  # type: ignore
 
 from ..core.message import Message
 from ..core.data_message import DataMessage
-from .listener import Listener, PipeHandler
+from .pipe_handler import PipeHandler
+from .listener import Listener
 
 
 class ListenerSignals(QObject):
@@ -51,7 +53,7 @@ class QtPipeHandler(PipeHandler):
     local_methods = ["pong", "set_log_level"]
 
     def __init__(self, name: str, signals: ListenerSignals, context: Optional[Context] = None,
-                 **kwargs) -> None:
+                 **kwargs: Any) -> None:
         self.signals = signals
         super().__init__(name, context, **kwargs)
 
@@ -106,11 +108,11 @@ class QtListener(Listener):
     :param logger: Logger instance whose logs should be published. Defaults to "__main__".
     """
 
-    def __init__(self, name: str, host: str = "localhost", **kwargs) -> None:
+    def __init__(self, name: str, host: str = "localhost", **kwargs: Any) -> None:
         super().__init__(name=name, host=host, **kwargs)
         self.signals = ListenerSignals()
 
-    def _listen(self, name: str, stop_event, coordinator_host: str, coordinator_port: int,
+    def _listen(self, name: str, stop_event: Event, coordinator_host: str, coordinator_port: int,
                 data_host: str, data_port: int) -> None:
         self.message_handler = QtPipeHandler(name, signals=self.signals,
                                              host=coordinator_host, port=coordinator_port,

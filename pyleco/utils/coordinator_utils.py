@@ -78,7 +78,7 @@ class MultiSocket(Protocol):
 class ZmqMultiSocket(MultiSocket):
     """A MultiSocket using a zmq ROUTER socket."""
 
-    def __init__(self, context: Optional[zmq.Context] = None, *args, **kwargs) -> None:
+    def __init__(self, context: Optional[zmq.Context] = None, *args: Any, **kwargs: Any) -> None:
         context = zmq.Context.instance() if context is None else context
         self._sock: zmq.Socket = context.socket(zmq.ROUTER)
         super().__init__(*args, **kwargs)
@@ -109,7 +109,7 @@ class ZmqMultiSocket(MultiSocket):
 
 
 class FakeMultiSocket(MultiSocket):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._messages_read: list[tuple[bytes, Message]] = []
         self._messages_sent: list[tuple[bytes, Message]] = []
         super().__init__(*args, **kwargs)
@@ -144,7 +144,7 @@ class Component:
 class Node:
     """Represents a connection to another Node."""
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         self.address: str = ""
         self.namespace: bytes = b""
         self.heartbeat: float = -1
@@ -153,7 +153,7 @@ class Node:
     def connect(self, address: str) -> None:
         self.address = address
 
-    def disconnect(self, closing_time=None) -> None:
+    def disconnect(self, closing_time: Optional[float] = None) -> None:
         raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
     def is_connected(self) -> bool:
@@ -172,7 +172,7 @@ class Node:
 class ZmqNode(Node):
     """Represents a zmq connection to another node."""
 
-    def __init__(self, context: Optional[zmq.Context] = None, *args, **kwargs) -> None:
+    def __init__(self, context: Optional[zmq.Context] = None, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._context = context or zmq.Context.instance()
 
@@ -182,7 +182,7 @@ class ZmqNode(Node):
         self._dealer = self._context.socket(zmq.DEALER)
         self._dealer.connect(f"tcp://{address}")
 
-    def disconnect(self, closing_time=None) -> None:
+    def disconnect(self, closing_time: Optional[float] = None) -> None:
         """Close the connection to the Coordinator."""
         try:
             self._dealer.close(linger=closing_time)
@@ -208,16 +208,18 @@ class ZmqNode(Node):
 
 
 class FakeNode(Node):
-    def __init__(self, messages_read: Optional[list[Message]] = None, *args, **kwargs) -> None:
+    def __init__(
+        self, messages_read: Optional[list[Message]] = None, *args: Any, **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._messages_sent: list[Message] = []
         self._messages_read: list[Message] = [] if messages_read is None else messages_read
 
-    def connect(self, address) -> None:
+    def connect(self, address: str) -> None:
         super().connect(address)
         self._connected = True
 
-    def disconnect(self, closing_time=None) -> None:
+    def disconnect(self, closing_time: Optional[float] = None) -> None:
         self._connected = False
 
     def is_connected(self) -> bool:
@@ -372,7 +374,8 @@ class Directory:
             del self._nodes[namespace]
             self._remove_value_from_dict(value=node, dictionary=self._node_ids)
 
-    def _remove_value_from_dict(self, value, dictionary: dict) -> None:
+    @staticmethod
+    def _remove_value_from_dict(value: Any, dictionary: dict[Any, Any]) -> None:
         for key, v in list(dictionary.items()):
             if value == v:
                 del dictionary[key]

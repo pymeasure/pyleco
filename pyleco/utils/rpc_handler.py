@@ -44,7 +44,7 @@ class RpcHandler:
         self.rpc = RPCServer(title=title)
         self.rpc_generator = RPCGenerator()
 
-    def register_rpc_method(self, method: Callable[..., Any], **kwargs) -> None:
+    def register_rpc_method(self, method: Callable[..., Any], **kwargs: Any) -> None:
         """Register a method to be available via rpc calls."""
         self.rpc.method(**kwargs)(method)
 
@@ -69,7 +69,7 @@ class RpcHandler:
         if accept_binary_input:
 
             @wraps(method)
-            def modified_method(*args, **kwargs) -> ReturnValue:  # type: ignore
+            def modified_method(*args: Any, **kwargs: Any) -> ReturnValue:
                 if args:
                     args_l = list(args)
                     if args_l[-1] is None:
@@ -86,7 +86,7 @@ class RpcHandler:
         else:
 
             @wraps(method)
-            def modified_method(*args, **kwargs) -> ReturnValue:
+            def modified_method(*args: Any, **kwargs: Any) -> ReturnValue:
                 return_value = method(*args, **kwargs)
                 return returner(return_value=return_value)  # type: ignore
 
@@ -97,14 +97,14 @@ class RpcHandler:
             modified_method.__doc__ += "\n" + doc_addition  # type: ignore[operator]
         except TypeError:
             modified_method.__doc__ = doc_addition
-        return modified_method  # type: ignore
+        return modified_method
 
     def register_binary_rpc_method(
         self,
         method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
         accept_binary_input: bool = False,
         return_binary_output: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Register a method which accepts binary input and/or returns binary values.
 
@@ -122,7 +122,7 @@ class RpcHandler:
 
     def process_request(self, message: Message) -> Optional[Message]:
         """Process an RPC request and return the response message."""
-        if message.payload is None:
+        if not message.payload:
             return None
 
         self.current_message = message

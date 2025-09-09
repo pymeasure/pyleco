@@ -65,7 +65,7 @@ class Method:
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self.method(*args, **kwargs)
 
-    def represent_as_dict(self) -> dict:
+    def represent_as_dict(self) -> dict[str, Any]:
         """Describe this method as a dict for discovery."""
         result = {
             "name": self.name,
@@ -107,7 +107,7 @@ class RPCServer:
         title: Optional[str] = None,
         version: Optional[str] = None,
         debug: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.title = title or "RPC Server"
@@ -116,7 +116,7 @@ class RPCServer:
         self.method(name="rpc.discover")(self.discover)
 
     def method(
-        self, name: Optional[str] = None, description=None, **kwargs
+        self, name: Optional[str] = None, description: Optional[str] = None
     ) -> Callable[[Callable], None]:
         """Decorator for registering a new RPC method.
 
@@ -272,7 +272,7 @@ class RPCServer:
         )
 
     @staticmethod
-    def _generate_invalid_request_error(reason: str, data: Any):
+    def _generate_invalid_request_error(reason: str, data: Any) -> JsonRpcError:
         return INVALID_REQUEST.with_data(data={"reason": reason, "data": data})
 
     @staticmethod

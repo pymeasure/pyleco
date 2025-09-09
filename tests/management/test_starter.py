@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 from unittest.mock import call, MagicMock
+from typing import Any
 
 import pytest
 
@@ -39,7 +40,7 @@ def starter() -> Starter:
 
 
 class FakeThread:
-    def __init__(self, target=None, alive=False, *args, **kwargs) -> None:
+    def __init__(self, target=None, alive=False, *args: Any, **kwargs: Any) -> None:
         self._target = target
         self._args = args
         self._kwargs = kwargs
