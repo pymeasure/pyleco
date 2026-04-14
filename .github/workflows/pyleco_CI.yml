@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install pyleco requirements
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: environment.yml
           create-args: python=3.10
@@ -56,7 +56,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install pyleco requirements
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: environment.yml
           cache-environment-key: pylatest-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
@@ -79,7 +79,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install pyleco requirements
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: environment.yml
           cache-environment-key: pylatest-ubuntu-latest-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
@@ -117,7 +117,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install pyleco requirements
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: environment.yml
           create-args: python=${{ matrix.python-version }}
