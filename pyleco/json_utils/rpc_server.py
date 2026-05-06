@@ -23,8 +23,10 @@
 #
 
 from __future__ import annotations
+import inspect
 import logging
 import re
+import typing
 from typing import Any, Callable, cast, Optional, Union
 from dataclasses import dataclass
 
@@ -58,7 +60,6 @@ class Method:
     # See https://spec.open-rpc.org/#method-object for values
     method: Callable
     name: str
-    # params  # TODO
     summary: Optional[str] = None
     description: Optional[str] = None
 
@@ -67,14 +68,121 @@ class Method:
 
     def represent_as_dict(self) -> dict[str, Any]:
         """Describe this method as a dict for discovery."""
-        result = {
+        result: dict[str, Any] = {
             "name": self.name,
         }
         if self.summary:
             result["summary"] = self.summary
         if self.description:
             result["description"] = self.description
+        params = self._get_params()
+        if params:
+            result["params"] = params
+        result_descriptor = self._get_result()
+        if result_descriptor:
+            result["result"] = result_descriptor
         return result
+
+    def _get_params(self) -> list[dict[str, Any]]:
+        """Introspect method parameters and return Open-RPC param descriptors."""
+        try:
+            sig = inspect.signature(self.method)
+        except (ValueError, TypeError):
+            return []
+        try:
+            hints = typing.get_type_hints(self.method)
+        except Exception:
+            hints = {}
+        params: list[dict[str, Any]] = []
+        for param_name, param in sig.parameters.items():
+            if param_name == "self":
+                continue
+            descriptor: dict[str, Any] = {"name": param_name}
+            annotation = hints.get(param_name, param.annotation)
+            schema = _python_type_to_schema(annotation, param_name)
+            if schema:
+                descriptor["schema"] = schema
+            if param.default is inspect.Parameter.empty:
+                descriptor["required"] = True
+            else:
+                descriptor["required"] = False
+                if param.default is not None:
+                    descriptor["schema"] = descriptor.get("schema", {})
+                    descriptor["schema"]["default"] = param.default
+            params.append(descriptor)
+        return params
+
+    def _get_result(self) -> dict[str, Any]:
+        """Introspect method return type and return an Open-RPC result descriptor."""
+        try:
+            hints = typing.get_type_hints(self.method)
+        except Exception:
+            hints = {}
+        return_annotation = hints.get("return", inspect.Signature.empty)
+        try:
+            sig = inspect.signature(self.method)
+        except (ValueError, TypeError):
+            return {}
+        if "return" not in hints:
+            return_annotation = sig.return_annotation
+        if return_annotation is inspect.Signature.empty:
+            return {}
+        schema = _python_type_to_schema(return_annotation, "result")
+        if not schema:
+            return {}
+        return {"name": "result", "schema": schema}
+
+
+def _python_type_to_schema(
+    annotation: Any, param_name: str = ""
+) -> dict[str, Any]:
+    """Convert a Python type annotation to a JSON Schema dict for Open-RPC."""
+    if annotation is inspect.Parameter.empty or annotation is None:
+        return {}
+    if isinstance(annotation, str):
+        return {}
+    if annotation is type(None):
+        return {"type": "null"}
+    type_map: dict[Any, str] = {
+        str: "string",
+        int: "integer",
+        float: "number",
+        bool: "boolean",
+        list: "array",
+        dict: "object",
+        bytes: "string",
+    }
+    if annotation in type_map:
+        return {"type": type_map[annotation]}
+    origin = typing.get_origin(annotation)
+    if origin is not None:
+        args = typing.get_args(annotation)
+        if origin is Union:
+            sub_schemas = [
+                s for s in (_python_type_to_schema(a, param_name) for a in args)
+                if s
+            ]
+            if sub_schemas:
+                return {"oneOf": sub_schemas}
+            return {}
+        if origin is list:
+            schema: dict[str, Any] = {"type": "array"}
+            if args:
+                items = _python_type_to_schema(args[0], param_name)
+                if items:
+                    schema["items"] = items
+            return schema
+        if origin is dict:
+            schema = {"type": "object"}
+            if args and len(args) >= 2:
+                val_schema = _python_type_to_schema(args[1], param_name)
+                if val_schema:
+                    schema["additionalProperties"] = val_schema
+            return schema
+        return {}
+    if isinstance(annotation, type):
+        return {"type": "object"}
+    return {}
 
 
 class RPCServer:
