@@ -162,7 +162,7 @@ def _python_type_to_schema(
     origin = typing.get_origin(annotation)
     if origin is not None:
         args = typing.get_args(annotation)
-        if origin in (Union, types.UnionType):
+        if origin is Union or origin is getattr(types, "UnionType", None):
             sub_schemas = [
                 s for s in (_python_type_to_schema(a, param_name) for a in args)
                 if s
