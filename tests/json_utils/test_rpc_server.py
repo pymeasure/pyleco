@@ -560,3 +560,39 @@ class Test_python_type_to_schema:
             pass
 
         assert _python_type_to_schema(CustomClass) == {"type": "object"}
+
+
+class Test_varargs:
+    """Test that *args and **kwargs are excluded from discovered params."""
+
+    @pytest.fixture
+    def discovered(self) -> dict:
+        rpc_server = RPCServer()
+
+        def varargs_method(x: int, *args, **kwargs) -> str:
+            """Method with varargs."""
+            return ""
+
+        rpc_server.method()(varargs_method)
+        request = Request(1, "rpc.discover")
+        response = rpc_server.process_json_request_object(request)
+        assert isinstance(response, ResultResponse)
+        return response.result  # type: ignore
+
+    @pytest.fixture
+    def methods(self, discovered: dict) -> list:
+        return discovered.get("methods")  # type: ignore
+
+    def test_varargs_excluded(self, methods: list):
+        m = methods[0]
+        param_names = [p["name"] for p in m.get("params", [])]
+        assert "args" not in param_names
+        assert "kwargs" not in param_names
+
+    def test_typed_param_still_present(self, methods: list):
+        m = methods[0]
+        params = m.get("params", [])
+        assert len(params) == 1
+        assert params[0]["name"] == "x"
+        assert params[0]["schema"] == {"type": "integer"}
+        assert params[0]["required"] is True

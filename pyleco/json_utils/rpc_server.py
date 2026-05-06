@@ -97,6 +97,11 @@ class Method:
         for param_name, param in sig.parameters.items():
             if param_name == "self":
                 continue
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
             descriptor: dict[str, Any] = {"name": param_name}
             annotation = hints.get(param_name, param.annotation)
             schema = _python_type_to_schema(annotation, param_name)
