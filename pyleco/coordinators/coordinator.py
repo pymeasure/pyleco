@@ -42,6 +42,9 @@ if __name__ != "__main__":
     )
     from ..core.message import Message, MessageTypes
     from ..core.serialization import get_json_content_type, JsonContentTypes
+    from ..core.security import SecurityConfig, SecurityMode
+    from ..core.curve import warn_insecure_mode
+    from ..core.zap import start_authenticator, stop_authenticator
     from ..json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
     from ..json_utils.json_objects import ErrorResponse, Request, ParamsRequest
     from ..json_utils.rpc_server import RPCServer
@@ -60,6 +63,9 @@ else:  # pragma: no cover
     )
     from pyleco.core.message import Message, MessageTypes
     from pyleco.core.serialization import get_json_content_type, JsonContentTypes
+    from pyleco.core.security import SecurityConfig, SecurityMode
+    from pyleco.core.curve import warn_insecure_mode
+    from pyleco.core.zap import start_authenticator, stop_authenticator
     from pyleco.json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
     from pyleco.json_utils.json_objects import ErrorResponse, Request, ParamsRequest
     from pyleco.json_utils.rpc_server import RPCServer
@@ -103,6 +109,7 @@ class Coordinator:
         expiration_time: float = 15,
         context: zmq.Context | None = None,
         multi_socket: MultiSocket | None = None,
+        security_config: SecurityConfig | None = None,
         **kwargs: Any,
     ) -> None:
         if namespace is None:
@@ -129,9 +136,18 @@ class Coordinator:
 
         self.cleaner.start()
 
+        if security_config is None:
+            security_config = SecurityConfig()
+        self.security_config = security_config
         context = context or zmq.Context.instance()
-        self.sock = multi_socket or ZmqMultiSocket(context=context)
+        self.sock = multi_socket or ZmqMultiSocket(context=context, security_config=security_config)
         self.context = context
+        if self.security_config.mode == SecurityMode.CURVE:
+            self._authenticator = start_authenticator(self.context, self.security_config)
+        else:
+            self._authenticator = None
+            if self.security_config.mode == SecurityMode.NONE:
+                warn_insecure_mode(address=f"{host or gethostname()}:{port}")
         self.sock.bind(port=port)
 
         self.register_methods()
@@ -187,6 +203,8 @@ class Coordinator:
         if not self.closed:
             self.shut_down()
             self.sock.close(timeout=1)
+            if self._authenticator is not None:
+                stop_authenticator(self._authenticator)
             self.cleaner.cancel()
             self.closed = True
 
@@ -258,7 +276,9 @@ class Coordinator:
         if coordinators is not None:
             for coordinator in coordinators:
                 self.directory.add_node_sender(
-                    node=ZmqNode(context=self.context), address=coordinator, namespace=b""
+                    node=ZmqNode(context=self.context, security_config=self.security_config),
+                    address=coordinator,
+                    namespace=b"",
                 )
         # Route messages until told to stop.
         self.stop_event = stop_event or SimpleEvent()
@@ -470,7 +490,9 @@ class Coordinator:
             node = node.encode()
             try:
                 self.directory.add_node_sender(
-                    ZmqNode(context=self.context), address=address, namespace=node
+                    ZmqNode(context=self.context, security_config=self.security_config),
+                    address=address,
+                    namespace=node,
                 )
             except ValueError:
                 pass  # already connected
@@ -517,10 +539,12 @@ class Coordinator:
 
 
 def main() -> None:
-    # Absolute imports if the file is executed.
-    from pyleco.utils.parser import parser, parse_command_line_parameters  # noqa: F811
+    from pyleco.utils.parser import (
+        parser,
+        parse_command_line_parameters,
+        build_security_config_from_kwargs,
+    )  # noqa: F811
 
-    # Define parser
     parser.add_argument(
         "-c",
         "--coordinators",
@@ -530,16 +554,18 @@ def main() -> None:
     parser.add_argument("--namespace", help="set the Node's namespace")
     parser.add_argument("-p", "--port", type=int, help="port number to bind to")
 
-    # Parse and interpret command line parameters
     gLog = logging.getLogger()
     kwargs = parse_command_line_parameters(logger=gLog, parser=parser, logging_default=logging.INFO)
     if len(log.handlers) <= 1:
         log.addHandler(logging.StreamHandler())
     cos = kwargs.pop("coordinators", "")
-    coordinators = cos.replace(" ", "").split(",")
+    coordinators = [c for c in cos.replace(" ", "").split(",") if c]
 
-    # Run the Coordinator
-    with Coordinator(**kwargs) as c:
+    security_config = build_security_config_from_kwargs(kwargs)
+    if security_config.mode == SecurityMode.CURVE:
+        security_config.validate()
+
+    with Coordinator(security_config=security_config, **kwargs) as c:
         handler = ZmqLogHandler(full_name=c.full_name.decode())
         gLog.addHandler(handler)
         c.routing(coordinators=coordinators)

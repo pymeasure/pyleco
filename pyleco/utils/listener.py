@@ -29,6 +29,7 @@ from time import sleep
 from typing import Any, Callable
 
 from ..core import PROXY_SENDING_PORT, COORDINATOR_PORT
+from ..core.security import SecurityConfig
 from .pipe_handler import PipeHandler, CommunicatorPipe
 
 log = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ class Listener:
         data_port: int = PROXY_SENDING_PORT,
         logger: logging.Logger | None = None,
         timeout: float = 1,
+        security_config: SecurityConfig | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -76,6 +78,7 @@ class Listener:
         self.name = name
         self.logger = logger
         self.timeout = timeout
+        self.security_config = security_config
 
         self.coordinator_address = host, port
         self.data_address = data_host or host, data_port
@@ -196,5 +199,6 @@ class Listener:
             port=coordinator_port,
             data_host=data_host,
             data_port=data_port,
+            security_config=self.security_config,
         )
         self.message_handler.listen(stop_event=stop_event)

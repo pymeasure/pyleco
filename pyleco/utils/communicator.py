@@ -31,6 +31,8 @@ import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.message import Message, MessageTypes
+from ..core.security import SecurityConfig, SecurityMode
+from ..core.curve import configure_curve_client, warn_insecure_mode
 from ..json_utils.rpc_generator import RPCGenerator
 from ..json_utils.errors import NOT_SIGNED_IN
 from .base_communicator import BaseCommunicator
@@ -70,6 +72,7 @@ class Communicator(BaseCommunicator):
         auto_open: bool = True,
         protocol: str = "tcp",
         standalone: bool = False,
+        security_config: SecurityConfig | None = None,
         **kwargs: Any,
     ) -> None:
         self.log = logging.getLogger(f"{__name__}.Communicator")
@@ -77,6 +80,7 @@ class Communicator(BaseCommunicator):
         self.port = port
         self._conn_details = protocol, standalone
         self.timeout = timeout
+        self.security_config = security_config
         self.log.info(f"Communicator initialized on {host}:{port}.")
         if auto_open:
             self.open()
@@ -91,6 +95,14 @@ class Communicator(BaseCommunicator):
         """Open the connection."""
         context = context or zmq.Context.instance()
         self.socket: zmq.Socket = context.socket(zmq.DEALER)
+        if self.security_config is not None and self.security_config.mode == SecurityMode.CURVE:
+            configure_curve_client(
+                self.socket,
+                self.security_config.client_key_pair,
+                self.security_config.server_public_key,
+            )
+        if self.security_config is None or self.security_config.mode == SecurityMode.NONE:
+            warn_insecure_mode(address=f"{self.host}:{self.port}")
         protocol, standalone = self._conn_details
         if standalone:
             self.socket.bind(f"{protocol}://*:{self.port}")

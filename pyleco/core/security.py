@@ -1,10 +1,32 @@
+#
+# This file is part of the PyLECO package.
+#
+# Copyright (c) 2023-2026 PyLECO Developers
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional
 
 __all__ = [
     "SecurityMode",
@@ -30,12 +52,12 @@ class KeyPair:
 @dataclass
 class SecurityConfig:
     mode: SecurityMode = SecurityMode.NONE
-    server_key_pair: Optional[KeyPair] = None
-    client_key_pair: Optional[KeyPair] = None
-    server_public_key: Optional[str] = None
-    data_server_public_key: Optional[str] = None
-    authorized_keys_dir: Optional[str] = None
-    authorized_keys: Optional[Dict[str, str]] = None
+    server_key_pair: KeyPair | None = None
+    client_key_pair: KeyPair | None = None
+    server_public_key: str | None = None
+    data_server_public_key: str | None = None
+    authorized_keys_dir: str | None = None
+    authorized_keys: dict[str, str] | None = None
     curve_any_authenticated: bool = False
 
     def validate(self) -> None:
@@ -52,9 +74,7 @@ class SecurityConfig:
                     "or client_key_pair + server_public_key (for clients)"
                 )
             if self.client_key_pair is not None and self.server_public_key is None:
-                raise ValueError(
-                    "CURVE mode with client_key_pair also requires server_public_key"
-                )
+                raise ValueError("CURVE mode with client_key_pair also requires server_public_key")
 
 
 def generate_key_pair() -> KeyPair:
@@ -62,15 +82,14 @@ def generate_key_pair() -> KeyPair:
         import zmq
     except ImportError:
         raise ImportError(
-            "zmq is required to generate CURVE key pairs. "
-            "Install pyzmq: pip install pyzmq"
+            "zmq is required to generate CURVE key pairs. Install pyzmq: pip install pyzmq"
         )
     public_key, secret_key = zmq.curve_keypair()
     return KeyPair(public_key=public_key.decode(), secret_key=secret_key.decode())
 
 
-def load_authorized_keys(security_config: SecurityConfig) -> Dict[str, str]:
-    keys: Dict[str, str] = {}
+def load_authorized_keys(security_config: SecurityConfig) -> dict[str, str]:
+    keys: dict[str, str] = {}
     if security_config.authorized_keys_dir is not None:
         key_dir = Path(security_config.authorized_keys_dir)
         if key_dir.is_dir():
@@ -86,12 +105,13 @@ def load_authorized_keys(security_config: SecurityConfig) -> Dict[str, str]:
 
 
 def load_security_config(
-    config_path: Optional[str] = None,
-    cli_args: Optional[dict] = None,
+    config_path: str | None = None,
+    cli_args: dict | None = None,
 ) -> SecurityConfig:
     config_dict: dict = {}
     if config_path is not None:
         from pyleco.core.config import _load_toml
+
         data = _load_toml(config_path)
         config_dict = data.get("security", {})
     kwargs: dict = {}
@@ -138,36 +158,42 @@ def load_security_config(
                     kwargs[key] = value
     if cli_server_secret is not None and cli_server_public is not None:
         kwargs["server_key_pair"] = KeyPair(
-            public_key=cli_server_public, secret_key=cli_server_secret,
+            public_key=cli_server_public,
+            secret_key=cli_server_secret,
         )
     elif cli_server_secret is not None:
         existing = kwargs.get("server_key_pair")
         if existing is not None and existing.public_key:
             kwargs["server_key_pair"] = KeyPair(
-                public_key=existing.public_key, secret_key=cli_server_secret,
+                public_key=existing.public_key,
+                secret_key=cli_server_secret,
             )
     elif cli_server_public is not None:
         existing = kwargs.get("server_key_pair")
         if existing is not None and existing.secret_key:
             kwargs["server_key_pair"] = KeyPair(
-                public_key=cli_server_public, secret_key=existing.secret_key,
+                public_key=cli_server_public,
+                secret_key=existing.secret_key,
             )
     if cli_server_public is not None:
         kwargs["server_public_key"] = cli_server_public
     if cli_client_secret is not None and cli_client_public is not None:
         kwargs["client_key_pair"] = KeyPair(
-            public_key=cli_client_public, secret_key=cli_client_secret,
+            public_key=cli_client_public,
+            secret_key=cli_client_secret,
         )
     elif cli_client_secret is not None:
         existing = kwargs.get("client_key_pair")
         if existing is not None and existing.public_key:
             kwargs["client_key_pair"] = KeyPair(
-                public_key=existing.public_key, secret_key=cli_client_secret,
+                public_key=existing.public_key,
+                secret_key=cli_client_secret,
             )
     elif cli_client_public is not None:
         existing = kwargs.get("client_key_pair")
         if existing is not None and existing.secret_key:
             kwargs["client_key_pair"] = KeyPair(
-                public_key=cli_client_public, secret_key=existing.secret_key,
+                public_key=cli_client_public,
+                secret_key=existing.secret_key,
             )
     return SecurityConfig(**kwargs)

@@ -32,6 +32,8 @@ import zmq
 
 from ..core import PROXY_RECEIVING_PORT
 from ..core.data_message import DataMessage, MessageTypes
+from ..core.security import SecurityConfig, SecurityMode
+from ..core.curve import configure_curve_client, warn_insecure_mode
 
 
 class DataPublisher:
@@ -57,6 +59,7 @@ class DataPublisher:
         port: int = PROXY_RECEIVING_PORT,
         log: logging.Logger | None = None,
         context: zmq.Context | None = None,
+        security_config: SecurityConfig | None = None,
         **kwargs: Any,
     ) -> None:
         if log is None:
@@ -65,7 +68,18 @@ class DataPublisher:
             self.log = log.getChild("Publisher")
         self.log.info(f"Publisher started at {host}:{port}.")
         context = context or zmq.Context.instance()
+        self.security_config = security_config
         self.socket: zmq.Socket = context.socket(zmq.PUB)
+        if security_config is not None and security_config.mode == SecurityMode.CURVE:
+            if security_config.client_key_pair is None:
+                raise ValueError("CURVE mode requires client_key_pair for DataPublisher")
+            if security_config.data_server_public_key is None:
+                raise ValueError("CURVE mode requires data_server_public_key for DataPublisher")
+            configure_curve_client(
+                self.socket, security_config.client_key_pair, security_config.data_server_public_key
+            )
+        else:
+            warn_insecure_mode(address=f"{host}:{port}")
         self.socket.connect(f"tcp://{host}:{port}")
         self.full_name = full_name
         super().__init__(**kwargs)

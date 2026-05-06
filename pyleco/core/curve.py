@@ -1,7 +1,30 @@
+#
+# This file is part of the PyLECO package.
+#
+# Copyright (c) 2023-2026 PyLECO Developers
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
 from __future__ import annotations
 
 import warnings
-from typing import Optional
 
 from pyleco.core.security import KeyPair
 
@@ -17,15 +40,13 @@ def configure_curve_server(socket, server_key_pair: KeyPair) -> None:
     socket.curve_secretkey = server_key_pair.secret_key.encode()
 
 
-def configure_curve_client(
-    socket, client_key_pair: KeyPair, server_public_key: str
-) -> None:
+def configure_curve_client(socket, client_key_pair: KeyPair, server_public_key: str) -> None:
     socket.curve_serverkey = server_public_key.encode()
     socket.curve_publickey = client_key_pair.public_key.encode()
     socket.curve_secretkey = client_key_pair.secret_key.encode()
 
 
-def warn_insecure_mode(address: Optional[str] = None, stacklevel: int = 3) -> None:
+def warn_insecure_mode(address: str | None = None, stacklevel: int = 3) -> None:
     if address is None:
         return
     loopback_hosts = {"localhost", "127.0.0.1", "::1"}

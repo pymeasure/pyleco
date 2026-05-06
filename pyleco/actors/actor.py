@@ -32,6 +32,7 @@ import zmq
 from ..utils.message_handler import MessageHandler
 from ..utils.data_publisher import DataPublisher
 from ..utils.timers import RepeatingTimer
+from ..core.security import SecurityConfig
 
 
 Device = TypeVar("Device")
@@ -81,15 +82,15 @@ class Actor(MessageHandler, Generic[Device]):
         auto_connect: dict | None = None,
         context: zmq.Context | None = None,
         cls: type[Device] | None = None,
+        security_config: SecurityConfig | None = None,
         **kwargs: Any,
     ):
         context = context or zmq.Context.instance()
-        super().__init__(name=name, context=context, **kwargs)
+        super().__init__(name=name, context=context, security_config=security_config, **kwargs)
         if cls is not None:
             warn("Parameter `cls` is deprecated, use `device_class` instead.", FutureWarning)
             device_class = cls
         if device_class is None:
-            # Keep this check as long as device_class is optional due to deprecated cls parameter
             raise ValueError("You have to specify a `device_class`!")
         self.device_class = device_class
 
@@ -102,7 +103,9 @@ class Actor(MessageHandler, Generic[Device]):
         self.pipeL.connect(f"inproc://listenerPipe:{pipe_port}")
 
         self.timer = RepeatingTimer(interval=periodic_reading, function=self.queue_readout)
-        self.publisher = DataPublisher(full_name=name, log=self.root_logger)
+        self.publisher = DataPublisher(
+            full_name=name, log=self.root_logger, security_config=security_config
+        )
 
         if auto_connect:
             self.connect(**auto_connect)

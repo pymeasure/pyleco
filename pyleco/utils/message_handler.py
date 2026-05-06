@@ -32,6 +32,8 @@ import zmq
 from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message, MessageTypes
+from ..core.security import SecurityConfig, SecurityMode
+from ..core.curve import configure_curve_client, warn_insecure_mode
 from ..core.serialization import JsonContentTypes, get_json_content_type
 from .log_levels import PythonLogLevels
 from .message_handler_base import MessageHandlerBase
@@ -69,6 +71,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         protocol: str = "tcp",
         log: logging.Logger | None = None,
         context: zmq.Context | None = None,
+        security_config: SecurityConfig | None = None,
         **kwargs: Any,
     ):
         self.name = name
@@ -80,6 +83,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         self.register_rpc_methods()
 
         self.setup_logging(log=log)
+        self.security_config = security_config
         self.setup_socket(
             host=host, port=port, protocol=protocol, context=context or zmq.Context.instance()
         )
@@ -124,6 +128,14 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
 
     def setup_socket(self, host: str, port: int, protocol: str, context: zmq.Context) -> None:
         self.socket: zmq.Socket = context.socket(zmq.DEALER)
+        if self.security_config is not None and self.security_config.mode == SecurityMode.CURVE:
+            configure_curve_client(
+                self.socket,
+                self.security_config.client_key_pair,
+                self.security_config.server_public_key,
+            )
+        if self.security_config is None or self.security_config.mode == SecurityMode.NONE:
+            warn_insecure_mode(address=f"{host}:{port}")
         self.log.info(f"MessageHandler connecting to {host}:{port}")
         self.socket.connect(f"{protocol}://{host}:{port}")
 

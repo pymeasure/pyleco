@@ -49,6 +49,10 @@ import threading
 
 import zmq
 
+from pyleco.core.curve import configure_curve_client, configure_curve_server, warn_insecure_mode
+from pyleco.core.security import SecurityConfig, SecurityMode
+from pyleco.core.zap import start_authenticator, stop_authenticator
+
 if __name__ == "__main__":
     from pyleco.core import PROXY_RECEIVING_PORT
 else:
@@ -68,16 +72,39 @@ def pub_sub_proxy(
     pub: str = "localhost",
     offset: int = 0,
     event: threading.Event | None = None,
+    security_config: SecurityConfig | None = None,
 ) -> None:
     """Run a publisher subscriber proxy in the current thread (blocking)."""
     s: zmq.Socket = context.socket(zmq.XSUB)
     p: zmq.Socket = context.socket(zmq.XPUB)
+    auth = None
     _port = port - 2 * offset
     if sub == "localhost" and pub == "localhost":
+        if security_config is not None and security_config.mode == SecurityMode.CURVE:
+            configure_curve_server(s, security_config.server_key_pair)
+            configure_curve_server(p, security_config.server_key_pair)
+            auth = start_authenticator(context, security_config)
+        if security_config is None or security_config.mode == SecurityMode.NONE:
+            warn_insecure_mode(address=f"*:{_port}")
         log.info(f"Start local proxy server: listening on {_port}, publishing on {_port - 1}.")
         s.bind(f"tcp://*:{_port}")
         p.bind(f"tcp://*:{_port - 1}")
     else:
+        if security_config is not None and security_config.mode == SecurityMode.CURVE:
+            if (
+                security_config.client_key_pair is not None
+                and security_config.server_public_key is not None
+            ):
+                configure_curve_client(
+                    s, security_config.client_key_pair, security_config.server_public_key
+                )
+                configure_curve_client(
+                    p, security_config.client_key_pair, security_config.server_public_key
+                )
+            else:
+                raise ValueError(
+                    "CURVE mode for remote proxy requires client_key_pair and server_public_key"
+                )
         log.info(
             f"Start remote proxy server subsribing to {sub}:{_port - 1} and publishing to "
             f"{pub}:{_port}."
@@ -98,7 +125,10 @@ def pub_sub_proxy(
     except zmq.ContextTerminated:
         log.info("Proxy context terminated.")
     except Exception as exc:
-        log.exception("Some other exception on proxy happened.", exc)
+        log.exception("Some other exception on proxy happened.", exc_info=exc)
+    finally:
+        if auth is not None:
+            stop_authenticator(auth)
 
 
 def start_proxy(
@@ -107,6 +137,7 @@ def start_proxy(
     sub: str = "localhost",
     pub: str = "localhost",
     offset: int = 0,
+    security_config: SecurityConfig | None = None,
 ) -> zmq.Context:
     """Start a proxy server, either local or remote, in its own thread.
 
@@ -131,12 +162,14 @@ def start_proxy(
     :param str sub: Name or IP Address of the server to subscribe to.
     :param str pub: Name or IP Address of the server to publish to.
     :param offset: How many servers (pairs of ports) to offset from the base one.
+    :param security_config: Security configuration for CURVE mode.
     :return: The zmq context. To stop, call `context.destroy()`.
     """
     context = context or zmq.Context.instance()
     event = threading.Event()
     thread = threading.Thread(
-        target=pub_sub_proxy, args=(context, captured, sub, pub, offset, event)
+        target=pub_sub_proxy,
+        args=(context, captured, sub, pub, offset, event, security_config),
     )
     thread.daemon = True
     thread.start()
@@ -149,7 +182,7 @@ def start_proxy(
 
 def main(arguments: list[str] | None = None, stop_event: threading.Event | None = None) -> None:
     from argparse import ArgumentParser
-    from pyleco.utils.parser import parse_command_line_parameters
+    from pyleco.utils.parser import parse_command_line_parameters, build_security_config_from_kwargs
 
     parser = ArgumentParser(prog="Proxy server")
     parser.add_argument(
@@ -171,6 +204,24 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
         help="log all messages sent through the proxy",
     )
     parser.add_argument("-o", "--offset", help="shifting the port numbers.", default=0, type=int)
+    parser.add_argument(
+        "--security-mode",
+        choices=["NONE", "CURVE"],
+        default=None,
+        help="security mode (default: NONE)",
+    )
+    parser.add_argument("--server-secret-key", default=None, help="proxy server secret key")
+    parser.add_argument("--server-public-key", default=None, help="proxy server public key")
+    parser.add_argument(
+        "--authorized-keys-dir", default=None, help="directory of authorized client public keys"
+    )
+    parser.add_argument(
+        "--curve-any-authenticated",
+        action="store_true",
+        default=None,
+        help="accept any authenticated CURVE client",
+    )
+    parser.add_argument("--config", default=None, help="path to TOML config file")
     kwargs = parse_command_line_parameters(
         parser=parser, logger=log, arguments=arguments, logging_default=logging.INFO
     )
@@ -178,6 +229,11 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
     log.addHandler(logging.StreamHandler())
     if kwargs.get("captured"):
         log.setLevel(logging.DEBUG)
+
+    security_config = build_security_config_from_kwargs(kwargs)
+    if security_config.mode == SecurityMode.CURVE:
+        security_config.validate()
+
     merely_local = kwargs.get("pub") == "localhost" and kwargs.get("sub") == "localhost"
 
     if not merely_local:
@@ -192,9 +248,11 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
             f" (DataLogger, Beamprofiler etc.), which subscribe on port {port - 1}."
         )
     context = zmq.Context()
-    start_proxy(context=context, **kwargs)
+    start_proxy(context=context, security_config=security_config, **kwargs)
     if merely_local:
-        start_proxy(context=context, offset=1)  # for log entries
+        start_proxy(
+            context=context, offset=1
+        )  # inproc log proxy; intentionally unauthenticated (inproc transport)
     reader = context.socket(zmq.SUB)
     reader.connect("inproc://capture")
     reader.subscribe(b"")
