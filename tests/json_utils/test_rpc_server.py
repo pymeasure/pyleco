@@ -24,6 +24,7 @@
 
 import json
 import logging
+from typing import Dict, List, Optional
 
 import pytest
 
@@ -347,3 +348,300 @@ def test_unregister_method(rpc_server: RPCServer):
     rpc_server.unregister_method("abc")
     rpc_server.method(name="abc")(simple)
     # assert that it raises no error
+
+
+class Test_method_params_and_result:
+    """Test that rpc.discover includes parameter and return type information."""
+
+    @pytest.fixture
+    def discovered(self) -> dict:
+        rpc_server = RPCServer()
+
+        def typed_method(name: str, count: int, ratio: float = 0.5) -> str:
+            """A typed method.
+
+            With a description.
+            """
+            return name
+
+        rpc_server.method()(typed_method)
+        request = Request(1, "rpc.discover")
+        response = rpc_server.process_json_request_object(request)
+        assert isinstance(response, ResultResponse)
+        return response.result  # type: ignore
+
+    @pytest.fixture
+    def methods(self, discovered: dict) -> list:
+        return discovered.get("methods")  # type: ignore
+
+    def test_typed_method_params(self, methods: list):
+        m = methods[0]
+        assert m["name"] == "typed_method"
+        params = m.get("params", [])
+        assert len(params) == 3
+        p_name = params[0]
+        assert p_name["name"] == "name"
+        assert p_name["schema"] == {"type": "string"}
+        assert p_name["required"] is True
+        p_count = params[1]
+        assert p_count["name"] == "count"
+        assert p_count["schema"] == {"type": "integer"}
+        assert p_count["required"] is True
+        p_ratio = params[2]
+        assert p_ratio["name"] == "ratio"
+        assert p_ratio["schema"] == {"type": "number", "default": 0.5}
+        assert p_ratio["required"] is False
+
+    def test_typed_method_result(self, methods: list):
+        m = methods[0]
+        result = m.get("result", {})
+        assert result["name"] == "result"
+        assert result["schema"] == {"type": "string"}
+
+    def test_typed_method_summary_and_description(self, methods: list):
+        m = methods[0]
+        assert m["summary"] == "A typed method."
+        assert m["description"] == "With a description."
+
+
+class Test_complex_types:
+    """Test that complex type annotations are converted properly."""
+
+    @pytest.fixture
+    def discovered(self) -> dict:
+        rpc_server = RPCServer()
+
+        def complex_method(
+            items: List[str],
+            mapping: Dict[str, float],
+            optional_name: Optional[str] = None,
+        ) -> List[int]:
+            """Method with complex types."""
+            return []
+
+        rpc_server.method()(complex_method)
+        request = Request(1, "rpc.discover")
+        response = rpc_server.process_json_request_object(request)
+        assert isinstance(response, ResultResponse)
+        return response.result  # type: ignore
+
+    @pytest.fixture
+    def methods(self, discovered: dict) -> list:
+        return discovered.get("methods")  # type: ignore
+
+    def test_list_type(self, methods: list):
+        m = methods[0]
+        p = m["params"][0]
+        assert p["name"] == "items"
+        assert p["schema"] == {"type": "array", "items": {"type": "string"}}
+
+    def test_dict_type(self, methods: list):
+        m = methods[0]
+        p = m["params"][1]
+        assert p["name"] == "mapping"
+        assert p["schema"] == {
+            "type": "object",
+            "additionalProperties": {"type": "number"},
+        }
+
+    def test_optional_type(self, methods: list):
+        m = methods[0]
+        p = m["params"][2]
+        assert p["name"] == "optional_name"
+        assert p["schema"] == {"oneOf": [{"type": "string"}, {"type": "null"}], "default": None}
+        assert p["required"] is False
+
+    def test_list_return_type(self, methods: list):
+        m = methods[0]
+        result = m.get("result", {})
+        assert result["schema"] == {"type": "array", "items": {"type": "integer"}}
+
+
+class Test_untyped_method:
+    """Test methods without type annotations still work without params/result."""
+
+    @pytest.fixture
+    def discovered(self) -> dict:
+        rpc_server = RPCServer()
+
+        def untyped_method(arg1, arg2=None):
+            """No type hints."""
+            return arg1
+
+        rpc_server.method()(untyped_method)
+        request = Request(1, "rpc.discover")
+        response = rpc_server.process_json_request_object(request)
+        assert isinstance(response, ResultResponse)
+        return response.result  # type: ignore
+
+    @pytest.fixture
+    def methods(self, discovered: dict) -> list:
+        return discovered.get("methods")  # type: ignore
+
+    def test_untyped_params_present(self, methods: list):
+        m = methods[0]
+        params = m.get("params", [])
+        assert len(params) == 2
+
+    def test_untyped_required(self, methods: list):
+        m = methods[0]
+        p1 = m["params"][0]
+        assert p1["name"] == "arg1"
+        assert p1["required"] is True
+        p2 = m["params"][1]
+        assert p2["name"] == "arg2"
+        assert p2["required"] is False
+
+    def test_untyped_no_schema(self, methods: list):
+        m = methods[0]
+        p1 = m["params"][0]
+        assert "schema" not in p1
+
+    def test_untyped_no_result(self, methods: list):
+        m = methods[0]
+        assert "result" not in m
+
+
+class Test_python_type_to_schema:
+    """Directly test the _python_type_to_schema helper."""
+
+    def test_str(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        assert _python_type_to_schema(str) == {"type": "string"}
+
+    def test_int(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        assert _python_type_to_schema(int) == {"type": "integer"}
+
+    def test_float(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        assert _python_type_to_schema(float) == {"type": "number"}
+
+    def test_bool(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        assert _python_type_to_schema(bool) == {"type": "boolean"}
+
+    def test_list(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        assert _python_type_to_schema(list) == {"type": "array"}
+
+    def test_dict(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        assert _python_type_to_schema(dict) == {"type": "object"}
+
+    def test_none_type(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        assert _python_type_to_schema(type(None)) == {"type": "null"}
+
+    def test_optional_int(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        result = _python_type_to_schema(Optional[int])
+        assert result == {"oneOf": [{"type": "integer"}, {"type": "null"}]}
+
+    def test_pep604_union(self):
+        import sys
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        if sys.version_info < (3, 10):
+            pytest.skip("PEP 604 unions require Python 3.10+")
+        result = _python_type_to_schema(eval("int | str"))
+        assert result == {"oneOf": [{"type": "integer"}, {"type": "string"}]}
+
+    def test_list_of_str(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        result = _python_type_to_schema(List[str])
+        assert result == {"type": "array", "items": {"type": "string"}}
+
+    def test_dict_str_int(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        result = _python_type_to_schema(Dict[str, int])
+        assert result == {"type": "object", "additionalProperties": {"type": "integer"}}
+
+    def test_empty_annotation(self):
+        import inspect
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        assert _python_type_to_schema(inspect.Parameter.empty) == {}
+
+    def test_custom_class(self):
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+
+        class CustomClass:
+            pass
+
+        assert _python_type_to_schema(CustomClass) == {"type": "object"}
+
+
+class Test_varargs:
+    """Test that *args and **kwargs are excluded from discovered params."""
+
+    @pytest.fixture
+    def discovered(self) -> dict:
+        rpc_server = RPCServer()
+
+        def varargs_method(x: int, *args, **kwargs) -> str:
+            """Method with varargs."""
+            return ""
+
+        rpc_server.method()(varargs_method)
+        request = Request(1, "rpc.discover")
+        response = rpc_server.process_json_request_object(request)
+        assert isinstance(response, ResultResponse)
+        return response.result  # type: ignore
+
+    @pytest.fixture
+    def methods(self, discovered: dict) -> list:
+        return discovered.get("methods")  # type: ignore
+
+    def test_varargs_excluded(self, methods: list):
+        m = methods[0]
+        param_names = [p["name"] for p in m.get("params", [])]
+        assert "args" not in param_names
+        assert "kwargs" not in param_names
+
+    def test_typed_param_still_present(self, methods: list):
+        m = methods[0]
+        params = m.get("params", [])
+        assert len(params) == 1
+        assert params[0]["name"] == "x"
+        assert params[0]["schema"] == {"type": "integer"}
+        assert params[0]["required"] is True
+
+
+class Test_non_serializable_default:
+    """Test that non-JSON-serializable defaults don't break rpc.discover."""
+
+    @pytest.fixture
+    def discovered(self) -> dict:
+        rpc_server = RPCServer()
+
+        class Unserializable:
+            pass
+
+        def method_with_bad_default(x: int, obj=Unserializable()) -> int:
+            """Method with non-serializable default."""
+            return x
+
+        rpc_server.method()(method_with_bad_default)
+        request = Request(1, "rpc.discover")
+        response = rpc_server.process_json_request_object(request)
+        assert isinstance(response, ResultResponse)
+        return response.result  # type: ignore
+
+    @pytest.fixture
+    def methods(self, discovered: dict) -> list:
+        return discovered.get("methods")  # type: ignore
+
+    def test_discover_succeeds(self, methods: list):
+        assert len(methods) == 1
+
+    def test_non_serializable_param_no_default(self, methods: list):
+        m = methods[0]
+        p = m["params"][1]
+        assert p["name"] == "obj"
+        assert p["required"] is False
+        assert "default" not in p.get("schema", {})
+
+    def test_serializable_param_has_default(self, methods: list):
+        m = methods[0]
+        p = m["params"][0]
+        assert p["name"] == "x"
+        assert p["required"] is True
