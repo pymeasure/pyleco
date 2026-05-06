@@ -227,6 +227,55 @@ Configuration is handled through:
 - Command-line arguments for runtime configuration
 - Optional TOML config file (`pyleco.toml`) for security settings
 
+## Security (CURVE mode)
+
+LECO supports two security modes: `NONE` (default, no encryption) and `CURVE` (CurveZMQ mutual authentication + encryption).
+
+### Security configuration
+
+Security is configured via `pyleco.core.security.SecurityConfig`, loaded from CLI args and/or a TOML config file:
+
+```toml
+[security]
+mode = "CURVE"
+server_secret_key = "..."   # Coordinator/Proxy server secret key
+server_public_key = "..."   # Server public key (also used by clients)
+client_public_key = "..."   # Component client public key
+client_secret_key = "..."   # Component client secret key
+data_server_public_key = "..."  # Proxy's server public key for data protocol
+authorized_keys_dir = "/etc/pyleco/keys"  # Directory of authorized client public keys
+curve_any_authenticated = false
+
+[security.authorized_keys]  # Inline name→public_key mapping
+"N1.Actor1" = "..."
+```
+
+### Key classes/modules
+
+- `pyleco.core.security`: `SecurityMode` enum, `KeyPair`, `SecurityConfig`, `generate_key_pair()`, `load_authorized_keys()`, `load_security_config()`
+- `pyleco.core.curve`: `configure_curve_server()`, `configure_curve_client()`, `configure_socket_security()` — apply CURVE socket options
+- `pyleco.core.zap`: `start_authenticator()`, `stop_authenticator()` — manage ZMQ ZAP authenticator for client key validation
+- `pyleco.core.config`: `load_config()` — TOML config file loading
+
+### Key distribution
+
+Three approaches for Coordinator-side authorized client keys:
+1. **Key directory**: Files in `authorized_keys_dir`, one public key per file, filename = component name
+2. **Config file**: `[security.authorized_keys]` table in TOML config
+3. **Any-authenticated mode**: `curve_any_authenticated = true` accepts any valid CurveZMQ handshake
+
+### CURVE socket setup
+
+- **Coordinator ROUTER**: `configure_curve_server()` with server key pair
+- **Component DEALER**: `configure_curve_client()` with client key pair + coordinator server public key
+- **Proxy XPUB/XSUB**: `configure_curve_server()` with proxy server key pair
+- **Publisher PUB**: `configure_curve_client()` with client key pair + proxy XSUB server public key
+- **Subscriber SUB**: `configure_curve_client()` with client key pair + proxy XPUB server public key
+
+### Key generation
+
+Use `generate_key_pair()` or the `pyleco-keygen` CLI tool to generate Curve25519 key pairs.
+
 ## Development Environment
 
 - Python 3.12 with built-in `tomllib` (no `tomli` needed)

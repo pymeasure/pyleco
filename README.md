@@ -95,6 +95,83 @@ Currently you cannot call methods in a similar, transparent way, without manual 
 You can add `RemoteCall` descriptor (in transparent_director module) to the `director` for each method call you want to use.
 Afterwards you can use these methods transparently similar to the property shown above.
 
+## Security
+
+LECO supports two security modes:
+
+| Mode    | Authentication   | Encryption        | Use case                                 |
+|---------|------------------|-------------------|------------------------------------------|
+| `NONE`  | No               | No                | Local development, trusted networks only |
+| `CURVE` | Yes (Curve25519) | Yes (per-session) | Production deployments (RECOMMENDED)     |
+
+By default, PyLECO uses `NONE` mode (no encryption, no authentication).
+A warning is emitted if `NONE` mode is used on a non-loopback interface.
+For production deployments on accessible networks, use `CURVE` mode which provides mutual authentication and encryption via [CurveZMQ](https://rfc.zeromq.org/spec/50/).
+
+### Generating Keys
+
+Use the `pyleco-keygen` command to generate a Curve25519 key pair:
+
+```bash
+pyleco-keygen                          # print a key pair to stdout
+pyleco-keygen --output-dir keys --name N1.Actor1  # write to files
+```
+
+### Configuration
+
+Security can be configured via CLI arguments or a TOML config file (`pyleco.toml`).
+
+**CLI arguments** (for `coordinator`, `proxy_server`, and components):
+
+```
+--security-mode NONE|CURVE    security mode (default: NONE)
+--server-secret-key KEY       server secret key (Coordinator side)
+--server-public-key KEY       server public key (Component side)
+--client-secret-key KEY       client secret key
+--client-public-key KEY       client public key
+--data-server-public-key KEY  proxy server public key (data protocol)
+--authorized-keys-dir DIR     directory of authorized client public keys
+--curve-any-authenticated     accept any authenticated CURVE client
+--config PATH                 path to TOML config file
+```
+
+**TOML config file** (`pyleco.toml`):
+
+```toml
+[security]
+mode = "CURVE"
+server_secret_key = "..."
+server_public_key = "..."
+data_server_public_key = "..."
+authorized_keys_dir = "/etc/pyleco/keys"
+curve_any_authenticated = false
+
+[security.authorized_keys]
+"N1.Actor1" = "..."
+```
+
+CLI arguments override TOML values.
+
+### Key Distribution
+
+A Coordinator needs to know which client public keys are authorized.
+Three approaches are supported:
+
+1. **Key directory**: Place one public key per file in `authorized_keys_dir` (filename = component name).
+2. **Config file**: List authorized keys in `[security.authorized_keys]` in `pyleco.toml`.
+3. **Any-authenticated mode**: Set `curve_any_authenticated = true` to accept any valid CurveZMQ handshake.
+
+### Upgrading from NONE to CURVE
+
+1. Generate key pairs (server key pair for each Coordinator, client key pair for each Component).
+2. Distribute server public keys to all Components.
+3. Distribute authorized client public keys to each Coordinator.
+4. Enable `CURVE` mode on all entities and restart the entire network.
+
+**Warning**: Mixed security modes will fail — all nodes must use the same mode.
+
+For full security specifications, see [`security.md`](https://github.com/pymeasure/pyleco/blob/main/security.md).
+
 
 ## Overview of Offered Packages and Modules
 
@@ -105,6 +182,9 @@ For more information and for examples see the docstrings of the relevant methods
   * The `Message` and `DataMessage` class help to create and interpret LECO messages for the control and broadcasting protocol, respectively.
   * The `leco_protocols` module contains _Protocol_ classes for the different LECO _Components_, in order to test, whether a _Component_ satisfies the LECO standard for communicating with other programs.
   * The `internal_protocols` module contains _Protocol_ classes which define the API access to PyLECO.
+  * The `security` module provides `SecurityConfig`, `SecurityMode`, `KeyPair`, and key loading for CURVE security.
+  * The `curve` module provides helpers for configuring CURVE socket options.
+  * The `zap` module manages ZAP authenticator setup for CURVE key validation.
 * The `utils` subpackage contains modules useful for creating LECO Components.
   * The`Communicator` can send and receive messages, but neither blocks (just for a short time waiting for an answer) nor requires an extra thread.
     It satisfies the `CommunicatorProtocol` and is useful in scripts.
