@@ -24,7 +24,7 @@
 
 import json
 import logging
-from typing import Optional
+from typing import Dict, List, Optional
 
 import pytest
 
@@ -412,10 +412,10 @@ class Test_complex_types:
         rpc_server = RPCServer()
 
         def complex_method(
-            items: list[str],
-            mapping: dict[str, float],
+            items: List[str],
+            mapping: Dict[str, float],
             optional_name: Optional[str] = None,
-        ) -> list[int]:
+        ) -> List[int]:
             """Method with complex types."""
             return []
 
@@ -448,7 +448,7 @@ class Test_complex_types:
         m = methods[0]
         p = m["params"][2]
         assert p["name"] == "optional_name"
-        assert p["schema"] == {"oneOf": [{"type": "string"}, {"type": "null"}]}
+        assert p["schema"] == {"oneOf": [{"type": "string"}, {"type": "null"}], "default": None}
         assert p["required"] is False
 
     def test_list_return_type(self, methods: list):
@@ -538,14 +538,22 @@ class Test_python_type_to_schema:
         result = _python_type_to_schema(Optional[int])
         assert result == {"oneOf": [{"type": "integer"}, {"type": "null"}]}
 
+    def test_pep604_union(self):
+        import sys
+        from pyleco.json_utils.rpc_server import _python_type_to_schema
+        if sys.version_info < (3, 10):
+            pytest.skip("PEP 604 unions require Python 3.10+")
+        result = _python_type_to_schema(eval("int | str"))
+        assert result == {"oneOf": [{"type": "integer"}, {"type": "string"}]}
+
     def test_list_of_str(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
-        result = _python_type_to_schema(list[str])
+        result = _python_type_to_schema(List[str])
         assert result == {"type": "array", "items": {"type": "string"}}
 
     def test_dict_str_int(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
-        result = _python_type_to_schema(dict[str, int])
+        result = _python_type_to_schema(Dict[str, int])
         assert result == {"type": "object", "additionalProperties": {"type": "integer"}}
 
     def test_empty_annotation(self):

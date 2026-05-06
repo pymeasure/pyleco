@@ -26,6 +26,7 @@ from __future__ import annotations
 import inspect
 import logging
 import re
+import types
 import typing
 from typing import Any, Callable, cast, Optional, Union
 from dataclasses import dataclass
@@ -111,9 +112,8 @@ class Method:
                 descriptor["required"] = True
             else:
                 descriptor["required"] = False
-                if param.default is not None:
-                    descriptor["schema"] = descriptor.get("schema", {})
-                    descriptor["schema"]["default"] = param.default
+                descriptor["schema"] = descriptor.get("schema", {})
+                descriptor["schema"]["default"] = param.default
             params.append(descriptor)
         return params
 
@@ -162,7 +162,7 @@ def _python_type_to_schema(
     origin = typing.get_origin(annotation)
     if origin is not None:
         args = typing.get_args(annotation)
-        if origin is Union:
+        if origin in (Union, types.UnionType):
             sub_schemas = [
                 s for s in (_python_type_to_schema(a, param_name) for a in args)
                 if s
