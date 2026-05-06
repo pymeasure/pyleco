@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 import inspect
+import json
 import logging
 import re
 import types
@@ -113,7 +114,11 @@ class Method:
             else:
                 descriptor["required"] = False
                 descriptor["schema"] = descriptor.get("schema", {})
-                descriptor["schema"]["default"] = param.default
+                try:
+                    json.dumps(param.default)
+                    descriptor["schema"]["default"] = param.default
+                except (TypeError, ValueError):
+                    pass
             params.append(descriptor)
         return params
 
@@ -123,12 +128,13 @@ class Method:
             hints = typing.get_type_hints(self.method)
         except Exception:
             hints = {}
-        return_annotation = hints.get("return", inspect.Signature.empty)
-        try:
-            sig = inspect.signature(self.method)
-        except (ValueError, TypeError):
-            return {}
-        if "return" not in hints:
+        if "return" in hints:
+            return_annotation = hints["return"]
+        else:
+            try:
+                sig = inspect.signature(self.method)
+            except (ValueError, TypeError):
+                return {}
             return_annotation = sig.return_annotation
         if return_annotation is inspect.Signature.empty:
             return {}

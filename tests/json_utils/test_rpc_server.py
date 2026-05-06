@@ -604,3 +604,44 @@ class Test_varargs:
         assert params[0]["name"] == "x"
         assert params[0]["schema"] == {"type": "integer"}
         assert params[0]["required"] is True
+
+
+class Test_non_serializable_default:
+    """Test that non-JSON-serializable defaults don't break rpc.discover."""
+
+    @pytest.fixture
+    def discovered(self) -> dict:
+        rpc_server = RPCServer()
+
+        class Unserializable:
+            pass
+
+        def method_with_bad_default(x: int, obj=Unserializable()) -> int:
+            """Method with non-serializable default."""
+            return x
+
+        rpc_server.method()(method_with_bad_default)
+        request = Request(1, "rpc.discover")
+        response = rpc_server.process_json_request_object(request)
+        assert isinstance(response, ResultResponse)
+        return response.result  # type: ignore
+
+    @pytest.fixture
+    def methods(self, discovered: dict) -> list:
+        return discovered.get("methods")  # type: ignore
+
+    def test_discover_succeeds(self, methods: list):
+        assert len(methods) == 1
+
+    def test_non_serializable_param_no_default(self, methods: list):
+        m = methods[0]
+        p = m["params"][1]
+        assert p["name"] == "obj"
+        assert p["required"] is False
+        assert "default" not in p.get("schema", {})
+
+    def test_serializable_param_has_default(self, methods: list):
+        m = methods[0]
+        p = m["params"][0]
+        assert p["name"] == "x"
+        assert p["required"] is True
