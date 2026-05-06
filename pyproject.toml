@@ -29,6 +29,7 @@ requires-python = ">=3.8"
 dependencies = [
   "pyzmq >= 22.3.0",
   "uuid6 >= 2024.1.12",
+  "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +48,7 @@ dev = [
 coordinator = "pyleco.coordinators.coordinator:main"
 proxy_server = "pyleco.coordinators.proxy_server:main"
 starter = "pyleco.management.starter:main"
+"pyleco-keygen" = "pyleco.utils.keygen:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8.1.0"]

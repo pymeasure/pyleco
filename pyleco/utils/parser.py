@@ -23,8 +23,15 @@
 #
 
 from __future__ import annotations
+
 from argparse import ArgumentParser
 import logging
+from typing import TYPE_CHECKING
+
+from pyleco.core.security import load_security_config
+
+if TYPE_CHECKING:
+    from pyleco.core.security import SecurityConfig
 
 
 parser = ArgumentParser()
@@ -44,6 +51,28 @@ parser.add_argument(
     default=0,
     help="increase the logging level by one, may be used more than once",
 )
+parser.add_argument(
+    "--security-mode", choices=["NONE", "CURVE"], default=None, help="security mode (default: NONE)"
+)
+parser.add_argument("--server-secret-key", default=None, help="server secret key for CURVE mode")
+parser.add_argument(
+    "--server-public-key", default=None, help="server public key (for client-side configuration)"
+)
+parser.add_argument("--client-secret-key", default=None, help="client secret key for CURVE mode")
+parser.add_argument("--client-public-key", default=None, help="client public key for CURVE mode")
+parser.add_argument(
+    "--data-server-public-key", default=None, help="proxy server public key for data protocol"
+)
+parser.add_argument(
+    "--authorized-keys-dir", default=None, help="directory of authorized client public keys"
+)
+parser.add_argument(
+    "--curve-any-authenticated",
+    action="store_true",
+    default=None,
+    help="accept any authenticated CURVE client",
+)
+parser.add_argument("--config", default=None, help="path to TOML config file")
 
 
 def parse_command_line_parameters(
@@ -70,7 +99,31 @@ def parse_command_line_parameters(
         logger = logging.getLogger("__main__")
     logger.setLevel(verbosity)
     for key, value in list(kwargs.items()):
-        # remove not set values
         if value is None:
             del kwargs[key]
     return kwargs
+
+
+_SECURITY_KWARG_KEYS = (
+    "security_mode",
+    "server_secret_key",
+    "server_public_key",
+    "client_secret_key",
+    "client_public_key",
+    "data_server_public_key",
+    "authorized_keys_dir",
+    "curve_any_authenticated",
+)
+
+
+def build_security_config_from_kwargs(kwargs: dict) -> SecurityConfig:
+    config_path = kwargs.pop("config", None)
+    cli_security_args: dict = {}
+    for key in _SECURITY_KWARG_KEYS:
+        value = kwargs.pop(key, None)
+        if value is not None:
+            cli_key = key
+            if key == "security_mode":
+                cli_key = "mode"
+            cli_security_args[cli_key] = value
+    return load_security_config(config_path=config_path, cli_args=cli_security_args)
