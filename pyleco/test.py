@@ -23,15 +23,12 @@
 #
 
 from __future__ import annotations
-from typing import Any, Iterable, Sequence, TYPE_CHECKING
+from typing import Any, Iterable, Sequence
 
 from .core.message import Message, MessageTypes
 from .core.internal_protocols import CommunicatorProtocol
 from .json_utils.rpc_generator import RPCGenerator
 from .utils.message_handler import MessageHandler
-
-if TYPE_CHECKING:
-    from .actors.actor import Actor
 
 
 class FakeContext:
@@ -232,7 +229,7 @@ class FakeDirector:
     method: str  # called method
     kwargs: dict[str, Any]  # kwargs sent to the method
 
-    def __init__(self, remote_class: Actor, **kwargs: Any) -> None:
+    def __init__(self, remote_class: MessageHandler, **kwargs: Any) -> None:
         kwargs.setdefault("communicator", FakeCommunicator("communicator"))
         super().__init__(**kwargs)
         self.remote_class = remote_class
