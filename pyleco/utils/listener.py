@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from threading import Thread, Event
 from time import sleep
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 from ..core import PROXY_SENDING_PORT, COORDINATOR_PORT
 from .pipe_handler import PipeHandler, CommunicatorPipe
@@ -63,9 +63,9 @@ class Listener:
                  name: str,
                  host: str = "localhost",
                  port: int = COORDINATOR_PORT,
-                 data_host: Optional[str] = None,
+                 data_host: str | None = None,
                  data_port: int = PROXY_SENDING_PORT,
-                 logger: Optional[logging.Logger] = None,
+                 logger: logging.Logger | None = None,
                  timeout: float = 1,
                  **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -142,7 +142,7 @@ class Listener:
 
     def register_binary_rpc_method(
         self,
-        method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
+        method: Callable[..., Any | tuple[Any, list[bytes]]],
         accept_binary_input: bool = False,
         return_binary_output: bool = False,
         **kwargs: Any,

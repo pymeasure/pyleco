@@ -25,7 +25,7 @@
 from __future__ import annotations
 from enum import Enum
 from threading import get_ident, Condition
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 from warnings import warn
 
 import zmq
@@ -97,16 +97,16 @@ class LockedMessageBuffer(MessageBuffer):
         else:
             return False
 
-    def retrieve_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
+    def retrieve_message(self, conversation_id: bytes | None = None) -> Message | None:
         """Retrieve the requested message or the next free one for `conversation_id=None`."""
         with self._buffer_lock:
             return super().retrieve_message(conversation_id=conversation_id)
 
-    def _retrieve_message_without_lock(self, conversation_id: Optional[bytes]) -> Optional[Message]:
+    def _retrieve_message_without_lock(self, conversation_id: bytes | None) -> Message | None:
         return super().retrieve_message(conversation_id=conversation_id)
 
-    def _predicate_generator(self, conversation_id: bytes) -> Callable[[], Optional[Message]]:
-        def check_message_in_buffer() -> Optional[Message]:
+    def _predicate_generator(self, conversation_id: bytes) -> Callable[[], Message | None]:
+        def check_message_in_buffer() -> Message | None:
             return self._retrieve_message_without_lock(
                 conversation_id=conversation_id)
         return check_message_in_buffer
@@ -137,7 +137,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
                  handler: ExtendedMessageHandler,
                  pipe_port: int,
                  message_buffer: LockedMessageBuffer,
-                 context: Optional[zmq.Context] = None,
+                 context: zmq.Context | None = None,
                  timeout: float = 1,
                  **kwargs: Any):
         super().__init__(**kwargs)
@@ -156,13 +156,13 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         return self.handler.name
 
     @name.setter
-    def name(self, value: Union[bytes, str]) -> None:
+    def name(self, value: bytes | str) -> None:
         if isinstance(value, str):
             value = value.encode()
         self._send_pipe_message(PipeCommands.RENAME, value)
 
     @property
-    def namespace(self) -> Union[str, None]:  # type: ignore[override]
+    def namespace(self) -> str | None:  # type: ignore[override]
         return self.handler.namespace
 
     @property
@@ -181,7 +181,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
             message.sender = self.full_name.encode()
         self._send_pipe_message(PipeCommands.SEND, *message.to_frames())
 
-    def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
+    def read_message(self, conversation_id: bytes | None, timeout: float | None = None
                      ) -> Message:
         if conversation_id is None:
             raise ValueError("You have to request a message with its conversation_id.")
@@ -190,7 +190,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
             timeout=self.timeout if timeout is None else timeout,
         )
 
-    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
+    def ask_message(self, message: Message, timeout: float | None = None) -> Message:
         self.message_buffer.add_conversation_id(message.conversation_id)
         self.send_message(message=message)
         return self.read_message(conversation_id=message.conversation_id, timeout=timeout)
@@ -253,7 +253,7 @@ class PipeHandler(ExtendedMessageHandler):
     _communicators: dict[int, CommunicatorPipe]
     _on_name_change_methods: set[Callable[[str], None]] = set()
 
-    def __init__(self, name: str, context: Optional[zmq.Context] = None, **kwargs: Any) -> None:
+    def __init__(self, name: str, context: zmq.Context | None = None, **kwargs: Any) -> None:
         context = context or zmq.Context.instance()
         super().__init__(name=name, context=context, **kwargs)
         self.internal_pipe: zmq.Socket = context.socket(zmq.PULL)
@@ -290,7 +290,7 @@ class PipeHandler(ExtendedMessageHandler):
         poller.register(self.internal_pipe, zmq.POLLIN)
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
+    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: int | None
                              ) -> dict[zmq.Socket, int]:
         socks = super()._listen_loop_element(poller=poller, waiting_time=waiting_time)
         if self.internal_pipe in socks:

@@ -26,7 +26,6 @@ from __future__ import annotations
 import logging
 from unittest.mock import MagicMock
 import time
-from typing import Optional
 
 import pytest
 
@@ -281,7 +280,7 @@ class Test_read_message:
     mr = Message(receiver=handler_name, sender="xy", conversation_id=cid)  # requested message
     m2 = Message(receiver=handler_name, sender="xy")  # another message
 
-    conf: list[tuple[list[Message], list[Message], Optional[bytes], list[Message], list[Message],
+    conf: list[tuple[list[Message], list[Message], bytes | None, list[Message], list[Message],
                      str]] = [
         # socket_in, buffer_in, cid, socket_out, buffer_out, test_id
         # find first not requested message
@@ -315,7 +314,7 @@ class Test_read_message:
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_return_correct_message(self,
-                                    test: tuple[list[Message], list, Optional[bytes]],
+                                    test: tuple[list[Message], list, bytes | None],
                                     handler: MessageHandler):
         socket, buffer, cid0, *_ = test
         handler.socket._r = [m.to_frames() for m in socket]  # type: ignore
@@ -567,7 +566,7 @@ class Test_process_json_message_with_created_binary:
                 return data
 
             def do_binary(
-                self, data: int, additional_payload: Optional[list[bytes]] = None
+                self, data: int, additional_payload: list[bytes] | None = None
             ) -> tuple[int, list[bytes]]:
                 test_class.payload_in = additional_payload  # type: ignore
                 return data, test_class.payload_out

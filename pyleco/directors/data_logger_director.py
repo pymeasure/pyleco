@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, cast, Dict, Optional
+from typing import Any, cast, Dict
 
 from .director import Director
 from ..management.data_logger import ValuingModes, TriggerTypes
@@ -43,15 +43,17 @@ class DataLoggerDirector(Director):
     def __init__(self, actor: str = "dataLogger", **kwargs: Any) -> None:
         super().__init__(actor=actor, **kwargs)
 
-    def start_collecting(self, *,
-                         variables: Optional[list[str]] = None,
-                         units: Optional[dict[str, Any]] = None,
-                         trigger_type: Optional[TriggerTypes] = None,
-                         trigger_timeout: Optional[float] = None,
-                         trigger_variable: Optional[str] = None,
-                         valuing_mode: Optional[ValuingModes] = None,
-                         value_repeating: Optional[bool] = None,
-                         ) -> None:
+    def start_collecting(
+        self,
+        *,
+        variables: list[str] | None = None,
+        units: dict[str, Any] | None = None,
+        trigger_type: TriggerTypes | None = None,
+        trigger_timeout: float | None = None,
+        trigger_variable: str | None = None,
+        valuing_mode: ValuingModes | None = None,
+        value_repeating: bool | None = None,
+    ) -> None:
         self.ask_rpc(method="start_collecting",
                      trigger_type=trigger_type,
                      trigger_timeout=trigger_timeout,

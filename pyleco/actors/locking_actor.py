@@ -23,7 +23,7 @@
 #
 
 from __future__ import annotations
-from typing import Any, Generic, Optional, Sequence, TypeVar, Union
+from typing import Any, Generic, Sequence, TypeVar
 
 from zmq import Context
 
@@ -43,14 +43,14 @@ class LockingActor(Actor, Generic[Device]):
     def __init__(
         self,
         name: str,
-        device_class: Optional[type[Device]] = None,
+        device_class: type[Device] | None = None,
         periodic_reading: float = -1,
-        auto_connect: Optional[dict] = None,
-        context: Optional[Context] = None,
+        auto_connect: dict | None = None,
+        context: Context | None = None,
         **kwargs: Any,
     ):
         super().__init__(name, device_class, periodic_reading, auto_connect, context, **kwargs)
-        self._locks: dict[Optional[str], bytes] = {}
+        self._locks: dict[str | None, bytes] = {}
 
     def register_rpc_methods(self) -> None:
         super().register_rpc_methods()
@@ -59,7 +59,7 @@ class LockingActor(Actor, Generic[Device]):
         self.register_rpc_method(self.force_unlock)
 
     # RPC methods for locking
-    def lock(self, resource: Optional[str] = None) -> bool:
+    def lock(self, resource: str | None = None) -> bool:
         """Lock the controlled device or one of its resources and return the success state."""
         if self.check_access_rights(resource):
             self._locks[resource] = self.rpc_handler.current_message.sender
@@ -67,7 +67,7 @@ class LockingActor(Actor, Generic[Device]):
         else:
             return False
 
-    def unlock(self, resource: Optional[str] = None) -> None:
+    def unlock(self, resource: str | None = None) -> None:
         """Unlock the controlled device or one of its resources.
 
         Only the locking Component may unlock.
@@ -75,12 +75,12 @@ class LockingActor(Actor, Generic[Device]):
         if self.check_access_rights(resource):
             self._locks.pop(resource, None)
 
-    def force_unlock(self, resource: Optional[str] = None) -> None:
+    def force_unlock(self, resource: str | None = None) -> None:
         """Unlock the controlled device or one of its resources even if someone else locked it."""
         self._locks.pop(resource, None)
 
     # modified methods for device access
-    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
+    def get_parameters(self, parameters: list[str] | tuple[str, ...]) -> dict[str, Any]:
         # `parameters` should be `Iterable[str]`, however, openrpc does not like that.
         for parameter in parameters:
             self._check_access_rights_raising(parameter)
@@ -92,13 +92,13 @@ class LockingActor(Actor, Generic[Device]):
         return super().set_parameters(parameters=parameters)
 
     def call_action(
-        self, action: str, args: Optional[Sequence] = None, kwargs: Optional[dict[str, Any]] = None
+        self, action: str, args: Sequence | None = None, kwargs: dict[str, Any] | None = None
     ) -> Any:
         self._check_access_rights_raising(action)
         return super().call_action(action=action, args=args, kwargs=kwargs)
 
     # helper methods
-    def check_access_rights(self, resource: Optional[str]) -> bool:
+    def check_access_rights(self, resource: str | None) -> bool:
         requester = self.rpc_handler.current_message.sender
         if resource is None:
             elements = []

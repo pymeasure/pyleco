@@ -35,12 +35,12 @@ except ImportError:  # pragma: no cover
 import json
 import logging
 from threading import Lock
-from typing import Any, Callable, Optional, Iterable, Sequence, Union
+from typing import Any, Callable, Iterable, Sequence
 
 try:
     import numpy as np  # type: ignore[import-not-found]
 except ModuleNotFoundError:
-    def average(values: Sequence[Union[float, int]]) -> float:
+    def average(values: Sequence[float | int]) -> float:
         return sum(values) / len(values)
 else:
     average = np.average  # type: ignore
@@ -139,14 +139,14 @@ class DataLogger(ExtendedMessageHandler):
     def __del__(self) -> None:
         self.stop_collecting()
 
-    def _listen_setup(self, start_data: Optional[dict[str, Any]] = None,  # type: ignore[override]
+    def _listen_setup(self, start_data: dict[str, Any] | None = None,  # type: ignore[override]
                       **kwargs: Any) -> Poller:
         poller = super()._listen_setup(**kwargs)
         if start_data is not None:
             self.start_collecting(**start_data)
         return poller
 
-    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
+    def _listen_close(self, waiting_time: int | None = None) -> None:
         self.stop_collecting()
         super()._listen_close(waiting_time=waiting_time)
 
@@ -229,15 +229,17 @@ class DataLogger(ExtendedMessageHandler):
             return nan
 
     # Control
-    def start_collecting(self, *,
-                         variables: Optional[list[str]] = None,
-                         units: Optional[dict[str, Any]] = None,
-                         trigger_type: Optional[TriggerTypes] = None,  # TODO also str, but openrpc
-                         trigger_timeout: Optional[float] = None,
-                         trigger_variable: Optional[str] = None,
-                         valuing_mode: Optional[ValuingModes] = None,  # TODO also str, but openrpc
-                         value_repeating: Optional[bool] = None,
-                         ) -> None:
+    def start_collecting(
+        self,
+        *,
+        variables: list[str] | None = None,
+        units: dict[str, Any] | None = None,
+        trigger_type: TriggerTypes | None = None,  # TODO also str, but openrpc
+        trigger_timeout: float | None = None,
+        trigger_variable: str | None = None,
+        valuing_mode: ValuingModes | None = None,  # TODO also str, but openrpc
+        value_repeating: bool | None = None,
+    ) -> None:
         """Start collecting data.
 
         If you do not give a specific parameter, the value of the last measurement is used again.
@@ -295,7 +297,7 @@ class DataLogger(ExtendedMessageHandler):
         self.timer = RepeatingTimer(timeout, self.make_datapoint)
         self.timer.start()
 
-    def set_valuing_mode(self, valuing_mode: Optional[ValuingModes]) -> None:  # also str
+    def set_valuing_mode(self, valuing_mode: ValuingModes | None) -> None:  # also str
         if valuing_mode == ValuingModes.LAST:
             self.valuing = self.last
         elif valuing_mode == ValuingModes.AVERAGE:
@@ -303,7 +305,7 @@ class DataLogger(ExtendedMessageHandler):
         elif valuing_mode is None:
             pass  # already setup
 
-    def save_data(self, meta: Optional[dict] = None, suffix: str = "", header: str = "") -> str:
+    def save_data(self, meta: dict | None = None, suffix: str = "", header: str = "") -> str:
         """Save the data.
 
         :param addr: Reply address for the filename.
@@ -375,7 +377,7 @@ class DataLogger(ExtendedMessageHandler):
         """Read the last datapoint."""
         return self.last_datapoint
 
-    def get_last_save_name(self) -> Union[str, None]:
+    def get_last_save_name(self) -> str | None:
         """Return the name of the last save."""
         return self.last_save_name
 

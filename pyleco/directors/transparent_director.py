@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+from typing import Any, Callable, Generic, TypeVar
 from warnings import warn
 
 from .director import Director
@@ -59,20 +59,20 @@ class RemoteCall:
         instance of RemoteCall, in the example by 'method'.
     """
 
-    def __init__(self, name: str = "", doc: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(self, name: str = "", doc: str | None = None, **kwargs: Any) -> None:
         self._name = name
         if doc is None:
             doc = "Call '{name}' at the remote driver."
         self._doc = doc
         super().__init__(**kwargs)
 
-    def __set_name__(self, owner: Optional[Director], name: str) -> None:
+    def __set_name__(self, owner: Director | None, name: str) -> None:
         self._name = name
         self._doc = self._doc.format(name=self._name)
 
     def __get__(
-        self, obj: Optional[Director], objtype: Optional[Any] = None
-    ) -> Union[RemoteCall, Callable]:
+        self, obj: Director | None, objtype: Any | None = None
+    ) -> RemoteCall | Callable:
         if obj is None:
             return self
 
@@ -134,9 +134,9 @@ class TransparentDirector(Director, Generic[Device]):
 
     def __init__(
         self,
-        actor: Optional[Union[bytes, str]] = None,
+        actor: bytes | str | None = None,
         device_class: type[Device] = TransparentDevice,  # type: ignore[assignment]
-        cls: Optional[type[Device]] = None,
+        cls: type[Device] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(actor=actor, **kwargs)

@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from logging.handlers import QueueHandler
 import time
-from typing import Any, Optional
+from typing import Any
 
 import zmq
 
@@ -45,7 +45,7 @@ class ZmqLogHandler(QueueHandler):
 
     full_name: str
 
-    def __init__(self, context: Optional[zmq.Context] = None, host: str = "localhost",
+    def __init__(self, context: zmq.Context | None = None, host: str = "localhost",
                  port: int = LOG_RECEIVING_PORT, full_name: str = "") -> None:
         publisher = DataPublisher(full_name=full_name, host=host, port=port, context=context)
         super().__init__(publisher)  # type: ignore

@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, cast, Dict, List, Optional, Union
+from typing import Any, cast, Dict, List
 
 from .director import Director
 
@@ -42,7 +42,7 @@ class StarterDirector(Director):
     def __init__(self, actor: str = "starter", **kwargs: Any) -> None:
         super().__init__(actor=actor, **kwargs)
 
-    def start_tasks(self, names: Union[list[str], str], actor: Optional[Union[bytes, str]] = None
+    def start_tasks(self, names: list[str] | str, actor: bytes | str | None = None
                     ) -> None:
         """Start the task or tasks.
 
@@ -53,7 +53,7 @@ class StarterDirector(Director):
             names = [names]
         return cast(None, self.ask_rpc(method="start_tasks", names=names, actor=actor))
 
-    def restart_tasks(self, names: Union[list[str], str], actor: Optional[Union[bytes, str]] = None
+    def restart_tasks(self, names: list[str] | str, actor: bytes | str | None = None
                       ) -> None:
         """Restart the task or tasks.
 
@@ -64,7 +64,7 @@ class StarterDirector(Director):
             names = [names]
         return cast(None, self.ask_rpc(method="restart_tasks", names=names, actor=actor))
 
-    def stop_tasks(self, names: Union[list[str], str], actor: Optional[Union[bytes, str]] = None
+    def stop_tasks(self, names: list[str] | str, actor: bytes | str | None = None
                    ) -> None:
         """Stop the task or tasks.
 
@@ -75,7 +75,7 @@ class StarterDirector(Director):
             names = [names]
         return cast(None, self.ask_rpc(method="stop_tasks", names=names, actor=actor))
 
-    def install_tasks(self, names: Union[list[str], str], actor: Optional[Union[bytes, str]] = None
+    def install_tasks(self, names: list[str] | str, actor: bytes | str | None = None
                       ) -> None:
         """Install the tasks.
 
@@ -86,8 +86,8 @@ class StarterDirector(Director):
             names = [names]
         return cast(None, self.ask_rpc(method="install_tasks", names=names, actor=actor))
 
-    def status_tasks(self, names: Optional[Union[list[str], str]] = None,
-                     actor: Optional[Union[bytes, str]] = None) -> dict[str, int]:
+    def status_tasks(self, names: list[str] | str | None = None,
+                     actor: bytes | str | None = None) -> dict[str, int]:
         """Query the status of these tasks and all running ones.
 
         :param names: List of task names to ask for.
@@ -97,6 +97,6 @@ class StarterDirector(Director):
             names = [names]
         return cast(Dict[str, int], self.ask_rpc(method="status_tasks", names=names, actor=actor))
 
-    def list_tasks(self, actor: Optional[Union[bytes, str]] = None) -> list[dict[str, str]]:
+    def list_tasks(self, actor: bytes | str | None = None) -> list[dict[str, str]]:
         """List all available tasks with name and tooltip."""
         return cast(List[Dict[str, str]], self.ask_rpc(method="list_tasks", actor=actor))

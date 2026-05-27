@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, Optional, Union
+from typing import Any
 
 from .json_objects import JsonRpcRequest, JsonRpcResponse
 from .json_parser import get_json_object, parse_string
@@ -46,7 +46,7 @@ class RPCGenerator:
     @staticmethod
     def sanitize_params(
         *args: Any, **kwargs: Any
-    ) -> Union[dict[str, Any], list[Any], None]:
+    ) -> dict[str, Any] | list[Any] | None:
         if args and kwargs:
             raise ValueError(
                 "You may not specify list of positional arguments "
@@ -59,8 +59,8 @@ class RPCGenerator:
         method: str,
         *,
         notification: bool = False,
-        id: Optional[Union[int, str]] = None,
-        params: Optional[Union[list, dict]] = None,
+        id: int | str | None = None,
+        params: list | dict | None = None,
     ) -> str:
         """Build JSON-RPC request string.
 
@@ -77,7 +77,7 @@ class RPCGenerator:
         self._id_counter += 1
         return current_id
 
-    def get_result_from_response(self, data: Union[bytes, str, dict]) -> Any:
+    def get_result_from_response(self, data: bytes | str | dict) -> Any:
         deserialized = parse_string(data) if isinstance(data, (str, bytearray, bytes)) else data
 
         try:

@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Any, cast, Dict, List, Optional, Union
+from typing import Any, cast, Dict, List
 
 from .director import Director
 
@@ -36,7 +36,7 @@ log.addHandler(logging.NullHandler())
 class CoordinatorDirector(Director):
     """Direct a Coordinator."""
 
-    def __init__(self, actor: Optional[Union[bytes, str]] = "COORDINATOR", **kwargs: Any) -> None:
+    def __init__(self, actor: bytes | str | None = "COORDINATOR", **kwargs: Any) -> None:
         super().__init__(actor=actor, **kwargs)
 
     def get_local_components(self) -> list[str]:

@@ -32,7 +32,7 @@ For example a Director might use these tools to direct an Actor.
 """
 
 from __future__ import annotations
-from typing import Any, Optional, Protocol, Iterable, Union
+from typing import Any, Protocol, Iterable
 
 from .message import Message, MessageTypes
 from ..json_utils.rpc_generator import RPCGenerator
@@ -45,7 +45,7 @@ class CommunicatorProtocol(Protocol):
     """
 
     name: str
-    namespace: Optional[str] = None
+    namespace: str | None = None
     rpc_generator: RPCGenerator
     timeout: float = 1  # default reading timeout in seconds
 
@@ -60,11 +60,11 @@ class CommunicatorProtocol(Protocol):
     def send_message(self, message: Message) -> None: ...  # pragma: no cover
 
     def read_message(
-        self, conversation_id: Optional[bytes], timeout: Optional[float] = None
+        self, conversation_id: bytes | None, timeout: float | None = None
     ) -> Message: ...  # pragma: no cover
 
     def ask_message(
-        self, message: Message, timeout: Optional[float] = None
+        self, message: Message, timeout: float | None = None
     ) -> Message: ...  # pragma: no cover
 
     def close(self) -> None: ...  # pragma: no cover
@@ -72,9 +72,9 @@ class CommunicatorProtocol(Protocol):
     # Utilities
     def send(
         self,
-        receiver: Union[bytes, str],
-        conversation_id: Optional[bytes] = None,
-        data: Optional[Any] = None,
+        receiver: bytes | str,
+        conversation_id: bytes | None = None,
+        data: Any | None = None,
         **kwargs: Any,
     ) -> None:
         """Send a message based on kwargs."""
@@ -84,10 +84,10 @@ class CommunicatorProtocol(Protocol):
 
     def ask(
         self,
-        receiver: Union[bytes, str],
-        conversation_id: Optional[bytes] = None,
-        data: Optional[Any] = None,
-        timeout: Optional[float] = None,
+        receiver: bytes | str,
+        conversation_id: bytes | None = None,
+        data: Any | None = None,
+        timeout: float | None = None,
         **kwargs: Any,
     ) -> Message:
         """Send a message based on kwargs and retrieve the response."""
@@ -100,7 +100,7 @@ class CommunicatorProtocol(Protocol):
 
     def interpret_rpc_response(
         self, response_message: Message, extract_additional_payload: bool = False
-    ) -> Union[Any, tuple[Any, list[bytes]]]:
+    ) -> Any | tuple[Any, list[bytes]]:
         """Retrieve the return value of a RPC response and optionally the additional payload."""
         result = self.rpc_generator.get_result_from_response(response_message.payload[0])
         if extract_additional_payload:
@@ -110,10 +110,10 @@ class CommunicatorProtocol(Protocol):
 
     def ask_rpc(
         self,
-        receiver: Union[bytes, str],
+        receiver: bytes | str,
         method: str,
-        timeout: Optional[float] = None,
-        additional_payload: Optional[Iterable[bytes]] = None,
+        timeout: float | None = None,
+        additional_payload: Iterable[bytes] | None = None,
         extract_additional_payload: bool = False,
         **kwargs: Any,
     ) -> Any:
@@ -132,9 +132,9 @@ class CommunicatorProtocol(Protocol):
 
     def send_rpc(
         self,
-        receiver: Union[bytes, str],
+        receiver: bytes | str,
         method: str,
-        additional_payload: Optional[Iterable[bytes]] = None,
+        additional_payload: Iterable[bytes] | None = None,
         **kwargs: Any,
     ) -> None:
         """Send a JSON-RPC notification (with method \\**kwargs) without expecting a response."""
@@ -157,7 +157,7 @@ class SubscriberProtocol(Protocol):
 
     def unsubscribe_all(self) -> None: ...  # pragma: no cover
 
-    def subscribe(self, topics: Union[str, Iterable[str]]) -> None:
+    def subscribe(self, topics: str | Iterable[str]) -> None:
         """Subscribe to a topic or list of topics."""
         if isinstance(topics, str):
             self.subscribe_single(topics.encode())
@@ -165,7 +165,7 @@ class SubscriberProtocol(Protocol):
             for topic in topics:
                 self.subscribe_single(topic.encode())
 
-    def unsubscribe(self, topics: Union[str, Iterable[str]]) -> None:
+    def unsubscribe(self, topics: str | Iterable[str]) -> None:
         """Unsubscribe to a topic or list of topics."""
         if isinstance(topics, str):
             self.unsubscribe_single(topics.encode())

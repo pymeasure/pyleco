@@ -29,7 +29,7 @@ import logging
 import re
 import types
 import typing
-from typing import Any, Callable, cast, Optional, Union
+from typing import Any, Callable, cast, Union
 from dataclasses import dataclass
 
 from .errors import (
@@ -62,8 +62,8 @@ class Method:
     # See https://spec.open-rpc.org/#method-object for values
     method: Callable
     name: str
-    summary: Optional[str] = None
-    description: Optional[str] = None
+    summary: str | None = None
+    description: str | None = None
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self.method(*args, **kwargs)
@@ -223,8 +223,8 @@ class RPCServer:
 
     def __init__(
         self,
-        title: Optional[str] = None,
-        version: Optional[str] = None,
+        title: str | None = None,
+        version: str | None = None,
         debug: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -235,7 +235,7 @@ class RPCServer:
         self.method(name="rpc.discover")(self.discover)
 
     def method(
-        self, name: Optional[str] = None, description: Optional[str] = None
+        self, name: str | None = None, description: str | None = None
     ) -> Callable[[Callable], None]:
         """Decorator for registering a new RPC method.
 
@@ -270,8 +270,8 @@ class RPCServer:
     def unregister_method(self, name: str) -> None:
         self._rpc_methods.pop(name, None)
 
-    def process_request(self, data: Union[bytes, str]) -> Optional[str]:
-        result: Optional[Union[JsonRpcResponse, JsonRpcBatch]]
+    def process_request(self, data: bytes | str) -> str | None:
+        result: JsonRpcResponse | JsonRpcBatch | None
         try:
             json_obj = parse_string(data)
         except JSONRPCError as exc:
@@ -284,7 +284,7 @@ class RPCServer:
 
     def process_request_object(
         self, json_data: object
-    ) -> Optional[Union[JsonRpcResponse, JsonRpcBatch]]:
+    ) -> JsonRpcResponse | JsonRpcBatch | None:
         """Process a JSON-RPC request executing the associated method."""
         try:
             obj = get_json_object(json_data)
@@ -296,8 +296,8 @@ class RPCServer:
             return self._generate_error(None, INTERNAL_ERROR, exc)
 
     def process_json_request_object(
-        self, obj: Union[JsonRpcRequest, JsonRpcResponse, JsonRpcBatch]
-    ) -> Optional[Union[JsonRpcResponse, JsonRpcBatch]]:
+        self, obj: JsonRpcRequest | JsonRpcResponse | JsonRpcBatch
+    ) -> JsonRpcResponse | JsonRpcBatch | None:
         if isinstance(obj, JsonRpcBatch) and obj.is_request_batch:
             result = [
                 response
@@ -314,7 +314,7 @@ class RPCServer:
                 error=self._generate_invalid_request_error("Not a request", obj.model_dump()),
             )
 
-    def _process_single_request_object(self, obj: JsonRpcRequest) -> Optional[JsonRpcResponse]:
+    def _process_single_request_object(self, obj: JsonRpcRequest) -> JsonRpcResponse | None:
         id_ = obj.id
         method = self._get_method(obj.method)
 
@@ -332,7 +332,7 @@ class RPCServer:
 
         return ResultResponse(id=id_, result=result) if id_ is not None else None
 
-    def _get_method(self, method_name: str) -> Optional[Method]:
+    def _get_method(self, method_name: str) -> Method | None:
         return self._rpc_methods.get(method_name)
 
     def _execute_method(self, method: Method, obj: JsonRpcRequest) -> Any:
@@ -350,8 +350,8 @@ class RPCServer:
         )
 
     def _handle_method_not_found(
-        self, id_: Optional[Union[int, str]], method_name: str
-    ) -> Optional[JsonRpcResponse]:
+        self, id_: int | str | None, method_name: str
+    ) -> JsonRpcResponse | None:
         """Handle method not found error."""
         error = METHOD_NOT_FOUND.with_data(data=method_name)
         return self._generate_error(
@@ -362,8 +362,8 @@ class RPCServer:
         )
 
     def _handle_type_error(
-        self, id_: Optional[Union[int, str]], obj: JsonRpcRequest, exc: TypeError
-    ) -> Optional[JsonRpcResponse]:
+        self, id_: int | str | None, obj: JsonRpcRequest, exc: TypeError
+    ) -> JsonRpcResponse | None:
         """Handle TypeError during method execution."""
         if isinstance(obj.method, str) and str(exc).startswith(f"{obj.method}()"):
             # The method complains about invalid arguments
@@ -379,8 +379,8 @@ class RPCServer:
         )
 
     def _handle_general_error(
-        self, id_: Optional[Union[int, str]], exc: Exception
-    ) -> Optional[JsonRpcResponse]:
+        self, id_: int | str | None, exc: Exception
+    ) -> JsonRpcResponse | None:
         """Handle general exceptions during method execution."""
         error = INTERNAL_ERROR.with_data(data=f"{type(exc).__name__}: {exc}")
         return self._generate_error(
@@ -396,11 +396,11 @@ class RPCServer:
 
     @staticmethod
     def _generate_error(
-        id: Optional[Union[int, str]],
+        id: int | str | None,
         error: JsonRpcError,
-        exc: Optional[Exception],
+        exc: Exception | None,
         return_response: bool = True,
-    ) -> Optional[JsonRpcResponse]:
+    ) -> JsonRpcResponse | None:
         if exc is None:
             log.error(
                 f"Error during message handling: '{error.message}': %s.", error.model_dump_json()

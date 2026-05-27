@@ -27,7 +27,7 @@ from json import JSONDecodeError
 import logging
 from socket import gethostname
 from types import TracebackType
-from typing import Any, Optional, Type, Union
+from typing import Any
 
 import zmq
 
@@ -85,14 +85,14 @@ class Coordinator:
 
     def __init__(
         self,
-        namespace: Optional[Union[bytes, str]] = None,
-        host: Optional[str] = None,
+        namespace: bytes | str | None = None,
+        host: str | None = None,
         port: int = COORDINATOR_PORT,
         timeout: int = 50,
         cleaning_interval: float = 5,
         expiration_time: float = 15,
-        context: Optional[zmq.Context] = None,
-        multi_socket: Optional[MultiSocket] = None,
+        context: zmq.Context | None = None,
+        multi_socket: MultiSocket | None = None,
         **kwargs: Any,
     ) -> None:
         if namespace is None:
@@ -160,10 +160,10 @@ class Coordinator:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_traceback: Optional[TracebackType]
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None
+    ) -> bool | None:
         self.close()
         return None
 
@@ -178,11 +178,11 @@ class Coordinator:
             self.closed = True
 
     def create_message(
-        self, receiver: bytes, data: Optional[Union[bytes, str, object]] = None, **kwargs: Any,
+        self, receiver: bytes, data: bytes | str | object | None = None, **kwargs: Any,
     ) -> Message:
         return Message(receiver=receiver, sender=self.full_name, data=data, **kwargs)
 
-    def send_message(self, receiver: bytes, data: Optional[object] = None, **kwargs: Any) -> None:
+    def send_message(self, receiver: bytes, data: object | None = None, **kwargs: Any) -> None:
         """Send a message with any socket, including routing.
 
         :param receiver: Receiver name
@@ -198,8 +198,8 @@ class Coordinator:
         self,
         sender_identity: bytes,
         original_message: Message,
-        data: Optional[Union[bytes, str, object]] = None,
-        message_type: Optional[Union[bytes, int, MessageTypes]] = None,
+        data: bytes | str | object | None = None,
+        message_type: bytes | int | MessageTypes | None = None,
     ) -> None:
         response = self.create_message(
             receiver=original_message.sender,
@@ -230,7 +230,7 @@ class Coordinator:
         self.publish_directory_update()
 
     def routing(
-        self, coordinators: Optional[list[str]] = None, stop_event: Optional[Event] = None
+        self, coordinators: list[str] | None = None, stop_event: Event | None = None
     ) -> None:
         """Route all messages.
 
@@ -341,7 +341,7 @@ class Coordinator:
 
     def handle_json_commands(self, message: Message) -> None:
         try:
-            data: Union[list[dict[str, Any]], dict[str, Any]] = message.data  # type: ignore
+            data: list[dict[str, Any]] | dict[str, Any] = message.data  # type: ignore
         except JSONDecodeError:
             log.error(
                 f"Invalid JSON message from {message.sender!r} received: {message.payload[0]!r}"

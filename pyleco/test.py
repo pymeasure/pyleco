@@ -23,7 +23,7 @@
 #
 
 from __future__ import annotations
-from typing import Any, Iterable, Optional, Sequence, TYPE_CHECKING, Union
+from typing import Any, Iterable, Sequence, TYPE_CHECKING
 
 from .core.message import Message, MessageTypes
 from .core.internal_protocols import CommunicatorProtocol
@@ -57,7 +57,7 @@ class FakeSocket:
         self.closed: bool = False
 
         # Added for testing purposes
-        self.addr: Union[None, str] = None
+        self.addr: None | str = None
         self.socket_type: int = socket_type
         # they contain a list of messages sent/received
         self._s: list[list[bytes]] = []
@@ -74,16 +74,16 @@ class FakeSocket:
         self.addr = addr
         return 5
 
-    def unbind(self, addr: Optional[str] = None) -> None:
+    def unbind(self, addr: str | None = None) -> None:
         self.addr = None
 
     def connect(self, addr: str) -> None:
         self.addr = addr
 
-    def disconnect(self, addr: Optional[str] = None) -> None:
+    def disconnect(self, addr: str | None = None) -> None:
         self.addr = None
 
-    def poll(self, timeout: Optional[int] = None,
+    def poll(self, timeout: int | None = None,
              flags: int = "PollEvent.POLLIN") -> int:  # type: ignore
         """Poll the socket for events.
 
@@ -103,7 +103,7 @@ class FakeSocket:
                 raise TypeError(f"Frame {i} ({part}) does not support the buffer interface.")
         self._s.append(list(msg_parts))
 
-    def subscribe(self, topic: Union[str, bytes]) -> None:
+    def subscribe(self, topic: str | bytes) -> None:
         if self.socket_type != 2:
             raise ValueError("Invalid argument")  # type is a ZMQError
         else:
@@ -111,7 +111,7 @@ class FakeSocket:
                 topic = topic.encode()
             self._subscriptions.append(topic)
 
-    def unsubscribe(self, topic: Union[str, bytes]) -> None:
+    def unsubscribe(self, topic: str | bytes) -> None:
         if self.socket_type != 2:
             raise ValueError("Invalid argument")  # type is a ZMQError
         else:
@@ -122,7 +122,7 @@ class FakeSocket:
             except ValueError:
                 pass  # not present
 
-    def close(self, linger: Optional[int] = None) -> None:
+    def close(self, linger: int | None = None) -> None:
         self.addr = None
         self.closed = True
 
@@ -135,7 +135,7 @@ class FakePoller:
     def __init__(self) -> None:
         self._sockets: list[FakeSocket] = []
 
-    def poll(self, timeout: Optional[int] = None) -> list[tuple[FakeSocket, Any]]:
+    def poll(self, timeout: int | None = None) -> list[tuple[FakeSocket, Any]]:
         """Returns a list of events (socket, event_mask)"""
         events = []
         for sock in self._sockets:
@@ -180,11 +180,11 @@ class FakeCommunicator(CommunicatorProtocol):
         self._s.append(message)
 
     def read_message(
-        self, conversation_id: Optional[bytes] = None, timeout: Optional[float] = None
+        self, conversation_id: bytes | None = None, timeout: float | None = None
     ) -> Message:
         return self._r.pop(0)
 
-    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
+    def ask_message(self, message: Message, timeout: float | None = None) -> Message:
         self.send_message(message)
         return self.read_message(timeout=timeout)
 
@@ -230,8 +230,8 @@ class FakeDirector:
     def ask_rpc(
         self,
         method: str,
-        actor: Optional[Union[bytes, str]] = None,
-        additional_payload: Optional[Iterable[bytes]] = None,
+        actor: bytes | str | None = None,
+        additional_payload: Iterable[bytes] | None = None,
         extract_additional_payload: bool = False,
         **kwargs: Any,
     ) -> Any:
@@ -243,8 +243,8 @@ class FakeDirector:
     def ask_rpc_async(
         self,
         method: str,
-        actor: Optional[Union[bytes, str]] = None,
-        additional_payload: Optional[Iterable[bytes]] = None,
+        actor: bytes | str | None = None,
+        additional_payload: Iterable[bytes] | None = None,
         **kwargs: Any,
     ) -> bytes:
         assert hasattr(self.remote_class, method), f"Remote class does not have method '{method}'."

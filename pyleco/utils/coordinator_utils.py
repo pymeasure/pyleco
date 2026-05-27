@@ -27,7 +27,7 @@ from abc import abstractmethod
 from dataclasses import dataclass
 import logging
 from time import perf_counter
-from typing import Any, Protocol, Optional, Union
+from typing import Any, Protocol
 
 import zmq
 
@@ -57,7 +57,7 @@ class MultiSocket(Protocol):
     closed: bool = False
 
     @abstractmethod
-    def bind(self, host: str = "", port: Union[int, str] = 0) -> None: ...  # pragma: no cover
+    def bind(self, host: str = "", port: int | str = 0) -> None: ...  # pragma: no cover
 
     @abstractmethod
     def unbind(self) -> None: ...  # pragma: no cover
@@ -78,7 +78,7 @@ class MultiSocket(Protocol):
 class ZmqMultiSocket(MultiSocket):
     """A MultiSocket using a zmq ROUTER socket."""
 
-    def __init__(self, context: Optional[zmq.Context] = None, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, context: zmq.Context | None = None, *args: Any, **kwargs: Any) -> None:
         context = zmq.Context.instance() if context is None else context
         self._sock: zmq.Socket = context.socket(zmq.ROUTER)
         super().__init__(*args, **kwargs)
@@ -87,7 +87,7 @@ class ZmqMultiSocket(MultiSocket):
     def closed(self) -> bool:  # type: ignore[override]
         return self._sock.closed  # type: ignore
 
-    def bind(self, host: str = "*", port: Union[str, int] = COORDINATOR_PORT) -> None:
+    def bind(self, host: str = "*", port: str | int = COORDINATOR_PORT) -> None:
         self._sock.bind(f"tcp://{host}:{port}")
 
     def unbind(self) -> None:
@@ -114,7 +114,7 @@ class FakeMultiSocket(MultiSocket):
         self._messages_sent: list[tuple[bytes, Message]] = []
         super().__init__(*args, **kwargs)
 
-    def bind(self, host: str = "*", port: Union[int, str] = 5) -> None:
+    def bind(self, host: str = "*", port: int | str = 5) -> None:
         pass
 
     def unbind(self) -> None:
@@ -153,7 +153,7 @@ class Node:
     def connect(self, address: str) -> None:
         self.address = address
 
-    def disconnect(self, closing_time: Optional[float] = None) -> None:
+    def disconnect(self, closing_time: float | None = None) -> None:
         raise NotImplementedError("Implement in subclass")  # pragma: no cover
 
     def is_connected(self) -> bool:
@@ -172,7 +172,7 @@ class Node:
 class ZmqNode(Node):
     """Represents a zmq connection to another node."""
 
-    def __init__(self, context: Optional[zmq.Context] = None, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, context: zmq.Context | None = None, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._context = context or zmq.Context.instance()
 
@@ -182,7 +182,7 @@ class ZmqNode(Node):
         self._dealer = self._context.socket(zmq.DEALER)
         self._dealer.connect(f"tcp://{address}")
 
-    def disconnect(self, closing_time: Optional[float] = None) -> None:
+    def disconnect(self, closing_time: float | None = None) -> None:
         """Close the connection to the Coordinator."""
         try:
             self._dealer.close(linger=closing_time)
@@ -209,7 +209,7 @@ class ZmqNode(Node):
 
 class FakeNode(Node):
     def __init__(
-        self, messages_read: Optional[list[Message]] = None, *args: Any, **kwargs: Any
+        self, messages_read: list[Message] | None = None, *args: Any, **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
         self._messages_sent: list[Message] = []
@@ -219,7 +219,7 @@ class FakeNode(Node):
         super().connect(address)
         self._connected = True
 
-    def disconnect(self, closing_time: Optional[float] = None) -> None:
+    def disconnect(self, closing_time: float | None = None) -> None:
         self._connected = False
 
     def is_connected(self) -> bool:
@@ -257,7 +257,7 @@ class Directory:
                 raise ValueError(DUPLICATE_NAME.message)
         self._components[name] = Component(identity=identity, heartbeat=perf_counter())
 
-    def remove_component(self, name: bytes, identity: Optional[bytes]) -> None:
+    def remove_component(self, name: bytes, identity: bytes | None) -> None:
         component = self._components.get(name)
         if component is None:
             return  # already removed.

@@ -25,7 +25,7 @@
 from __future__ import annotations
 import json
 import pickle
-from typing import Any, Optional
+from typing import Any
 
 import zmq
 
@@ -40,9 +40,9 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
 
     def __init__(self,
                  name: str,
-                 context: Optional[zmq.Context] = None,
+                 context: zmq.Context | None = None,
                  host: str = "localhost",
-                 data_host: Optional[str] = None,
+                 data_host: str | None = None,
                  data_port: int = PROXY_SENDING_PORT,
                  **kwargs: Any) -> None:
         if context is None:
@@ -69,7 +69,7 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         poller.register(self.subscriber, zmq.POLLIN)
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
+    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: int | None
                              ) -> dict[zmq.Socket, int]:
         socks = super()._listen_loop_element(poller=poller, waiting_time=waiting_time)
         if self.subscriber in socks:

@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 import json
-from typing import Any, List, Optional, Sequence, TypeVar, Union
+from typing import Any, List, Sequence, TypeVar, Union
 from warnings import warn
 
 ErrorType = Union["DataError", "Error", "JsonRpcError"]
@@ -61,8 +61,8 @@ class JsonRpcRequest(JsonRpcBase):
     """JSON-RPC 2.0 Request message."""
 
     method: str
-    params: Optional[Union[list[Any], dict[str, Any]]] = None
-    id: Optional[Union[str, int]] = None
+    params: list[Any] | dict[str, Any] | None = None
+    id: str | int | None = None
     jsonrpc: str = field(default="2.0", init=True)
 
     def __post_init__(self) -> None:
@@ -97,7 +97,7 @@ class JsonRpcRequest(JsonRpcBase):
 class Request(JsonRpcRequest):
     """Request the result of a remote call."""
 
-    def __init__(self, id: Union[int, str], method: str, jsonrpc: str = "2.0"):
+    def __init__(self, id: int | str, method: str, jsonrpc: str = "2.0"):
         super().__init__(id=id, method=method, params=None, jsonrpc=jsonrpc)
 
 
@@ -106,7 +106,7 @@ class ParamsRequest(JsonRpcRequest):
     """Request the result of a remote call with parameters."""
 
     def __init__(
-        self, id: Union[int, str], method: str, params: Union[list, dict], jsonrpc: str = "2.0"
+        self, id: int | str, method: str, params: list | dict, jsonrpc: str = "2.0"
     ):
         super().__init__(id=id, method=method, params=params, jsonrpc=jsonrpc)
 
@@ -123,7 +123,7 @@ class Notification(JsonRpcRequest):
 class ParamsNotification(JsonRpcRequest):
     """Do a remote call with parameters without requesting a response."""
 
-    def __init__(self, method: str, params: Union[list, dict], jsonrpc: str = "2.0"):
+    def __init__(self, method: str, params: list | dict, jsonrpc: str = "2.0"):
         super().__init__(id=None, method=method, params=params, jsonrpc=jsonrpc)
 
 
@@ -131,9 +131,9 @@ class ParamsNotification(JsonRpcRequest):
 class JsonRpcResponse(JsonRpcBase):
     """JSON-RPC 2.0 Response message."""
 
-    id: Optional[Union[str, int]]
-    result: Optional[Any] = None
-    error: Optional[JsonRpcError] = None
+    id: str | int | None
+    result: Any | None = None
+    error: JsonRpcError | None = None
     jsonrpc: str = field(default="2.0", init=True)
 
     def __post_init__(self) -> None:
@@ -162,7 +162,7 @@ class JsonRpcResponse(JsonRpcBase):
 class ResultResponse(JsonRpcResponse):
     """A response containing a result."""
 
-    def __init__(self, id: Optional[Union[int, str]], result: Any, jsonrpc: str = "2.0"):
+    def __init__(self, id: int | str | None, result: Any, jsonrpc: str = "2.0"):
         super().__init__(id=id, result=result, jsonrpc=jsonrpc)
 
 
@@ -172,7 +172,7 @@ class JsonRpcError(JsonRpcBase):
 
     code: int
     message: str
-    data: Optional[Any] = None
+    data: Any | None = None
 
     def __post_init__(self) -> None:
         """Validate the error after initialization."""
@@ -218,7 +218,7 @@ class ErrorResponse(JsonRpcResponse):
 
     def __init__(
         self,
-        id: Optional[Union[int, str]],
+        id: int | str | None,
         error: ErrorType,
         jsonrpc: str = "2.0",
     ):
@@ -235,7 +235,7 @@ class BatchContentType(Enum):
 class JsonRpcBatch:
     """JSON-RPC 2.0 Batch request/response."""
 
-    items: Sequence[Union[JsonRpcRequest, JsonRpcResponse]]
+    items: Sequence[JsonRpcRequest | JsonRpcResponse]
 
     def __post_init__(self) -> None:
         """Validate the batch after initialization"""
@@ -287,14 +287,14 @@ class JsonRpcBatch:
             item for item in self.items if isinstance(item, JsonRpcRequest) and item.is_notification
         ]
 
-    def get_request_by_id(self, request_id: Union[str, int]) -> Optional[JsonRpcRequest]:
+    def get_request_by_id(self, request_id: str | int) -> JsonRpcRequest | None:
         """Find a request by its ID"""
         for item in self.items:
             if isinstance(item, JsonRpcRequest) and item.id == request_id:
                 return item
         return None
 
-    def get_response_by_id(self, response_id: Union[str, int]) -> Optional[JsonRpcResponse]:
+    def get_response_by_id(self, response_id: str | int) -> JsonRpcResponse | None:
         """Find a response by its ID"""
         for item in self.items:
             if isinstance(item, JsonRpcResponse) and item.id == response_id:

@@ -25,7 +25,7 @@
 from __future__ import annotations
 import datetime
 import uuid
-from typing import Any, Optional, Union
+from typing import Any
 
 import pytest
 from pyleco.json_utils.json_objects import Request, BatchObject, JsonRpcBatch
@@ -149,7 +149,7 @@ def test_json_type_error_is_response():
 
 
 # Methods for get_json_content_type
-def create_request(method: str, params: Optional[Union[list, dict]] = None, id: int = 1
+def create_request(method: str, params: list | dict | None = None, id: int = 1
                    ) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id, "method": method, "params": params}
 

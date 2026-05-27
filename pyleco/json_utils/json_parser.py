@@ -41,7 +41,7 @@ def _generate_invalid_request_error(reason: str, data: Any) -> InvalidRequest:
     return InvalidRequest(error=INVALID_REQUEST.with_data(data={"reason": reason, "data": data}))
 
 
-def _get_single_object(deserialized_object: dict) -> Union[JsonRpcRequest, JsonRpcResponse]:
+def _get_single_object(deserialized_object: dict) -> JsonRpcRequest | JsonRpcResponse:
     try:
         keys = deserialized_object.keys()
     except AttributeError as exc:
@@ -61,8 +61,8 @@ def _get_single_object(deserialized_object: dict) -> Union[JsonRpcRequest, JsonR
 
 
 def get_json_object(
-    deserialized_object: Union[dict, list, Any],
-) -> Union[JsonRpcRequest, JsonRpcResponse, JsonRpcBatch]:
+    deserialized_object: dict | list | Any,
+) -> JsonRpcRequest | JsonRpcResponse | JsonRpcBatch:
     if isinstance(deserialized_object, list):
         if not deserialized_object:
             raise _generate_invalid_request_error("Empty batch", deserialized_object)
@@ -77,7 +77,7 @@ def get_json_object(
         raise _generate_invalid_request_error("Neither list nor dict", deserialized_object)
 
 
-def parse_string(input: Union[str, bytes]) -> Any:
+def parse_string(input: str | bytes) -> Any:
     try:
         return json.loads(input)
     except Exception as exc:
@@ -85,7 +85,7 @@ def parse_string(input: Union[str, bytes]) -> Any:
 
 
 def parse_string_into_json_object(
-    input: Union[str, bytes],
-) -> Union[JsonRpcRequest, JsonRpcResponse, JsonRpcBatch]:
+    input: str | bytes,
+) -> JsonRpcRequest | JsonRpcResponse | JsonRpcBatch:
     deserialized = parse_string(input)
     return get_json_object(deserialized)

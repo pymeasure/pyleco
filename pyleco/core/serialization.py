@@ -26,7 +26,7 @@ from __future__ import annotations
 import datetime
 from enum import IntEnum, IntFlag
 import json
-from typing import Any, Optional, NamedTuple, Union
+from typing import Any, NamedTuple
 
 # as long as uuid does not yet support UUIDv7 use uuid6
 from uuid6 import uuid7
@@ -90,10 +90,11 @@ class JsonContentTypes(IntFlag):
     ERROR_RESPONSE = RESPONSE + ERROR
 
 
-def create_header_frame(conversation_id: Optional[bytes] = None,
-                        message_id: Optional[Union[bytes, int]] = 0,
-                        message_type: Union[bytes, int, MessageTypes] = MessageTypes.NOT_DEFINED,
-                        ) -> bytes:
+def create_header_frame(
+    conversation_id: bytes | None = None,
+    message_id: bytes | int | None = 0,
+    message_type: bytes | int | MessageTypes = MessageTypes.NOT_DEFINED,
+) -> bytes:
     """Create the header frame.
 
     :param bytes conversation_id: ID of the conversation.

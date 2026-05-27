@@ -25,7 +25,7 @@
 from __future__ import annotations
 from json import JSONDecodeError
 import logging
-from typing import Any, Callable, Optional, Union, TypeVar
+from typing import Any, Callable, TypeVar
 
 import zmq
 
@@ -68,12 +68,12 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         host: str = "localhost",
         port: int = COORDINATOR_PORT,
         protocol: str = "tcp",
-        log: Optional[logging.Logger] = None,
-        context: Optional[zmq.Context] = None,
+        log: logging.Logger | None = None,
+        context: zmq.Context | None = None,
         **kwargs: Any,
     ):
         self.name = name
-        self._namespace: Union[str, None] = None
+        self._namespace: str | None = None
         self._full_name: str = name
         self.rpc_handler = RpcHandler(title=name)
         self.rpc = self.rpc_handler.rpc
@@ -89,11 +89,11 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         self.setup_message_buffer()
 
     @property
-    def namespace(self) -> Union[str, None]:
+    def namespace(self) -> str | None:
         return self._namespace
 
     @namespace.setter
-    def namespace(self, value: Union[str, None]) -> None:  # type: ignore
+    def namespace(self, value: str | None) -> None:  # type: ignore
         self._namespace = value
         full_name = self.name if value is None else ".".join((value, self.name))
         self.set_full_name(full_name=full_name)
@@ -107,7 +107,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
     def full_name(self) -> str:
         return self._full_name
 
-    def setup_logging(self, log: Optional[logging.Logger]) -> None:
+    def setup_logging(self, log: logging.Logger | None) -> None:
         if log is None:
             log = logging.getLogger("__main__")
         # Add the ZmqLogHandler to the root logger, unless it has already a Handler.
@@ -134,7 +134,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
 
     def register_binary_rpc_method(
         self,
-        method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
+        method: Callable[..., Any | tuple[Any, list[bytes]]],
         accept_binary_input: bool = False,
         return_binary_output: bool = False,
         **kwargs: Any,
@@ -162,9 +162,9 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
     # Base communication
     def send(
         self,
-        receiver: Union[bytes, str],
-        conversation_id: Optional[bytes] = None,
-        data: Optional[Any] = None,
+        receiver: bytes | str,
+        conversation_id: bytes | None = None,
+        data: Any | None = None,
         **kwargs: Any,
     ) -> None:
         """Send a message to a receiver with serializable `data`."""
@@ -180,11 +180,11 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         return self.rpc_handler.current_message
 
     @property
-    def additional_response_payload(self) -> Optional[list[bytes]]:
+    def additional_response_payload(self) -> list[bytes] | None:
         return self.rpc_handler.additional_response_payload
 
     @additional_response_payload.setter
-    def additional_response_payload(self, value: Optional[list[bytes]]) -> None:
+    def additional_response_payload(self, value: list[bytes] | None) -> None:
         self.rpc_handler.additional_response_payload = value
 
     def handle_message(self, message: Message) -> None:
@@ -214,7 +214,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         if response is not None:
             self.send_message(response)
 
-    def process_json_message(self, message: Message) -> Optional[Message]:
+    def process_json_message(self, message: Message) -> Message | None:
         self.log.info(f"Handling commands of {message}.")
         return self.rpc_handler.process_request(message=message)
 

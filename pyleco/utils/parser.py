@@ -25,7 +25,6 @@
 from __future__ import annotations
 from argparse import ArgumentParser
 import logging
-from typing import Optional
 
 
 parser = ArgumentParser()
@@ -38,9 +37,9 @@ parser.add_argument("-v", "--verbose", action="count", default=0,
 
 
 def parse_command_line_parameters(parser: ArgumentParser = parser,
-                                  logger: Optional[logging.Logger] = None,
-                                  arguments: Optional[list[str]] = None,
-                                  parser_description: Optional[str] = None,
+                                  logger: logging.Logger | None = None,
+                                  arguments: list[str] | None = None,
+                                  parser_description: str | None = None,
                                   logging_default: int = logging.WARNING,
                                   ) -> dict:
     """Parse the command line parameters and return a dictionary for GUIs.

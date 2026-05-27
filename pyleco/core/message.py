@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from json import JSONDecodeError
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Iterable
 
 
 from . import VERSION_B
@@ -61,16 +61,17 @@ class Message:
     header: bytes
     payload: list[bytes]
 
-    def __init__(self,
-                 receiver: Union[bytes, str],
-                 sender: Union[bytes, str] = b"",
-                 data: Optional[Union[bytes, str, Any]] = None,
-                 header: Optional[bytes] = None,
-                 conversation_id: Optional[bytes] = None,
-                 message_id: Optional[bytes] = None,
-                 message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
-                 additional_payload: Optional[Iterable[bytes]] = None,
-                 ) -> None:
+    def __init__(
+        self,
+        receiver: bytes | str,
+        sender: bytes | str = b"",
+        data: bytes | str | Any | None = None,
+        header: bytes | None = None,
+        conversation_id: bytes | None = None,
+        message_id: bytes | None = None,
+        message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
+        additional_payload: Iterable[bytes] | None = None,
+    ) -> None:
         self.receiver = receiver.encode() if isinstance(receiver, str) else receiver
         self.sender = sender.encode() if isinstance(sender, str) else sender
         if header and (conversation_id or message_id or message_type != MessageTypes.NOT_DEFINED):

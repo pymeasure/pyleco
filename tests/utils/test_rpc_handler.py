@@ -23,7 +23,6 @@
 #
 
 from __future__ import annotations
-from typing import Optional
 
 import pytest
 
@@ -159,7 +158,7 @@ class Test_process_json_message_with_created_binary:
                 return data
 
             def do_binary(
-                self, data: int, additional_payload: Optional[list[bytes]] = None
+                self, data: int, additional_payload: list[bytes] | None = None
             ) -> tuple[int, list[bytes]]:
                 test_class.payload_in = additional_payload  # type: ignore
                 return data, test_class.payload_out

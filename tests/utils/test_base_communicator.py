@@ -25,7 +25,6 @@
 from __future__ import annotations
 import logging
 import time
-from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -68,7 +67,7 @@ class FakeBaseCommunicator(BaseCommunicator):
     def _send_socket_message(self, message: Message) -> None:
         self._s.append(message)
 
-    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
+    def _read_socket_message(self, timeout: float | None = None) -> Message:
         if self._r:
             return self._r.pop(0)
         raise TimeoutError
@@ -303,7 +302,7 @@ def test_finish_sign_out(communicator: FakeBaseCommunicator):
 
 
 class Test_read_message:
-    conf: list[tuple[list[Message], list[Message], Optional[bytes], list[Message], list[Message],
+    conf: list[tuple[list[Message], list[Message], bytes | None, list[Message], list[Message],
                      str]] = [
         # socket_in, buffer_in, cid, socket_out, buffer_out, test_id
         # find first not requested message
@@ -337,7 +336,7 @@ class Test_read_message:
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_return_correct_message(self,
-                                    test: tuple[list[Message], list[Message], Optional[bytes]],
+                                    test: tuple[list[Message], list[Message], bytes | None],
                                     communicator: FakeBaseCommunicator):
         socket, buffer, cid0, *_ = test
         communicator._r = socket.copy()  # type: ignore
@@ -350,7 +349,7 @@ class Test_read_message:
 
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_correct_buffer_socket(self,
-                                   test: tuple[list[Message], list[Message], Optional[bytes],
+                                   test: tuple[list[Message], list[Message], bytes | None,
                                                list[Message], list[Message]],
                                    communicator: FakeBaseCommunicator):
         socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test

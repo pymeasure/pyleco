@@ -76,7 +76,7 @@ except ImportError:
     class StrEnum(str, Enum):  # type: ignore
         pass
 
-from typing import Any, Iterable, Optional, Protocol, Sequence
+from typing import Any, Iterable, Protocol, Sequence
 
 
 class ComponentProtocol(Protocol):
@@ -135,14 +135,15 @@ class ActorProtocol(ComponentProtocol, Protocol):
 
     def set_parameters(self, parameters: dict[str, Any]) -> None: ...
 
-    def call_action(self, action: str, args: Optional[Sequence[Any]] = None,
-                    kwargs: Optional[dict[str, Any]] = None) -> Any: ...
+    def call_action(
+        self, action: str, args: Sequence[Any] | None = None, kwargs: dict[str, Any] | None = None
+    ) -> Any: ...
 
 
 class PollingActorProtocol(ActorProtocol, Protocol):
     """An Actor which allows regular polling."""
 
-    def start_polling(self, polling_interval: Optional[float]) -> None: ...
+    def start_polling(self, polling_interval: float | None) -> None: ...
 
     def set_polling_interval(self, polling_interval: float) -> None: ...
 
@@ -154,8 +155,8 @@ class PollingActorProtocol(ActorProtocol, Protocol):
 class LockingActorProtocol(ActorProtocol, Protocol):
     """An Actor which allows to lock the device or channels of the device."""
 
-    def lock(self, resource: Optional[str] = None) -> bool: ...
+    def lock(self, resource: str | None = None) -> bool: ...
 
-    def unlock(self, resource: Optional[str] = None) -> None: ...
+    def unlock(self, resource: str | None = None) -> None: ...
 
-    def force_unlock(self, resource: Optional[str] = None) -> None: ...
+    def force_unlock(self, resource: str | None = None) -> None: ...

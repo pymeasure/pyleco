@@ -46,7 +46,6 @@ Created on Mon Jun 27 09:57:05 2022 by Benedikt Burger
 from __future__ import annotations
 import logging
 import threading
-from typing import Optional
 
 import zmq
 
@@ -68,7 +67,7 @@ def pub_sub_proxy(
     sub: str = "localhost",
     pub: str = "localhost",
     offset: int = 0,
-    event: Optional[threading.Event] = None,
+    event: threading.Event | None = None,
 ) -> None:
     """Run a publisher subscriber proxy in the current thread (blocking)."""
     s: zmq.Socket = context.socket(zmq.XSUB)
@@ -103,7 +102,7 @@ def pub_sub_proxy(
 
 
 def start_proxy(
-    context: Optional[zmq.Context] = None,
+    context: zmq.Context | None = None,
     captured: bool = False,
     sub: str = "localhost",
     pub: str = "localhost",
@@ -149,7 +148,7 @@ def start_proxy(
 
 
 def main(
-    arguments: Optional[list[str]] = None, stop_event: Optional[threading.Event] = None
+    arguments: list[str] | None = None, stop_event: threading.Event | None = None
 ) -> None:
     from argparse import ArgumentParser
     from pyleco.utils.parser import parse_command_line_parameters

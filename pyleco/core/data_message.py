@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from json import JSONDecodeError
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Iterable
 
 from .serialization import deserialize_data, generate_conversation_id, serialize_data, MessageTypes
 
@@ -41,15 +41,16 @@ class DataMessage:
     header: bytes
     payload: list[bytes]
 
-    def __init__(self,
-                 topic: Union[bytes, str],
-                 header: Optional[bytes] = None,
-                 data: Optional[Union[bytes, str, Any]] = None,
-                 conversation_id: Optional[bytes] = None,
-                 message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
-                 additional_payload: Optional[Iterable[bytes]] = None,
-                 **kwargs: Any
-                 ) -> None:
+    def __init__(
+        self,
+        topic: bytes | str,
+        header: bytes | None = None,
+        data: bytes | str | Any | None = None,
+        conversation_id: bytes | None = None,
+        message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
+        additional_payload: Iterable[bytes] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.topic = topic.encode() if isinstance(topic, str) else topic
         if header and (conversation_id or message_type != MessageTypes.NOT_DEFINED):
