@@ -77,7 +77,7 @@ def get_json_object(
         raise _generate_invalid_request_error("Neither list nor dict", deserialized_object)
 
 
-def parse_string(input: str | bytes) -> Any:
+def parse_string(input: str | bytes | bytearray) -> Any:
     try:
         return json.loads(input)
     except Exception as exc:
@@ -85,7 +85,7 @@ def parse_string(input: str | bytes) -> Any:
 
 
 def parse_string_into_json_object(
-    input: str | bytes,
+    input: str | bytes | bytearray,
 ) -> JsonRpcRequest | JsonRpcResponse | JsonRpcBatch:
     deserialized = parse_string(input)
     return get_json_object(deserialized)

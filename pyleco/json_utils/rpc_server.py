@@ -265,7 +265,7 @@ class RPCServer:
     def unregister_method(self, name: str) -> None:
         self._rpc_methods.pop(name, None)
 
-    def process_request(self, data: bytes | str) -> str | None:
+    def process_request(self, data: bytes | bytearray | str) -> str | None:
         result: JsonRpcResponse | JsonRpcBatch | None
         try:
             json_obj = parse_string(data)

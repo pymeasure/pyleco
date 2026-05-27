@@ -75,7 +75,7 @@ class RPCGenerator:
         self._id_counter += 1
         return current_id
 
-    def get_result_from_response(self, data: bytes | str | dict) -> Any:
+    def get_result_from_response(self, data: bytes | bytearray | str | dict) -> Any:
         deserialized = parse_string(data) if isinstance(data, (str, bytearray, bytes)) else data
 
         try:

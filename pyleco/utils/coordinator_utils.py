@@ -315,7 +315,7 @@ class Directory:
         data = deserialize_data(content=message.payload[0])
         if isinstance(data, dict) and data.get("result", False) is None:
             self._finish_sign_in_to_remote(key=key, message=message)
-        elif isinstance(data, dict) and (error := data.get("error") is not None):
+        elif isinstance(data, dict) and (error := data.get("error")) is not None:
             log.error(
                 f"Coordinator sign in to node {message.sender_elements.namespace!r} failed with '{error}'."  # noqa: E501
             )
