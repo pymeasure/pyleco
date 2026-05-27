@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 #
 
+from __future__ import annotations
 import json
 import logging
 from typing import Dict, List, Optional
@@ -413,10 +414,10 @@ class Test_complex_types:
         rpc_server = RPCServer()
 
         def complex_method(
-            items: List[str],
-            mapping: Dict[str, float],
-            optional_name: Optional[str] = None,
-        ) -> List[int]:
+            items: list[str],
+            mapping: dict[str, float],
+            optional_name: str | None = None,
+        ) -> list[int]:
             """Method with complex types."""
             return []
 

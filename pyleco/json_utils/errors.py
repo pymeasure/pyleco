@@ -33,7 +33,7 @@ Additionally, there is a ServerError for implementation-defined errors.
 Each exception extends a base exception JSONRPCError.
 """
 
-from typing import Optional, Type
+from __future__ import annotations
 
 from .json_objects import JsonRpcError
 
@@ -81,35 +81,35 @@ class JSONRPCError(Exception):
 class ParseError(JSONRPCError):
     """Error raised when invalid JSON was received by the server."""
 
-    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
+    def __init__(self, error: JsonRpcError | None = None) -> None:
         super().__init__(error or PARSE_ERROR)
 
 
 class InvalidRequest(JSONRPCError):
     """Error raised when the JSON sent is not a valid Request object."""
 
-    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
+    def __init__(self, error: JsonRpcError | None = None) -> None:
         super().__init__(error or INVALID_REQUEST)
 
 
 class MethodNotFound(JSONRPCError):
     """Error raised when the method does not exist / is not available."""
 
-    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
+    def __init__(self, error: JsonRpcError | None = None) -> None:
         super().__init__(error or METHOD_NOT_FOUND)
 
 
 class InvalidParams(JSONRPCError):
     """Error raised when invalid method parameter(s) are supplied."""
 
-    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
+    def __init__(self, error: JsonRpcError | None = None) -> None:
         super().__init__(error or INVALID_PARAMS)
 
 
 class InternalError(JSONRPCError):
     """Error raised when there is an internal JSON-RPC error."""
 
-    def __init__(self, error: Optional[JsonRpcError] = None) -> None:
+    def __init__(self, error: JsonRpcError | None = None) -> None:
         super().__init__(error or INTERNAL_ERROR)
 
 
@@ -120,7 +120,7 @@ class ServerError(JSONRPCError):
         super().__init__(error)
 
 
-def get_exception_by_code(code: int) -> Optional[Type[JSONRPCError]]:
+def get_exception_by_code(code: int) -> type[JSONRPCError] | None:
     """Get the JSON-RPC error corresponding to an error code.
 
     :param code: The JSON-RPC error code.

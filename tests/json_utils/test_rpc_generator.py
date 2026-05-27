@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from typing import Union
+from __future__ import annotations
 
 import pytest
 
@@ -130,7 +130,7 @@ def test_build_json_str_auto_id(generator: RPCGenerator):
         ('{"id": 9, "result": "whatever", "jsonrpc": "2.0"}', "whatever"),
     ),
 )
-def test_get_result_from_response(generator: RPCGenerator, response: Union[bytes, str], result):
+def test_get_result_from_response(generator: RPCGenerator, response: bytes | str, result):
     assert generator.get_result_from_response(response) == result
 
 

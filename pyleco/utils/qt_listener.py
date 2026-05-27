@@ -22,7 +22,8 @@
 # THE SOFTWARE.
 #
 
-from typing import Any, Optional
+from __future__ import annotations
+from typing import Any
 
 from pyleco.utils.events import Event
 from qtpy.QtCore import QObject, Signal  # type: ignore
@@ -53,7 +54,7 @@ class QtPipeHandler(PipeHandler):
     local_methods = ["pong", "set_log_level"]
 
     def __init__(
-        self, name: str, signals: ListenerSignals, context: Optional[Context] = None, **kwargs: Any
+        self, name: str, signals: ListenerSignals, context: Context | None = None, **kwargs: Any
     ) -> None:
         self.signals = signals
         super().__init__(name, context, **kwargs)

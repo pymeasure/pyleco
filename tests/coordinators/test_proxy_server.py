@@ -26,7 +26,6 @@
 
 # from __future__ import annotations
 # import threading
-# from typing import Optional
 
 # import pytest
 # import zmq
@@ -39,13 +38,13 @@
 
 # from pyleco.coordinators.proxy_server import pub_sub_proxy, start_proxy
 
-# parameters: tuple[FakeSocket, FakeSocket, Optional[FakeSocket]]
+# parameters: tuple[FakeSocket, FakeSocket, FakeSocket | None]
 
 
 # @pytest.fixture
 # def fake_proxy_steerable(monkeypatch: pytest.MonkeyPatch) -> None:
 #     def _fake_proxy_steerable(
-#         frontend: FakeSocket, backend: FakeSocket, capture: Optional[FakeSocket] = None
+#         frontend: FakeSocket, backend: FakeSocket, capture: FakeSocket | None = None
 #     ):
 #         global parameters
 #         parameters = frontend, backend, capture
