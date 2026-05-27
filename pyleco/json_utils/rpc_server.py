@@ -95,6 +95,7 @@ class Method:
             hints = typing.get_type_hints(self.method)
         except Exception:
             hints = {}
+        globalns = getattr(self.method, "__globals__", None)
         params: list[dict[str, Any]] = []
         for param_name, param in sig.parameters.items():
             if param_name == "self":
@@ -106,7 +107,7 @@ class Method:
                 continue
             descriptor: dict[str, Any] = {"name": param_name}
             annotation = hints.get(param_name, param.annotation)
-            schema = _python_type_to_schema(annotation, param_name)
+            schema = _python_type_to_schema(annotation, param_name, globalns=globalns)
             if schema:
                 descriptor["schema"] = schema
             if param.default is inspect.Parameter.empty:
@@ -138,18 +139,89 @@ class Method:
             return_annotation = sig.return_annotation
         if return_annotation is inspect.Signature.empty:
             return {}
-        schema = _python_type_to_schema(return_annotation, "result")
+        globalns = getattr(self.method, "__globals__", None)
+        schema = _python_type_to_schema(return_annotation, "result", globalns=globalns)
         if not schema:
             return {}
         return {"name": "result", "schema": schema}
 
 
-def _python_type_to_schema(annotation: Any, param_name: str = "") -> dict[str, Any]:
+_PEP585_FALLBACKS: dict[str, Any] = {
+    "list": typing.List,
+    "dict": typing.Dict,
+    "set": typing.Set,
+    "frozenset": typing.FrozenSet,
+    "tuple": typing.Tuple,
+    "type": typing.Type,
+}
+# HACK: remove both _PEP585_FALLBACKS and its usage when Python >= 3.9 is the
+# minimum version (PEP 585) and Python >= 3.10 is the minimum version (PEP 604).
+
+
+def _make_eval_ns(globalns: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build an eval namespace with PEP 585 fallbacks for older Python.
+
+    HACK: remove when Python >= 3.9 is the minimum version.
+    """
+    ns: dict[str, Any] = {}
+    ns.update(_PEP585_FALLBACKS)
+    if globalns:
+        ns.update(globalns)
+    return ns
+
+
+def _eval_pep604_union(annotation: str, ns: dict[str, Any] | None = None) -> Any:
+    """Evaluate a PEP 604 union string (e.g. 'str | None') on Python < 3.10.
+
+    Splits on ``|`` at the top level (outside brackets), evaluates each part
+    individually, and returns a ``Union`` of them.
+
+    HACK: remove when Python >= 3.10 is the minimum version.
+    """
+    namespace = ns or {}
+    parts = _split_union(annotation)
+    if len(parts) <= 1:
+        raise ValueError(f"Not a PEP 604 union: {annotation!r}")
+    evaluated = [eval(p.strip(), namespace) for p in parts]
+    return Union[tuple(evaluated)]
+
+
+def _split_union(annotation: str) -> list[str]:
+    """Split a type annotation string on ``|`` at the top level only."""
+    parts: list[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(annotation):
+        if ch in ("[", "("):
+            depth += 1
+        elif ch in ("]", ")"):
+            depth -= 1
+        elif ch == "|" and depth == 0:
+            parts.append(annotation[start:i])
+            start = i + 1
+    parts.append(annotation[start:])
+    return parts
+
+
+def _python_type_to_schema(
+    annotation: Any, param_name: str = "", globalns: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Convert a Python type annotation to a JSON Schema dict for Open-RPC."""
     if annotation is inspect.Parameter.empty or annotation is None:
         return {}
     if isinstance(annotation, str):
-        return {}
+        ns = _make_eval_ns(globalns)
+        try:
+            annotation = eval(annotation, ns)
+        except Exception:
+            # PEP 604 unions (e.g. "str | None") fail on Python < 3.10 where
+            # the | operator on types is not supported.  Parse the string
+            # manually and eval each part, then combine via Union.
+            # HACK: remove when Python >= 3.10 is the minimum version.
+            try:
+                annotation = _eval_pep604_union(annotation, ns)
+            except Exception:
+                return {}
     if annotation is type(None):
         return {"type": "null"}
     type_map: dict[Any, str] = {
