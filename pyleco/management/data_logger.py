@@ -258,7 +258,7 @@ class DataLogger(ExtendedMessageHandler):
             self.start_timer_trigger(timeout=self.trigger_timeout)
         self.set_valuing_mode(valuing_mode=valuing_mode)
         self.setup_variables(self.lists.keys() if variables is None else variables)
-        self.units = units if units else {}
+        self.units = units or {}
 
     def setup_variables(self, variables: Iterable[str]) -> None:
         """Subscribe to the variables."""

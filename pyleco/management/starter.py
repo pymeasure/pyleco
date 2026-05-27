@@ -256,7 +256,7 @@ class Starter(MessageHandler):
         tasks = []
         for name in filenames:
             if name.endswith(".py") and not name == "__init__.py":
-                with open(f"{self.directory}/{name}", "r") as file:
+                with open(f"{self.directory}/{name}") as file:
                     # Search for the first line with triple quotes
                     for i in range(10):
                         if file.readline().strip() == '"""':
