@@ -72,8 +72,9 @@ class Test_ask:
 
     def test_sent(self, communicator_asked: FakeCommunicator):
         communicator_asked.ask(receiver="rec", conversation_id=cid)
-        assert communicator_asked._s == [Message(receiver="rec", sender="communicator",
-                                                 conversation_id=cid)]
+        assert communicator_asked._s == [
+            Message(receiver="rec", sender="communicator", conversation_id=cid)
+        ]
 
     def test_read(self, communicator_asked: FakeCommunicator):
         response = communicator_asked.ask(receiver="rec", conversation_id=cid)
@@ -137,9 +138,12 @@ class Test_interpret_rpc_response:
 
 
 class Test_ask_rpc:
-    response = Message(receiver="communicator", sender="rec", conversation_id=cid,
-                       message_type=MessageTypes.JSON,
-                       data=ResultResponse(1, 5),
+    response = Message(
+        receiver="communicator",
+        sender="rec",
+        conversation_id=cid,
+        message_type=MessageTypes.JSON,
+        data=ResultResponse(1, 5),
     )
 
     @pytest.fixture
@@ -175,7 +179,7 @@ class Test_ask_rpc:
                 sender="communicator",
                 conversation_id=sent.conversation_id,
                 message_type=MessageTypes.JSON,
-                data=ParamsRequest(1, "test_method", params= {"par1": 5}),
+                data=ParamsRequest(1, "test_method", params={"par1": 5}),
                 additional_payload=[b"12345"],
             )
         ]

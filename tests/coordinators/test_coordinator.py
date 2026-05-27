@@ -56,10 +56,13 @@ from pyleco.coordinators import coordinator as coordinator_module  # type: ignor
 
 @pytest.fixture
 def coordinator() -> Coordinator:
-    coordinator = Coordinator(namespace="N1", host="N1host", cleaning_interval=1e5,
-                              context=FakeContext(),  # type: ignore
-                              multi_socket=FakeMultiSocket()
-                              )
+    coordinator = Coordinator(
+        namespace="N1",
+        host="N1host",
+        cleaning_interval=1e5,
+        context=FakeContext(),  # type: ignore
+        multi_socket=FakeMultiSocket(),
+    )
     d = coordinator.directory
     d.add_component(b"send", b"321")
     d.add_component(b"rec", b"123")
@@ -76,7 +79,7 @@ def coordinator() -> Coordinator:
 
 
 def fake_perf_counter() -> float:
-    return 0.
+    return 0.0
 
 
 @pytest.fixture()
@@ -106,6 +109,7 @@ class TestCoordinatorImplementsProtocol:
     def static_test_methods_are_present(self):
         def testing(component: ExtendedCoordinator):
             pass
+
         testing(Coordinator())
 
     @pytest.fixture
@@ -117,7 +121,7 @@ class TestCoordinatorImplementsProtocol:
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):
         for m in component_methods:
-            if m.get('name') == method:
+            if m.get("name") == method:
                 return
         raise AssertionError(f"Method {method} is not available.")
 
@@ -137,6 +141,7 @@ class Test_coordinator_set_namespace_from_hostname:
     def test_namespace_from_hostname_with_periods(self, monkeypatch: pytest.MonkeyPatch):
         def fake_gethostname() -> str:
             return "hostname.domain.tld"
+
         monkeypatch.setattr(coordinator_module, "gethostname", fake_gethostname)
         coordinator = Coordinator(context=FakeContext())  # type: ignore
         assert coordinator.namespace == b"hostname"
@@ -199,10 +204,17 @@ class Test_clean_addresses:
         # TODO implement heartbeat request
         coordinator.directory.get_components()[b"send"].heartbeat = -1.5
         coordinator.remove_expired_addresses(1)
-        assert coordinator.sock._messages_sent == [(b"321", Message(  # type: ignore
-            b"N1.send", b"N1.COORDINATOR",
-            message_type=MessageTypes.JSON,
-            data=Request(id=0, method="pong")))]
+        assert coordinator.sock._messages_sent == [  # type: ignore
+            (
+                b"321",
+                Message(
+                    b"N1.send",
+                    b"N1.COORDINATOR",
+                    message_type=MessageTypes.JSON,
+                    data=Request(id=0, method="pong"),
+                ),
+            )
+        ]
 
     def test_active_Component_remains_in_directory(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_components()[b"send"].heartbeat = -0.5
@@ -221,9 +233,12 @@ class Test_clean_addresses:
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -1.5
         coordinator.remove_expired_addresses(1)
         assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
-            Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
-                    message_type=MessageTypes.JSON,
-                    data=Request(id=0, method="pong")),
+            Message(
+                b"N2.COORDINATOR",
+                b"N1.COORDINATOR",
+                message_type=MessageTypes.JSON,
+                data=Request(id=0, method="pong"),
+            ),
         ]
 
     def test_active_Coordinator_remains_in_directory(self, coordinator: Coordinator, fake_counting):
@@ -234,7 +249,8 @@ class Test_clean_addresses:
 
 def test_heartbeat_local(fake_counting, coordinator: Coordinator):
     coordinator.sock._messages_read = [  # type: ignore
-        [b"321", Message(b"COORDINATOR", b"send")]]
+        [b"321", Message(b"COORDINATOR", b"send")]
+    ]
     coordinator.read_and_route()
     assert coordinator.directory.get_components()[b"send"].heartbeat == 0
 
@@ -247,26 +263,37 @@ def test_routing_connects_to_coordinators(coordinator: Coordinator):
     coordinator.directory.add_node_sender.assert_called_once
 
 
-@pytest.mark.parametrize("i, o", (
-    ([b"321", VERSION_B, b"COORDINATOR", b"send", b";", b""], None),  # test heartbeat alone
-    ([b"321", VERSION_B, b"rec", b"send", b";", b"1"],
-     [b"123", VERSION_B, b"rec", b"send", b";", b"1"]),  # receiver known, sender known.
-))
+@pytest.mark.parametrize(
+    "i, o",
+    (
+        ([b"321", VERSION_B, b"COORDINATOR", b"send", b";", b""], None),  # test heartbeat alone
+        (
+            [b"321", VERSION_B, b"rec", b"send", b";", b"1"],
+            [b"123", VERSION_B, b"rec", b"send", b";", b"1"],
+        ),  # receiver known, sender known.
+    ),
+)
 def test_routing_successful(coordinator: Coordinator, i, o):
     """Test whether some incoming message `i` is sent as `o`. Here: successful routing."""
     coordinator.sock._messages_read = [  # type: ignore
-        (i[0], Message.from_frames(*i[1:]))]
+        (i[0], Message.from_frames(*i[1:]))
+    ]
     coordinator.read_and_route()
     if o is None:
         assert coordinator.sock._messages_sent == []  # type: ignore
     else:
-        assert coordinator.sock._messages_sent == [  # type: ignore
-            (o[0], Message.from_frames(*o[1:]))]
+        assert (
+            coordinator.sock._messages_sent  # type: ignore
+            == [
+                (o[0], Message.from_frames(*o[1:]))
+            ]
+        )
 
 
 def test_reading_fails(coordinator: Coordinator, caplog: pytest.LogCaptureFixture):
     def read_message() -> tuple[bytes, Message]:
         return b"", Message.from_frames(*[b"frame 1", b"frame 2"])  # less frames than needed.
+
     coordinator.sock.read_message = read_message  # type: ignore
     coordinator.read_and_route()
     assert caplog.records[-1].msg == "Not enough frames read."
@@ -344,27 +371,35 @@ def test_reading_fails(coordinator: Coordinator, caplog: pytest.LogCaptureFixtur
 def test_routing_error_messages(coordinator: Coordinator, i, o):
     """Test whether some incoming message `i` is sent as `o`. Here: Error messages."""
     coordinator.sock._messages_read = [  # type: ignore
-        (i[0], Message.from_frames(*i[1:]))]
+        (i[0], Message.from_frames(*i[1:]))
+    ]
     coordinator.read_and_route()
     if o is None:
         assert coordinator.sock._messages_sent == []  # type: ignore
     else:
-        assert coordinator.sock._messages_sent == [  # type: ignore
-            (o[0], Message.from_frames(*o[1:]))]
+        assert (
+            coordinator.sock._messages_sent  # type: ignore
+            == [
+                (o[0], Message.from_frames(*o[1:]))
+            ]
+        )
 
 
 def test_remote_routing(coordinator: Coordinator):
     coordinator.sock._messages_read = [  # type: ignore
-        [b"321", Message(b"N2.CB", b"N1.send")]]
+        [b"321", Message(b"N2.CB", b"N1.send")]
+    ]
     coordinator.read_and_route()
     assert coordinator.directory.get_node(b"N2")._messages_sent == [  # type: ignore
-        Message(b"N2.CB", b"N1.send")]
+        Message(b"N2.CB", b"N1.send")
+    ]
 
 
 @pytest.mark.parametrize("sender", (b"N2.CB", b"N2.COORDINATOR"))
 def test_remote_heartbeat(coordinator: Coordinator, fake_counting, sender):
     coordinator.sock._messages_read = [  # type: ignore
-        [b"n2", Message(b"N3.CA", sender)]]
+        [b"n2", Message(b"N3.CA", sender)]
+    ]
     assert coordinator.directory.get_node_ids()[b"n2"].heartbeat != 0
     coordinator.read_and_route()
     assert coordinator.directory.get_node_ids()[b"n2"].heartbeat == 0
@@ -378,9 +413,12 @@ class Test_handle_commands:
     @pytest.fixture
     def coordinator_hc(self) -> Coordinator:
         return self.SpecialCoordinator(
-            namespace="N1", host="N1host", cleaning_interval=1e5,
+            namespace="N1",
+            host="N1host",
+            cleaning_interval=1e5,
             context=FakeContext(),  # type: ignore
-            multi_socket=FakeMultiSocket())
+            multi_socket=FakeMultiSocket(),
+        )
 
     def test_store_message(self, coordinator_hc: Coordinator):
         msg = Message(b"receiver", b"sender", header=b"header", data=b"data")
@@ -411,8 +449,9 @@ class Test_handle_commands:
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
 
-    def test_log_at_non_null_result(self, coordinator_hc: Coordinator,
-                                    caplog: pytest.LogCaptureFixture):
+    def test_log_at_non_null_result(
+        self, coordinator_hc: Coordinator, caplog: pytest.LogCaptureFixture
+    ):
         caplog.set_level(10)
         coordinator_hc.handle_commands(
             b"", Message(b"", message_type=MessageTypes.JSON, data=ResultResponse(1, result=5))
@@ -433,8 +472,9 @@ class Test_handle_commands:
         assert not hasattr(coordinator_hc, "_rpc")
         # assert no error log entry.  TODO
 
-    def test_log_at_batch_of_non_null_results(self, coordinator_hc: Coordinator,
-                                              caplog: pytest.LogCaptureFixture):
+    def test_log_at_batch_of_non_null_results(
+        self, coordinator_hc: Coordinator, caplog: pytest.LogCaptureFixture
+    ):
         caplog.set_level(10)
         coordinator_hc.handle_commands(
             b"",
@@ -447,73 +487,125 @@ class Test_handle_commands:
         assert not hasattr(coordinator_hc, "_rpc")
         caplog.records[-1].msg.startswith("Unexpected result")
 
-    @pytest.mark.parametrize("data", (
+    @pytest.mark.parametrize(
+        "data",
+        (
             {"jsonrpc": "2.0", "no method": 7},
             ["jsonrpc", "2.0", "no method", 7],  # not a dict
-    ))
+        ),
+    )
     def test_invalid_json_does_not_raise_exception(self, coordinator_hc: Coordinator, data):
-        coordinator_hc.handle_commands(b"",
-                                       Message(receiver=b"COORDINATOR", sender=b"send",
-                                               data=data, message_type=MessageTypes.JSON,))
+        coordinator_hc.handle_commands(
+            b"",
+            Message(
+                receiver=b"COORDINATOR",
+                sender=b"send",
+                data=data,
+                message_type=MessageTypes.JSON,
+            ),
+        )
         # assert that no error is raised
 
-    def test_invalid_json_message_raises_log(self, coordinator_hc: Coordinator,
-                                             caplog: pytest.LogCaptureFixture):
+    def test_invalid_json_message_raises_log(
+        self, coordinator_hc: Coordinator, caplog: pytest.LogCaptureFixture
+    ):
         data = "funny stuff"
-        coordinator_hc.handle_commands(b"",
-                                       Message(receiver=b"COORDINATOR", sender=b"send",
-                                               data=data, message_type=MessageTypes.JSON,))
+        coordinator_hc.handle_commands(
+            b"",
+            Message(
+                receiver=b"COORDINATOR",
+                sender=b"send",
+                data=data,
+                message_type=MessageTypes.JSON,
+            ),
+        )
         assert caplog.records[-1].msg.startswith("Invalid JSON message")
 
 
 class Test_sign_in:
     def test_signin(self, coordinator: Coordinator):
         coordinator.sock._messages_read = [  # type: ignore
-            [b'cb', Message(b"COORDINATOR", b"CB",
-                            data=Request(id=7, method="sign_in"),
-                            message_type=MessageTypes.JSON,
-                            conversation_id=cid,
-                            )]]
+            [
+                b"cb",
+                Message(
+                    b"COORDINATOR",
+                    b"CB",
+                    data=Request(id=7, method="sign_in"),
+                    message_type=MessageTypes.JSON,
+                    conversation_id=cid,
+                ),
+            ]
+        ]
         # read_and_route needs to start at routing, to check that the messages passes the heartbeats
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [  # type: ignore
-            (b"cb", Message(b"CB", b"N1.COORDINATOR",
-                            conversation_id=cid,
-                            message_type=MessageTypes.JSON,
-                            data=ResultResponse(7, None)))]
+            (
+                b"cb",
+                Message(
+                    b"CB",
+                    b"N1.COORDINATOR",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=ResultResponse(7, None),
+                ),
+            )
+        ]
 
     def test_signin_sends_directory_update(self, coordinator: Coordinator):
         coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.sock._messages_read = [  # type: ignore
-            [b'cb', Message(b"COORDINATOR", b"CB", conversation_id=cid,
-                            message_type=MessageTypes.JSON,
-                            data=Request(7, "sign_in"),
-                            )]]
+            [
+                b"cb",
+                Message(
+                    b"COORDINATOR",
+                    b"CB",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=Request(7, "sign_in"),
+                ),
+            ]
+        ]
         # read_and_route needs to start at routing, to check that the messages passes the heartbeats
         coordinator.read_and_route()
         coordinator.publish_directory_update.assert_any_call()
 
     def test_signin_rejected(self, coordinator: Coordinator):
         coordinator.sock._messages_read = [  # type: ignore
-            [b'cb', Message(b"COORDINATOR", b"send", conversation_id=cid,
-                            message_type=MessageTypes.JSON,
-                            data=Request(8, method="sign_in"),
-                            )]]
+            [
+                b"cb",
+                Message(
+                    b"COORDINATOR",
+                    b"send",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=Request(8, method="sign_in"),
+                ),
+            ]
+        ]
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [(b"cb", Message(  # type: ignore
-            b"send", b"N1.COORDINATOR",
-            conversation_id=cid,
-            message_type=MessageTypes.JSON,
-            data=ErrorResponse(None, DUPLICATE_NAME),
-        ))]
+        assert coordinator.sock._messages_sent == [  # type: ignore
+            (
+                b"cb",
+                Message(
+                    b"send",
+                    b"N1.COORDINATOR",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=ErrorResponse(None, DUPLICATE_NAME),
+                ),
+            )
+        ]
 
 
 class Test_sign_out_successful:
     @pytest.fixture
     def coordinator_signed_out(self, coordinator: Coordinator):
-        sign_out_message = Message(receiver=b"N1.COORDINATOR", sender=b"rec",
-                                   message_type=MessageTypes.JSON,
-                                   data=Request(10, "sign_out"))
+        sign_out_message = Message(
+            receiver=b"N1.COORDINATOR",
+            sender=b"rec",
+            message_type=MessageTypes.JSON,
+            data=Request(10, "sign_out"),
+        )
         coordinator.publish_directory_update = MagicMock()  # type: ignore
         coordinator.sock._messages_read = [[b"123", sign_out_message]]  # type: ignore
         coordinator.read_and_route()
@@ -524,9 +616,16 @@ class Test_sign_out_successful:
 
     def test_acknowledgement_sent(self, coordinator_signed_out: Coordinator):
         assert coordinator_signed_out.sock._messages_sent == [  # type: ignore
-            (b"123", Message(b"rec", b"N1.COORDINATOR",
-                             message_type=MessageTypes.JSON,
-                             data=ResultResponse(id=10, result=None)))]
+            (
+                b"123",
+                Message(
+                    b"rec",
+                    b"N1.COORDINATOR",
+                    message_type=MessageTypes.JSON,
+                    data=ResultResponse(id=10, result=None),
+                ),
+            )
+        ]
 
     def test_directory_update_sent(self, coordinator_signed_out: Coordinator):
         coordinator_signed_out.publish_directory_update.assert_any_call()  # type: ignore
@@ -534,56 +633,118 @@ class Test_sign_out_successful:
     def test_requires_new_sign_in(self, coordinator_signed_out):
         coordinator = coordinator_signed_out
         coordinator.sock._messages_sent = []  # type: ignore
-        coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
-            b"N1.COORDINATOR", b"rec",
-            message_type=MessageTypes.JSON,
-            data=ResultResponse(11, None))]]
+        coordinator.sock._messages_read = [
+            [
+                b"123",
+                Message(  # type: ignore
+                    b"N1.COORDINATOR",
+                    b"rec",
+                    message_type=MessageTypes.JSON,
+                    data=ResultResponse(11, None),
+                ),
+            ]
+        ]
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [(b"123", Message(  # type: ignore
-            b"rec", b"N1.COORDINATOR", message_type=MessageTypes.JSON,
-            data=ErrorResponse(id=None, error=NOT_SIGNED_IN)))]
+        assert coordinator.sock._messages_sent == [
+            (
+                b"123",
+                Message(  # type: ignore
+                    b"rec",
+                    b"N1.COORDINATOR",
+                    message_type=MessageTypes.JSON,
+                    data=ErrorResponse(id=None, error=NOT_SIGNED_IN),
+                ),
+            )
+        ]
 
 
 def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
-    coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
-        b"N1.COORDINATOR", b"N1.rec", message_type=MessageTypes.JSON,
-        data=Request(10, "sign_out"))]]
+    coordinator.sock._messages_read = [  # type: ignore
+        [
+            b"123",
+            Message(
+                b"N1.COORDINATOR",
+                b"N1.rec",
+                message_type=MessageTypes.JSON,
+                data=Request(10, "sign_out"),
+            ),
+        ]
+    ]
     coordinator.read_and_route()
     assert b"rec" not in coordinator.directory.get_components().keys()
     assert coordinator.sock._messages_sent == [  # type: ignore
-        (b"123", Message(b"N1.rec", b"N1.COORDINATOR", message_type=MessageTypes.JSON,
-                         data=ResultResponse(10, None)))]
+        (
+            b"123",
+            Message(
+                b"N1.rec",
+                b"N1.COORDINATOR",
+                message_type=MessageTypes.JSON,
+                data=ResultResponse(10, None),
+            ),
+        )
+    ]
 
 
 def test_sign_out_works_with_notification(coordinator: Coordinator):
-    coordinator.sock._messages_read = [[b'123', Message(  # type: ignore
-        b"N1.COORDINATOR", b"N1.rec", message_type=MessageTypes.JSON,
-        data=Notification("sign_out"))]]
+    coordinator.sock._messages_read = [  # type: ignore
+        [
+            b"123",
+            Message(
+                b"N1.COORDINATOR",
+                b"N1.rec",
+                message_type=MessageTypes.JSON,
+                data=Notification("sign_out"),
+            ),
+        ]
+    ]
     coordinator.read_and_route()
     assert b"rec" not in coordinator.directory.get_components().keys()
     assert coordinator.sock._messages_sent == []  # type: ignore
 
 
 def test_sign_out_of_not_signed_in_generates_acknowledgment_nonetheless(coordinator: Coordinator):
-    coordinator.sock._messages_read = [[b'584', Message(  # type: ignore
-        b"N1.COORDINATOR", b"rec584", message_type=MessageTypes.JSON,
-        data=Request(10, "sign_out"))]]
+    coordinator.sock._messages_read = [  # type: ignore
+        [
+            b"584",
+            Message(
+                b"N1.COORDINATOR",
+                b"rec584",
+                message_type=MessageTypes.JSON,
+                data=Request(10, "sign_out"),
+            ),
+        ]
+    ]
     coordinator.read_and_route()
     assert coordinator.sock._messages_sent == [  # type: ignore
-        (b"584", Message(b"rec584", b"N1.COORDINATOR", message_type=MessageTypes.JSON,
-                         data=ResultResponse(10, None)))]
+        (
+            b"584",
+            Message(
+                b"rec584",
+                b"N1.COORDINATOR",
+                message_type=MessageTypes.JSON,
+                data=ResultResponse(10, None),
+            ),
+        )
+    ]
 
 
 class Test_coordinator_sign_in:
     def test_co_signin_unknown_coordinator_successful(self, coordinator: Coordinator):
         """Test that an unknown Coordinator may sign in."""
         coordinator.sock._messages_read = [  # type: ignore
-            [b'n3', Message(b"COORDINATOR", b"N3.COORDINATOR",
-                            message_type=MessageTypes.JSON,
-                            data=Request(15, "coordinator_sign_in"),
-                            conversation_id=cid)]]
+            [
+                b"n3",
+                Message(
+                    b"COORDINATOR",
+                    b"N3.COORDINATOR",
+                    message_type=MessageTypes.JSON,
+                    data=Request(15, "coordinator_sign_in"),
+                    conversation_id=cid,
+                ),
+            ]
+        ]
         coordinator.read_and_route()
-        assert b'n3' in coordinator.directory.get_node_ids().keys()
+        assert b"n3" in coordinator.directory.get_node_ids().keys()
         assert coordinator.sock._messages_sent == [  # type: ignore
             (
                 b"n3",
@@ -602,28 +763,52 @@ class Test_coordinator_sign_in:
 
         coordinator.directory.add_node_sender(FakeNode(), "N3host:12345", namespace=b"N3")
         coordinator.directory.get_nodes()[b"N3"] = coordinator.directory._waiting_nodes.pop(
-            "N3host:12345")
+            "N3host:12345"
+        )
         coordinator.directory.get_nodes()[b"N3"].namespace = b"N3"
 
         coordinator.sock._messages_read = [  # type: ignore
-            [b'n3', Message(b"COORDINATOR", b"N3.COORDINATOR",
-                            conversation_id=cid,
-                            message_type=MessageTypes.JSON,
-                            data=Request(15, "coordinator_sign_in"),)]]
+            [
+                b"n3",
+                Message(
+                    b"COORDINATOR",
+                    b"N3.COORDINATOR",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=Request(15, "coordinator_sign_in"),
+                ),
+            ]
+        ]
         coordinator.read_and_route()
-        assert b'n3' in coordinator.directory.get_node_ids().keys()
-        assert coordinator.sock._messages_sent == [(b'n3', Message(  # type: ignore
-            b"COORDINATOR", b"N1.COORDINATOR", message_type=MessageTypes.JSON, conversation_id=cid,
-            data=ResultResponse(15, None)))]
+        assert b"n3" in coordinator.directory.get_node_ids().keys()
+        assert coordinator.sock._messages_sent == [  # type: ignore
+            (
+                b"n3",
+                Message(
+                    b"COORDINATOR",
+                    b"N1.COORDINATOR",
+                    message_type=MessageTypes.JSON,
+                    conversation_id=cid,
+                    data=ResultResponse(15, None),
+                ),
+            )
+        ]
 
     @pytest.mark.xfail(True, reason="Additional error data is added")
     def test_co_signin_rejected(self, coordinator: Coordinator):
         """Coordinator sign in rejected due to already connected Coordinator."""
         coordinator.sock._messages_read = [  # type: ignore
-            [b'n3', Message(b"COORDINATOR", b"N2.COORDINATOR",
-                            data=Request(15, "coordinator_sign_in"),
-                            message_type=MessageTypes.JSON,
-                            conversation_id=cid)]]
+            [
+                b"n3",
+                Message(
+                    b"COORDINATOR",
+                    b"N2.COORDINATOR",
+                    data=Request(15, "coordinator_sign_in"),
+                    message_type=MessageTypes.JSON,
+                    conversation_id=cid,
+                ),
+            ]
+        ]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [  # type: ignore
             (
@@ -645,10 +830,12 @@ class Test_coordinator_sign_in:
 
     def test_coordinator_sign_in_fails_at_duplicate_name(self, coordinator: Coordinator):
         coordinator.current_message = Message(
-            b"COORDINATOR", b"N2.COORDINATOR",
+            b"COORDINATOR",
+            b"N2.COORDINATOR",
             data=Request(15, "coordinator_sign_in"),
             message_type=MessageTypes.JSON,
-            conversation_id=cid)
+            conversation_id=cid,
+        )
         coordinator.current_identity = b"n3"
         with pytest.raises(ValueError, match="Another Coordinator is known!"):
             coordinator.coordinator_sign_in()
@@ -656,53 +843,102 @@ class Test_coordinator_sign_in:
     def test_co_signin_of_self_rejected(self, coordinator: Coordinator):
         """Coordinator sign in rejected because it is the same coordinator."""
         coordinator.sock._messages_read = [  # type: ignore
-            [b'n3', Message(b"COORDINATOR", b"N1.COORDINATOR", conversation_id=cid,
-                            message_type=MessageTypes.JSON,
-                            data=Request(15, "coordinator_sign_in"))]]
+            [
+                b"n3",
+                Message(
+                    b"COORDINATOR",
+                    b"N1.COORDINATOR",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=Request(15, "coordinator_sign_in"),
+                ),
+            ]
+        ]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [  # type: ignore
-            (b'n3', Message(b"N1.COORDINATOR", b"N1.COORDINATOR", conversation_id=cid,
-                            message_type=MessageTypes.JSON,
-                            data=ErrorResponse(id=None, error=NOT_SIGNED_IN)))]
+            (
+                b"n3",
+                Message(
+                    b"N1.COORDINATOR",
+                    b"N1.COORDINATOR",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=ErrorResponse(id=None, error=NOT_SIGNED_IN),
+                ),
+            )
+        ]
 
 
 class Test_coordinator_sign_out:
     def test_co_signout_successful(self, coordinator: Coordinator):
         coordinator.sock._messages_read = [  # type: ignore
-            [b'n2', Message(b"COORDINATOR", b"N2.COORDINATOR",
-                            conversation_id=cid,
-                            message_type=MessageTypes.JSON,
-                            data=Request(10, "coordinator_sign_out"))]]
+            [
+                b"n2",
+                Message(
+                    b"COORDINATOR",
+                    b"N2.COORDINATOR",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=Request(10, "coordinator_sign_out"),
+                ),
+            ]
+        ]
         node = coordinator.directory.get_node(b"N2")
         coordinator.read_and_route()
         assert b"n2" not in coordinator.directory.get_node_ids()
-        assert node._messages_sent == [Message(  # type: ignore
-            b"N2.COORDINATOR", b"N1.COORDINATOR", conversation_id=cid,
-            message_type=MessageTypes.JSON,
-            data=Request(100, "coordinator_sign_out"))]
+        assert node._messages_sent == [  # type: ignore
+            Message(
+                b"N2.COORDINATOR",
+                b"N1.COORDINATOR",
+                conversation_id=cid,
+                message_type=MessageTypes.JSON,
+                data=Request(100, "coordinator_sign_out"),
+            )
+        ]
 
     @pytest.mark.xfail(True, reason="Not yet defined.")
     def test_co_signout_rejected_due_to_different_identity(self, coordinator: Coordinator):
         """TODO TBD how to handle it"""
         coordinator.set_log_level("DEBUG")
         coordinator.sock._messages_read = [  # type: ignore
-            [b'n4', Message(
-                receiver=b"COORDINATOR", sender=b"N2.COORDINATOR", conversation_id=cid,
-                message_type=MessageTypes.JSON,
-                data=Request(10, "coordinator_sign_out"))]]
+            [
+                b"n4",
+                Message(
+                    receiver=b"COORDINATOR",
+                    sender=b"N2.COORDINATOR",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=Request(10, "coordinator_sign_out"),
+                ),
+            ]
+        ]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == [  # type: ignore
-            (b"n4", Message(
-                receiver=b"N2.COORDINATOR", sender=b"N1.COORDINATOR", conversation_id=cid,
-                message_type=MessageTypes.JSON,
-                data=ErrorResponse(id=None, error=NOT_SIGNED_IN)))]
+            (
+                b"n4",
+                Message(
+                    receiver=b"N2.COORDINATOR",
+                    sender=b"N1.COORDINATOR",
+                    conversation_id=cid,
+                    message_type=MessageTypes.JSON,
+                    data=ErrorResponse(id=None, error=NOT_SIGNED_IN),
+                ),
+            )
+        ]
 
     def test_co_signout_of_not_signed_in_coordinator(self, coordinator: Coordinator):
         """TODO TBD whether to reject or to ignore."""
         coordinator.sock._messages_read = [  # type: ignore
-            (b"n4", Message(b"COORDINATOR", b"N4.COORDINATOR",
-                            message_type=MessageTypes.JSON,
-                            data=Request(10, "coordinator_sign_out")))]
+            (
+                b"n4",
+                Message(
+                    b"COORDINATOR",
+                    b"N4.COORDINATOR",
+                    message_type=MessageTypes.JSON,
+                    data=Request(10, "coordinator_sign_out"),
+                ),
+            )
+        ]
         coordinator.read_and_route()
         assert coordinator.sock._messages_sent == []  # type: ignore
 
@@ -717,9 +953,13 @@ class Test_shutdown:
 
     def test_sign_out_message_to_other_coordinators_sent(self, shutdown_coordinator: Coordinator):
         assert self.n2._messages_sent == [  # type: ignore
-            Message(b"N2.COORDINATOR", b"N1.COORDINATOR",
-                    message_type=MessageTypes.JSON,
-                    data=Request(2, "coordinator_sign_out"))]
+            Message(
+                b"N2.COORDINATOR",
+                b"N1.COORDINATOR",
+                message_type=MessageTypes.JSON,
+                data=Request(2, "coordinator_sign_out"),
+            )
+        ]
 
     def test_event_set(self, shutdown_coordinator: Coordinator):
         assert shutdown_coordinator.stop_event.is_set() is True
@@ -740,9 +980,7 @@ def test_send_global_components(coordinator: Coordinator):
     coordinator.global_directory[b"N5"] = ["some", "coordinator"]
     # Act
     data = coordinator.send_global_components()
-    assert data == {
-                 "N5": ["some", "coordinator"],
-                 "N1": ["send", "rec"]}
+    assert data == {"N5": ["some", "coordinator"], "N1": ["send", "rec"]}
 
 
 class Test_add_nodes:

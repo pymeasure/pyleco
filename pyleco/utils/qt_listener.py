@@ -36,6 +36,7 @@ from .listener import Listener
 
 class ListenerSignals(QObject):
     """Signals for the Listener."""
+
     # General
     name_changed = Signal(str)
     # Control protocol
@@ -49,11 +50,11 @@ class ListenerSignals(QObject):
 
 
 class QtPipeHandler(PipeHandler):
-
     local_methods = ["pong", "set_log_level"]
 
-    def __init__(self, name: str, signals: ListenerSignals, context: Optional[Context] = None,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self, name: str, signals: ListenerSignals, context: Optional[Context] = None, **kwargs: Any
+    ) -> None:
         self.signals = signals
         super().__init__(name, context, **kwargs)
 
@@ -112,10 +113,22 @@ class QtListener(Listener):
         super().__init__(name=name, host=host, **kwargs)
         self.signals = ListenerSignals()
 
-    def _listen(self, name: str, stop_event: Event, coordinator_host: str, coordinator_port: int,
-                data_host: str, data_port: int) -> None:
-        self.message_handler = QtPipeHandler(name, signals=self.signals,
-                                             host=coordinator_host, port=coordinator_port,
-                                             data_host=data_host, data_port=data_port,)
+    def _listen(
+        self,
+        name: str,
+        stop_event: Event,
+        coordinator_host: str,
+        coordinator_port: int,
+        data_host: str,
+        data_port: int,
+    ) -> None:
+        self.message_handler = QtPipeHandler(
+            name,
+            signals=self.signals,
+            host=coordinator_host,
+            port=coordinator_port,
+            data_host=data_host,
+            data_port=data_port,
+        )
         self.message_handler.register_on_name_change_method(self.signals.name_changed.emit)
         self.message_handler.listen(stop_event=stop_event)

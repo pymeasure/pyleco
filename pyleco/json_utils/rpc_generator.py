@@ -44,9 +44,7 @@ class RPCGenerator:
         return self.build_json_str(method=method, params=params, id=None)
 
     @staticmethod
-    def sanitize_params(
-        *args: Any, **kwargs: Any
-    ) -> dict[str, Any] | list[Any] | None:
+    def sanitize_params(*args: Any, **kwargs: Any) -> dict[str, Any] | list[Any] | None:
         if args and kwargs:
             raise ValueError(
                 "You may not specify list of positional arguments "

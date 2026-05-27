@@ -52,7 +52,6 @@ def fake_cid_generation(monkeypatch):
 
 
 class FakeBaseCommunicator(BaseCommunicator):
-
     def __init__(self, name="communicator") -> None:
         self.name = name
         self.setup_message_buffer()
@@ -166,39 +165,54 @@ def test_send_message(communicator: FakeBaseCommunicator):
 
 class Test_sign_in:
     def test_sign_in_successful(self, communicator: FakeBaseCommunicator, fake_cid_generation):
-        message = Message(receiver=b"N3.communicator", sender=b"N3.COORDINATOR",
-                          conversation_id=cid,
-                          message_type=MessageTypes.JSON,
-                          data=ResultResponse(0, None),
+        message = Message(
+            receiver=b"N3.communicator",
+            sender=b"N3.COORDINATOR",
+            conversation_id=cid,
+            message_type=MessageTypes.JSON,
+            data=ResultResponse(0, None),
         )
         communicator._r = [message]  # type: ignore
         communicator.namespace = None
         communicator.sign_in()
         assert communicator.namespace == "N3"
 
-    def test_not_valid_message(self, communicator: FakeBaseCommunicator,
-                               caplog: pytest.LogCaptureFixture,
-                               fake_cid_generation):
+    def test_not_valid_message(
+        self,
+        communicator: FakeBaseCommunicator,
+        caplog: pytest.LogCaptureFixture,
+        fake_cid_generation,
+    ):
         message = Message("communicator", "COORDINATOR", data=b"[]", conversation_id=cid)
         communicator._r = [message]  # type: ignore
         communicator.sign_in()
         caplog.records[-1].msg.startswith("Not json message received:")
 
-    def test_duplicate_name(self, communicator: FakeBaseCommunicator,
-                            caplog: pytest.LogCaptureFixture,
-                            fake_cid_generation):
+    def test_duplicate_name(
+        self,
+        communicator: FakeBaseCommunicator,
+        caplog: pytest.LogCaptureFixture,
+        fake_cid_generation,
+    ):
         communicator.namespace = None
-        message = Message("communicator", "N3.COORDINATOR", message_type=MessageTypes.JSON,
-                          data=ErrorResponse(id=5, error=DUPLICATE_NAME),
-                          conversation_id=cid)
+        message = Message(
+            "communicator",
+            "N3.COORDINATOR",
+            message_type=MessageTypes.JSON,
+            data=ErrorResponse(id=5, error=DUPLICATE_NAME),
+            conversation_id=cid,
+        )
         communicator._r = [message]  # type: ignore
         communicator.sign_in()
         assert communicator.namespace is None
         assert caplog.records[-1].msg == "Sign in failed, the name is already used."
 
-    def test_handle_unknown_error(self, communicator: FakeBaseCommunicator,
-                                  caplog: pytest.LogCaptureFixture,
-                                  fake_cid_generation):
+    def test_handle_unknown_error(
+        self,
+        communicator: FakeBaseCommunicator,
+        caplog: pytest.LogCaptureFixture,
+        fake_cid_generation,
+    ):
         communicator.namespace = None
         message = Message(
             "communicator",
@@ -212,10 +226,12 @@ class Test_sign_in:
         assert communicator.namespace is None
         assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
 
-    def test_handle_request_message(self, communicator: FakeBaseCommunicator,
-                                    caplog: pytest.LogCaptureFixture,
-                                    fake_cid_generation
-                                    ):
+    def test_handle_request_message(
+        self,
+        communicator: FakeBaseCommunicator,
+        caplog: pytest.LogCaptureFixture,
+        fake_cid_generation,
+    ):
         """Handle a message without result or error."""
         communicator.namespace = None
         message = Message(
@@ -230,21 +246,27 @@ class Test_sign_in:
         assert communicator.namespace is None
         assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
 
-    def test_log_timeout_error(self, communicator: FakeBaseCommunicator,
-                               caplog: pytest.LogCaptureFixture):
+    def test_log_timeout_error(
+        self, communicator: FakeBaseCommunicator, caplog: pytest.LogCaptureFixture
+    ):
         communicator.sign_in()
         assert caplog.records[-1].msg.startswith("Signing in timed out.")
 
 
 class Test_finish_sign_in:
     @pytest.fixture
-    def communicator_fsi(self, communicator: FakeBaseCommunicator,
-                         caplog: pytest.LogCaptureFixture):
+    def communicator_fsi(
+        self, communicator: FakeBaseCommunicator, caplog: pytest.LogCaptureFixture
+    ):
         caplog.set_level(logging.INFO)
-        communicator.finish_sign_in(response_message=Message(
-            b"communicator", b"N5.COORDINATOR",
-            message_type=MessageTypes.JSON,
-            data=ResultResponse(10, None)))
+        communicator.finish_sign_in(
+            response_message=Message(
+                b"communicator",
+                b"N5.COORDINATOR",
+                message_type=MessageTypes.JSON,
+                data=ResultResponse(10, None),
+            )
+        )
         return communicator
 
     def test_namespace(self, communicator_fsi: FakeBaseCommunicator):
@@ -253,8 +275,9 @@ class Test_finish_sign_in:
     def test_full_name(self, communicator_fsi: FakeBaseCommunicator):
         assert communicator_fsi.full_name == "N5.communicator"
 
-    def test_log_message(self, communicator_fsi: FakeBaseCommunicator,
-                         caplog: pytest.LogCaptureFixture):
+    def test_log_message(
+        self, communicator_fsi: FakeBaseCommunicator, caplog: pytest.LogCaptureFixture
+    ):
         assert caplog.get_records("setup")[-1].message == ("Signed in to Node 'N5'.")
 
 
@@ -265,8 +288,9 @@ def test_heartbeat(communicator: FakeBaseCommunicator):
     assert msg.payload == []
 
 
-def test_sign_out_fail(communicator: FakeBaseCommunicator, caplog: pytest.LogCaptureFixture,
-                       fake_cid_generation):
+def test_sign_out_fail(
+    communicator: FakeBaseCommunicator, caplog: pytest.LogCaptureFixture, fake_cid_generation
+):
     communicator.namespace = "N3"
     message = Message(
         "communicator",
@@ -302,8 +326,9 @@ def test_finish_sign_out(communicator: FakeBaseCommunicator):
 
 
 class Test_read_message:
-    conf: list[tuple[list[Message], list[Message], bytes | None, list[Message], list[Message],
-                     str]] = [
+    conf: list[
+        tuple[list[Message], list[Message], bytes | None, list[Message], list[Message], str]
+    ] = [
         # socket_in, buffer_in, cid, socket_out, buffer_out, test_id
         # find first not requested message
         ([m1], [], None, [], [], "return first message from socket"),
@@ -335,9 +360,11 @@ class Test_read_message:
         assert communicator.message_buffer.is_conversation_id_requested(cid) is False
 
     @pytest.mark.parametrize("test", conf, ids=ids)
-    def test_return_correct_message(self,
-                                    test: tuple[list[Message], list[Message], bytes | None],
-                                    communicator: FakeBaseCommunicator):
+    def test_return_correct_message(
+        self,
+        test: tuple[list[Message], list[Message], bytes | None],
+        communicator: FakeBaseCommunicator,
+    ):
         socket, buffer, cid0, *_ = test
         communicator._r = socket.copy()  # type: ignore
         for m in buffer:
@@ -348,10 +375,11 @@ class Test_read_message:
         assert result == m1 if cid is None else mr
 
     @pytest.mark.parametrize("test", conf, ids=ids)
-    def test_correct_buffer_socket(self,
-                                   test: tuple[list[Message], list[Message], bytes | None,
-                                               list[Message], list[Message]],
-                                   communicator: FakeBaseCommunicator):
+    def test_correct_buffer_socket(
+        self,
+        test: tuple[list[Message], list[Message], bytes | None, list[Message], list[Message]],
+        communicator: FakeBaseCommunicator,
+    ):
         socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test
         communicator._r = socket_in.copy()  # type: ignore
         for m in buffer_in:
@@ -369,8 +397,9 @@ class Test_read_message:
 
     def test_timeout_error(self, communicator: FakeBaseCommunicator):
         def waiting(*args, **kwargs):
-            time.sleep(.1)
+            time.sleep(0.1)
             return m1
+
         communicator._read_socket_message = waiting  # type: ignore[assignment]
         with pytest.raises(TimeoutError):
             communicator.read_message(conversation_id=cid, timeout=0)
@@ -411,6 +440,7 @@ class Test_handle_not_signed_in:
     def test_sign_in_called(self, communicator_hnsi: FakeBaseCommunicator):
         communicator_hnsi.sign_in.assert_called_once()  # type: ignore
 
-    def test_log_warning(self, communicator_hnsi: FakeBaseCommunicator,
-                         caplog: pytest.LogCaptureFixture) -> None:
+    def test_log_warning(
+        self, communicator_hnsi: FakeBaseCommunicator, caplog: pytest.LogCaptureFixture
+    ) -> None:
         assert caplog.get_records(when="setup")[-1].message == "I was not signed in, signing in."

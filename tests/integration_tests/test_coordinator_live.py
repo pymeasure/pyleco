@@ -67,15 +67,24 @@ def leco():
     log = logging.getLogger("test")
     threads = []
     stop_events = [threading.Event(), threading.Event(), threading.Event()]
-    threads.append(threading.Thread(target=start_coordinator,
-                                    kwargs=dict(namespace="N1", port=PORT,
-                                                stop_event=stop_events[0])))
-    threads.append(threading.Thread(target=start_coordinator,
-                                    kwargs=dict(namespace="N2", port=PORT2,
-                                                stop_event=stop_events[1])))
-    threads.append(threading.Thread(target=start_coordinator,
-                                    kwargs=dict(namespace="N3", port=PORT3,
-                                                stop_event=stop_events[2])))
+    threads.append(
+        threading.Thread(
+            target=start_coordinator,
+            kwargs=dict(namespace="N1", port=PORT, stop_event=stop_events[0]),
+        )
+    )
+    threads.append(
+        threading.Thread(
+            target=start_coordinator,
+            kwargs=dict(namespace="N2", port=PORT2, stop_event=stop_events[1]),
+        )
+    )
+    threads.append(
+        threading.Thread(
+            target=start_coordinator,
+            kwargs=dict(namespace="N3", port=PORT3, stop_event=stop_events[2]),
+        )
+    )
     for thread in threads:
         thread.daemon = True
         thread.start()
@@ -118,11 +127,12 @@ def test_Component_to_Component_via_1_Coordinator(leco: Communicator):
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
 def test_Component_to_Component_via_2_Coordinators(leco: Communicator):
     with Communicator(name="whatever", port=PORT2) as c:
-        response = c.ask("N1.Controller", data=Request(1, method= "pong"),
-                         message_type=MessageTypes.JSON)
+        response = c.ask(
+            "N1.Controller", data=Request(1, method="pong"), message_type=MessageTypes.JSON
+        )
         assert response == Message(
-            b'N2.whatever', b'N1.Controller', data=ResultResponse(1, None),
-            header=response.header)
+            b"N2.whatever", b"N1.Controller", data=ResultResponse(1, None), header=response.header
+        )
 
 
 @pytest.mark.skipif(testlevel < 2, reason="reduce load")
@@ -150,8 +160,11 @@ def test_connect_N3_to_N2(leco: Communicator):
 
     sleep(TALKING_TIME)  # time for coordinators to talk
     with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d2:
-        assert d2.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}",
-                                  "N3": f"{hostname}:{PORT3}"}
+        assert d2.get_nodes() == {
+            "N1": f"{hostname}:{PORT}",
+            "N2": f"localhost:{PORT2}",
+            "N3": f"{hostname}:{PORT3}",
+        }
 
 
 @pytest.mark.skipif(testlevel < 4, reason="reduce load")

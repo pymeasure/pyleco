@@ -33,7 +33,6 @@ Additionally, there is a ServerError for implementation-defined errors.
 Each exception extends a base exception JSONRPCError.
 """
 
-
 from typing import Optional, Type
 
 from .json_objects import JsonRpcError

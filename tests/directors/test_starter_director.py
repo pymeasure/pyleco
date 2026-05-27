@@ -39,9 +39,17 @@ def starter_director() -> StarterDirector:
     return data_logger_director
 
 
-@pytest.mark.parametrize("method", ("start_tasks", "restart_tasks", "stop_tasks", "install_tasks",
-                                    "status_tasks", "list_tasks",
-                                    ))
+@pytest.mark.parametrize(
+    "method",
+    (
+        "start_tasks",
+        "restart_tasks",
+        "stop_tasks",
+        "install_tasks",
+        "status_tasks",
+        "list_tasks",
+    ),
+)
 def test_method_call_existing_remote_methods(starter_director: FakeStarterDirector, method):
     starter_director.return_value = None
     getattr(starter_director, method)("task_name")

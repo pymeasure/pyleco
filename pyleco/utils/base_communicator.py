@@ -80,8 +80,7 @@ class MessageBuffer:
 
 
 class BaseCommunicator(CommunicatorProtocol, Protocol):
-    """Abstract class of a Communicator with some logic.
-    """
+    """Abstract class of a Communicator with some logic."""
 
     socket: zmq.Socket
     log: logging.Logger
@@ -105,7 +104,7 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
-        exc_traceback: TracebackType | None
+        exc_traceback: TracebackType | None,
     ) -> bool | None:
         self.close()
         return None
@@ -196,10 +195,12 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         raise TimeoutError("Message not found.")
 
     def check_for_not_signed_in_error(self, message: Message) -> None:
-        if (message.sender_elements.name == b"COORDINATOR"
-                and message.payload
-                and b"error" in message.payload[0]
-                and NOT_SIGNED_IN_ERROR_CODE in message.payload[0]):
+        if (
+            message.sender_elements.name == b"COORDINATOR"
+            and message.payload
+            and b"error" in message.payload[0]
+            and NOT_SIGNED_IN_ERROR_CODE in message.payload[0]
+        ):
             self.handle_not_signed_in()
 
     def read_message(

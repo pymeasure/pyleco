@@ -36,8 +36,7 @@ from pyleco.utils.extended_message_handler import ExtendedMessageHandler
 
 @pytest.fixture
 def handler():
-    handler = ExtendedMessageHandler(name="handler",
-                                     context=FakeContext())  # type: ignore
+    handler = ExtendedMessageHandler(name="handler", context=FakeContext())  # type: ignore
     handler.namespace = "N1"
     handler.stop_event = SimpleEvent()
     handler.subscriber = FakeSocket(2)  # type: ignore
@@ -83,11 +82,14 @@ def test_subscribe_single_again(handler: ExtendedMessageHandler, caplog: pytest.
     assert caplog.messages[-1] == f"Already subscribed to {b'topic'!r}."
 
 
-@pytest.mark.parametrize("topics, result", (
+@pytest.mark.parametrize(
+    "topics, result",
+    (
         ("topic", [b"topic"]),  # single string
         (["topic1", "topic2"], [b"topic1", b"topic2"]),  # list of strings
         (("topic1", "topic2"), [b"topic1", b"topic2"]),  # tuple of strings
-))
+    ),
+)
 def test_subscribe(handler: ExtendedMessageHandler, topics, result):
     handle_request_message(handler, "subscribe", topics)
     assert_response_is_result(handler)
@@ -102,11 +104,14 @@ def test_unsubscribe_single(handler: ExtendedMessageHandler):
     assert handler.subscriber._subscriptions == []  # type: ignore
 
 
-@pytest.mark.parametrize("topics, result", (
+@pytest.mark.parametrize(
+    "topics, result",
+    (
         ("topic", [b"topic"]),  # single string
         (["topic1", "topic2"], [b"topic1", b"topic2"]),  # list of strings
         (("topic1", "topic2"), [b"topic1", b"topic2"]),  # tuple of strings
-))
+    ),
+)
 def test_unsubscribe(handler: ExtendedMessageHandler, topics, result):
     handler._subscriptions = result
     # act

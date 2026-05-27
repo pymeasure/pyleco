@@ -80,7 +80,7 @@ class DataPublisher:
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
-        exc_traceback: TracebackType | None
+        exc_traceback: TracebackType | None,
     ) -> bool | None:
         self.close()
         return None

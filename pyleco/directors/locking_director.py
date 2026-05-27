@@ -28,7 +28,6 @@ from .director import Director
 
 
 class LockingDirector(Director):
-
     def lock(self, resource: Optional[str] = None) -> bool:
         return cast(bool, self.ask_rpc("lock", resource=resource))
 

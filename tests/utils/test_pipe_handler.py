@@ -31,8 +31,12 @@ from pyleco.core.message import Message, MessageTypes
 from pyleco.test import FakeContext
 from pyleco.json_utils.json_objects import ResultResponse, Request, Notification
 
-from pyleco.utils.pipe_handler import LockedMessageBuffer, PipeHandler, CommunicatorPipe,\
-    PipeCommands
+from pyleco.utils.pipe_handler import (
+    LockedMessageBuffer,
+    PipeHandler,
+    CommunicatorPipe,
+    PipeCommands,
+)
 
 cid = b"conversation_id;"  # conversation_id
 header = b"".join((cid, b"mid", b"\x00"))
@@ -97,12 +101,15 @@ class Test_check_message_in_buffer:
         assert message_buffer_cmib._messages == [other, o2]
 
 
-@pytest.mark.parametrize("buffer", (
+@pytest.mark.parametrize(
+    "buffer",
+    (
         [msg],  # msg is only message
         [msg, other],  # msg is in the first place of the buffer
         [other, msg],  # msg is in the second and last place of the buffer
-        [other, msg, other]  # msg is in the middle of the buffer
-    ))
+        [other, msg, other],  # msg is in the middle of the buffer
+    ),
+)
 def test_retrieve_message_success(message_buffer: LockedMessageBuffer, buffer):
     message_buffer._messages = buffer
     original_length = len(buffer)
@@ -110,10 +117,13 @@ def test_retrieve_message_success(message_buffer: LockedMessageBuffer, buffer):
     assert len(message_buffer._messages) == original_length - 1
 
 
-@pytest.mark.parametrize("buffer", (
+@pytest.mark.parametrize(
+    "buffer",
+    (
         [],  # no message in buffer
         [other],  # other message in buffer
-    ))
+    ),
+)
 def test_retrieve_message_fail(message_buffer: LockedMessageBuffer, buffer):
     message_buffer._messages = buffer
     with pytest.raises(TimeoutError):
@@ -159,7 +169,8 @@ def pipe_handler_pipe():
     pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
     pipe_handler.internal_pipe = zmq.Context.instance().socket(zmq.PULL)
     pipe_handler.pipe_port = pipe_handler.internal_pipe.bind_to_random_port(
-        "inproc://listenerPipe", min_port=12345)
+        "inproc://listenerPipe", min_port=12345
+    )
     yield pipe_handler
     pipe_handler.close()
 
@@ -261,8 +272,9 @@ def test_communicator_send_message(pipe_handler_pipe: PipeHandler, communicator:
     pipe_handler_pipe._send_frames.assert_called_once_with(frames=message.to_frames())
 
 
-def test_communicator_send_message_without_sender(pipe_handler_pipe: PipeHandler,
-                                                  communicator: CommunicatorPipe):
+def test_communicator_send_message_without_sender(
+    pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe
+):
     message = Message("rec", sender="")
     pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
     communicator.send_message(message)
@@ -323,8 +335,9 @@ def test_communicator_unsubscribe(pipe_handler_pipe: PipeHandler, communicator: 
     pipe_handler_pipe.unsubscribe_single.assert_called_once_with(topic=b"topic")
 
 
-def test_communicator_unsubscribe_all(pipe_handler_pipe: PipeHandler,
-                                      communicator: CommunicatorPipe):
+def test_communicator_unsubscribe_all(
+    pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe
+):
     pipe_handler_pipe.unsubscribe_all = MagicMock()  # type: ignore[method-assign]
     # act
     communicator.unsubscribe_all()

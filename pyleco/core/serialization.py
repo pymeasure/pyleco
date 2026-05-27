@@ -74,12 +74,14 @@ class Header(NamedTuple):
 
 class MessageTypes(IntEnum):
     """The different message types, represented as an integer in the range [0, 255]."""
+
     NOT_DEFINED = 0
     JSON = 1
 
 
 class JsonContentTypes(IntFlag):
     """Type of the JSON content."""
+
     INVALID = 0
     REQUEST = 1
     RESPONSE = 2
@@ -108,7 +110,7 @@ def create_header_frame(
     if message_id is None:
         message_id = b"\x00" * 3
     elif isinstance(message_id, int):
-        message_id = message_id.to_bytes(length=3, byteorder='big')
+        message_id = message_id.to_bytes(length=3, byteorder="big")
     elif len(message_id) != 3:
         raise ValueError("Length of 'message_id' is not 3 bytes.")
     if isinstance(message_type, int):
@@ -151,7 +153,7 @@ def serialize_data(data: Any) -> bytes:
     if isinstance(data, json_objects):
         return data.model_dump_json().encode()
     else:
-        return json.dumps(data, separators=(',', ':')).encode()
+        return json.dumps(data, separators=(",", ":")).encode()
 
 
 def deserialize_data(content: bytes) -> Any:

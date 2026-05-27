@@ -152,9 +152,7 @@ class Director:
         """Stop the actor."""
         return cast(None, self.ask_rpc(method="shut_down", actor=actor))
 
-    def set_actor_log_level(
-        self, level: str | int, actor: bytes | str | None = None
-    ) -> None:
+    def set_actor_log_level(self, level: str | int, actor: bytes | str | None = None) -> None:
         """Set the log level of the actor."""
         if isinstance(level, int):
             level = get_leco_log_level(level).value
@@ -172,9 +170,7 @@ class Director:
             raise ConnectionError(f"{response} returned, but dict expected.")
         return response
 
-    def set_parameters(
-        self, parameters: dict[str, Any], actor: bytes | str | None = None
-    ) -> None:
+    def set_parameters(self, parameters: dict[str, Any], actor: bytes | str | None = None) -> None:
         """Set the `properties` dictionary."""
         return cast(None, self.ask_rpc(method="set_parameters", parameters=parameters, actor=actor))
 

@@ -33,8 +33,13 @@ import zmq
 
 if __name__ != "__main__":
     from ..core import COORDINATOR_PORT
-    from ..utils.coordinator_utils import CommunicationError, Directory, ZmqNode, ZmqMultiSocket,\
-        MultiSocket
+    from ..utils.coordinator_utils import (
+        CommunicationError,
+        Directory,
+        ZmqNode,
+        ZmqMultiSocket,
+        MultiSocket,
+    )
     from ..core.message import Message, MessageTypes
     from ..core.serialization import get_json_content_type, JsonContentTypes
     from ..json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
@@ -46,8 +51,13 @@ if __name__ != "__main__":
     from ..utils.log_levels import PythonLogLevels
 else:  # pragma: no cover
     from pyleco.core import COORDINATOR_PORT
-    from pyleco.utils.coordinator_utils import CommunicationError, Directory, ZmqNode,\
-          ZmqMultiSocket, MultiSocket
+    from pyleco.utils.coordinator_utils import (
+        CommunicationError,
+        Directory,
+        ZmqNode,
+        ZmqMultiSocket,
+        MultiSocket,
+    )
     from pyleco.core.message import Message, MessageTypes
     from pyleco.core.serialization import get_json_content_type, JsonContentTypes
     from pyleco.json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
@@ -162,7 +172,7 @@ class Coordinator:
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
-        exc_traceback: TracebackType | None
+        exc_traceback: TracebackType | None,
     ) -> bool | None:
         self.close()
         return None
@@ -178,7 +188,10 @@ class Coordinator:
             self.closed = True
 
     def create_message(
-        self, receiver: bytes, data: bytes | str | object | None = None, **kwargs: Any,
+        self,
+        receiver: bytes,
+        data: bytes | str | object | None = None,
+        **kwargs: Any,
     ) -> Message:
         return Message(receiver=receiver, sender=self.full_name, data=data, **kwargs)
 

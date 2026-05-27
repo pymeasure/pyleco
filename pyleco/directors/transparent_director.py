@@ -70,9 +70,7 @@ class RemoteCall:
         self._name = name
         self._doc = self._doc.format(name=self._name)
 
-    def __get__(
-        self, obj: Director | None, objtype: Any | None = None
-    ) -> RemoteCall | Callable:
+    def __get__(self, obj: Director | None, objtype: Any | None = None) -> RemoteCall | Callable:
         if obj is None:
             return self
 

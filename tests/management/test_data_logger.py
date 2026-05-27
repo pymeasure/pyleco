@@ -47,7 +47,7 @@ def data_logger() -> DataLogger:
         trigger_timeout=10,
         valuing_mode=ValuingModes.AVERAGE,
         value_repeating=False,
-        )
+    )
     dl.tmp["2"] = [1, 2]
     return dl
 
@@ -182,11 +182,15 @@ class Test_setup_variables:
         data_logger.namespace = "N1"
         data_logger.unsubscribe_all()
         data_logger.subscriber.subscribe = MagicMock()  # type: ignore[method-assign]
-        data_logger.setup_variables([
-            "var1",
-            "N1.sender.var2", "N1.sender.var3", "sender.var4",
-            "sender2.var5",
-            ])
+        data_logger.setup_variables(
+            [
+                "var1",
+                "N1.sender.var2",
+                "N1.sender.var3",
+                "sender.var4",
+                "sender2.var5",
+            ]
+        )
         return data_logger
 
     def test_just_once_subscribed_to_component(self, data_logger_stv: DataLogger):
@@ -213,13 +217,16 @@ class Test_setup_variables:
         assert var in data_logger_stv.lists
 
 
-def test_subscribe_without_having_logged_in(data_logger: DataLogger,
-                                            caplog: pytest.LogCaptureFixture):
+def test_subscribe_without_having_logged_in(
+    data_logger: DataLogger, caplog: pytest.LogCaptureFixture
+):
     """Test that proper logging happens if the data_logger did not sign in (yet) but should
     subscribe to some remote object."""
     data_logger.namespace = None
     data_logger.setup_variables(["Component.Variable"])
-    assert "Cannot subscribe to 'Component.Variable' as the namespace is not known." in caplog.messages # noqa
+    assert (
+        "Cannot subscribe to 'Component.Variable' as the namespace is not known." in caplog.messages
+    )  # noqa
 
 
 def test_set_valuing_mode_last(data_logger: DataLogger):
@@ -239,10 +246,11 @@ def test_set_valuing_mode_last_integration(data_logger: DataLogger):
 
 def test_handle_subscription_message_calls_handle_data(data_logger: DataLogger):
     data_logger.handle_subscription_data = MagicMock()  # type: ignore[method-assign]
-    message = DataMessage(topic="N1.sender", data={'var': 5, 'test': 7.3})
+    message = DataMessage(topic="N1.sender", data={"var": 5, "test": 7.3})
     data_logger.handle_subscription_message(message)
-    data_logger.handle_subscription_data.assert_called_once_with({"N1.sender.var": 5,
-                                                                  "N1.sender.test": 7.3})
+    data_logger.handle_subscription_data.assert_called_once_with(
+        {"N1.sender.var": 5, "N1.sender.test": 7.3}
+    )
 
 
 def test_handle_subscription_message_adds_data_to_lists(data_logger: DataLogger):
@@ -251,8 +259,9 @@ def test_handle_subscription_message_adds_data_to_lists(data_logger: DataLogger)
     assert data_logger.tmp["N1.sender.var"] == [5.6]
 
 
-def test_handle_subscription_message_handles_broken_message(data_logger: DataLogger,
-                                                            caplog: pytest.LogCaptureFixture):
+def test_handle_subscription_message_handles_broken_message(
+    data_logger: DataLogger, caplog: pytest.LogCaptureFixture
+):
     message = DataMessage(topic="N1.sender", data="not a dict")
     data_logger.handle_subscription_message(message)
     assert len(caplog.messages) == 1
@@ -272,10 +281,11 @@ def test_handle_subscription_data_triggers(data_logger: DataLogger):
     data_logger.make_datapoint.assert_called_once()
 
 
-def test_handle_subscription_data_without_list(data_logger: DataLogger,
-                                               caplog: pytest.LogCaptureFixture):
+def test_handle_subscription_data_without_list(
+    data_logger: DataLogger, caplog: pytest.LogCaptureFixture
+):
     caplog.set_level(0)
-    data_logger.handle_subscription_data({'not_present': 42})
+    data_logger.handle_subscription_data({"not_present": 42})
     assert caplog.messages[-1] == "Got value for 'not_present', but no list present."
 
 
@@ -303,7 +313,7 @@ class Test_start_timer_trigger:
 class Test_make_data_point:
     @pytest.fixture
     def data_logger_mdp(self, data_logger: DataLogger):
-        del data_logger.lists['time']  # for better comparison
+        del data_logger.lists["time"]  # for better comparison
         data_logger.make_datapoint()
         return data_logger
 
@@ -322,8 +332,9 @@ class Test_make_data_point:
         # act
         data_logger.make_datapoint()
         # assert
-        data_logger.publisher.send_data.assert_called_once_with(data={"test": nan, "2": 1.5,
-                                                                      "N1.sender.var": nan})
+        data_logger.publisher.send_data.assert_called_once_with(
+            data={"test": nan, "2": 1.5, "N1.sender.var": nan}
+        )
 
 
 def test_calculate_data_adds_time(data_logger: DataLogger):
@@ -332,20 +343,26 @@ def test_calculate_data_adds_time(data_logger: DataLogger):
 
 
 class Test_calculate_single_data:
-    @pytest.mark.parametrize("list, result", (
+    @pytest.mark.parametrize(
+        "list, result",
+        (
             ([2, 3], 2.5),
             ([5], 5),
-    ))
+        ),
+    )
     def test_average(self, data_logger: DataLogger, list, result):
         assert data_logger.calculate_single_data("2", tmp=list) == result
 
     def test_average_results_in_nan(self, data_logger: DataLogger):
         assert isnan(data_logger.calculate_single_data("2", tmp=[]))
 
-    @pytest.mark.parametrize("list, result", (
+    @pytest.mark.parametrize(
+        "list, result",
+        (
             ([2, 3], 3),
             ([5], 5),
-    ))
+        ),
+    )
     def test_last(self, data_logger: DataLogger, list, result):
         data_logger.valuing = data_logger.last
         assert data_logger.calculate_single_data("2", tmp=list) == result
@@ -354,20 +371,26 @@ class Test_calculate_single_data:
         data_logger.valuing = data_logger.last
         assert isnan(data_logger.calculate_single_data("2", tmp=[]))
 
-    @pytest.mark.parametrize("list, result", (
+    @pytest.mark.parametrize(
+        "list, result",
+        (
             ([2, 3], 2.5),
             ([], 55),
             ([5], 5),
-    ))
+        ),
+    )
     def test_repeating_with_last_value(self, data_logger: DataLogger, list, result):
         data_logger.value_repeating = True
         data_logger.lists["2"] = [55]
         assert data_logger.calculate_single_data("2", tmp=list) == result
 
-    @pytest.mark.parametrize("list, result", (
+    @pytest.mark.parametrize(
+        "list, result",
+        (
             ([2, 3], 2.5),
             ([5], 5),
-    ))
+        ),
+    )
     def test_repeating_without_last_value(self, data_logger: DataLogger, list, result):
         data_logger.value_repeating = True
         data_logger.lists["2"] = []
@@ -436,16 +459,22 @@ class Test_save_data:
         assert json.loads(saved_file) == [
             "",
             {"time": [], "test": [], "2": [], "N1.sender.var": []},
-            {"units": {}, "today": today_string, "file_name": self.file_name,
-             "logger_name": "DataLoggerN",
-             "configuration": {"trigger_type": "variable", "trigger_timeout": 10,
-                               "trigger_variable": "test", "valuing_mode": "average",
-                               "value_repeating": False,
-                               "variables": ["time", "test", "2", "N1.sender.var"],
-                               "units": {},
-                               },
-             },
-            ]
+            {
+                "units": {},
+                "today": today_string,
+                "file_name": self.file_name,
+                "logger_name": "DataLoggerN",
+                "configuration": {
+                    "trigger_type": "variable",
+                    "trigger_timeout": 10,
+                    "trigger_variable": "test",
+                    "valuing_mode": "average",
+                    "value_repeating": False,
+                    "variables": ["time", "test", "2", "N1.sender.var"],
+                    "units": {},
+                },
+            },
+        ]
 
 
 def test_get_configuration(data_logger: DataLogger):
@@ -459,7 +488,7 @@ def test_get_configuration(data_logger: DataLogger):
         "value_repeating": False,
         "variables": ["time", "test", "2", "N1.sender.var"],
         "units": {},
-        }
+    }
 
 
 def test_get_last_datapoint(data_logger: DataLogger):

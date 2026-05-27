@@ -41,6 +41,7 @@ def signal():
     class FakeSignal:
         def emit(self, message: Message):
             self._content = message
+
     return FakeSignal()
 
 
@@ -54,20 +55,24 @@ def qt_listener(signal) -> QtListener:
 
 @pytest.fixture
 def qt_handler(signal) -> QtPipeHandler:
-    handler = QtPipeHandler(name="handler",
-                            context=FakeContext(),  # type: ignore
-                            signals=ListenerSignals())
+    handler = QtPipeHandler(
+        name="handler",
+        context=FakeContext(),  # type: ignore
+        signals=ListenerSignals(),
+    )
     handler.signals.message = signal
     return handler
 
 
 class Test_handle_message:
     def test_handle_valid_jsonrpc(self, qt_handler: QtPipeHandler):
-        msg = Message("N.Pipe", "sender",
-                      data=Request(6, "abc"),
-                      message_type=MessageTypes.JSON,
-                      conversation_id=cid,
-                      )
+        msg = Message(
+            "N.Pipe",
+            "sender",
+            data=Request(6, "abc"),
+            message_type=MessageTypes.JSON,
+            conversation_id=cid,
+        )
         qt_handler.handle_message(msg)
         assert qt_handler.signals.message._content == msg  # type: ignore
 
@@ -77,12 +82,18 @@ class Test_handle_message:
         assert qt_handler.signals.message._content == msg  # type: ignore
 
     def test_local_method(self, qt_handler: QtPipeHandler):
-        msg = Message("handler", "sender",
-                      conversation_id=cid, message_type=MessageTypes.JSON,
-                      data=Request(3, "pong"))
+        msg = Message(
+            "handler",
+            "sender",
+            conversation_id=cid,
+            message_type=MessageTypes.JSON,
+            data=Request(3, "pong"),
+        )
         qt_handler.handle_message(msg)
         assert Message.from_frames(*qt_handler.socket._s[0]) == Message(  # type: ignore
-            "sender", "handler", conversation_id=cid, message_type=MessageTypes.JSON,
-            data=ResultResponse(3, None)
+            "sender",
+            "handler",
+            conversation_id=cid,
+            message_type=MessageTypes.JSON,
+            data=ResultResponse(3, None),
         )
-

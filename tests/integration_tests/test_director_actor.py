@@ -104,8 +104,9 @@ def director():
     log = logging.getLogger("test")
     stop_event = threading.Event()
     threads = []
-    threads.append(threading.Thread(target=start_coordinator,
-                                    kwargs=dict(namespace="N1", port=PORT)))
+    threads.append(
+        threading.Thread(target=start_coordinator, kwargs=dict(namespace="N1", port=PORT))
+    )
     threads.append(threading.Thread(target=start_actor, kwargs=dict(event=stop_event)))
     for thread in threads:
         thread.daemon = True

@@ -39,7 +39,6 @@ def get_parameters_fake(parameters):
 
 
 class FakeDirector(TransparentDirector):
-
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self.call_action = MagicMock()
@@ -54,8 +53,9 @@ class FantasyDevice(TransparentDevice):
 
 @pytest.fixture
 def director() -> TransparentDirector:
-    director = FakeDirector(device_class=FantasyDevice,
-                            communicator=FakeCommunicator(name="Communicator"))  # type: ignore
+    director = FakeDirector(
+        device_class=FantasyDevice, communicator=FakeCommunicator(name="Communicator")
+    )  # type: ignore
     return director
 
 

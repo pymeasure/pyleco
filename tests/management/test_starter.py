@@ -64,15 +64,13 @@ def test_sanitize_tasks(tasks):
         assert isinstance(t, str)
 
 
-@pytest.mark.parametrize("tasks, invalid_task_name", (
-        (5, 5),
-        (("valid", 6), 6),
-        ([["list"], "abc"], "['list']")),
+@pytest.mark.parametrize(
+    "tasks, invalid_task_name",
+    ((5, 5), (("valid", 6), 6), ([["list"], "abc"], "['list']")),
 )
 def test_invalid_tasks(tasks, invalid_task_name, caplog):
     assert sanitize_tasks(tasks) == ()
     assert caplog.messages[-1] == f"Invalid task name '{invalid_task_name}' received."
-
 
 
 def test_init(starter: Starter):
@@ -80,13 +78,16 @@ def test_init(starter: Starter):
     assert starter.threads == {}
 
 
-@pytest.mark.parametrize("pre, post", (
+@pytest.mark.parametrize(
+    "pre, post",
+    (
         (Status.STARTED | Status.INSTALLED, Status.STARTED | Status.INSTALLED),
         (None, Status.INSTALLED),  # not yet in the dict
         (Status.STARTED, Status.STARTED | Status.INSTALLED),
         (Status.STARTED | Status.RUNNING, Status.STARTED | Status.RUNNING | Status.INSTALLED),
         (Status.STOPPED, Status.INSTALLED),
-))
+    ),
+)
 def test_install_task(starter: Starter, pre: Status, post: Status):
     if pre is not None:
         starter.started_tasks["test"] = pre
@@ -104,12 +105,15 @@ def test_install_tasks(starter: Starter):
     assert_response_is_result(starter)
 
 
-@pytest.mark.parametrize("pre, post", (
+@pytest.mark.parametrize(
+    "pre, post",
+    (
         (Status.RUNNING | Status.INSTALLED, Status.RUNNING),
         (None, Status.STOPPED),  # not yet in the dict
         (Status.RUNNING, Status.RUNNING),
         (Status.STOPPED, Status.STOPPED),
-))
+    ),
+)
 def test_uninstall_task(starter: Starter, pre: Status, post: Status):
     if pre is not None:
         starter.started_tasks["test"] = pre

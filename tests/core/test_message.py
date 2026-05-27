@@ -42,7 +42,7 @@ def message() -> Message:
         data=[["GET", [1, 2]], ["GET", 3]],
         conversation_id=cid,
         message_id=b"mid",
-        message_type=int.from_bytes(b"T", byteorder="big")
+        message_type=int.from_bytes(b"T", byteorder="big"),
     )
 
 
@@ -74,8 +74,12 @@ class Test_Message_create_message:
     def test_message_without_data_does_not_have_payload_frame(self):
         message = Message(b"N1.receiver", b"N2.sender", conversation_id=b"conversation_id;")
         assert message.payload == []
-        assert message.to_frames() == [VERSION_B, b"N1.receiver", b"N2.sender",
-                                       b"conversation_id;\x00\x00\x00\x00"]
+        assert message.to_frames() == [
+            VERSION_B,
+            b"N1.receiver",
+            b"N2.sender",
+            b"conversation_id;\x00\x00\x00\x00",
+        ]
 
     def test_message_binary_data(self):
         message = Message(b"N1.receiver", data=b"binary data")
@@ -93,10 +97,14 @@ class Test_Message_create_message:
         message = Message(b"rec", additional_payload=[b"1", b"2"])
         assert message.payload == [b"1", b"2"]
 
-    @pytest.mark.parametrize("key, value", (("conversation_id", b"content"),
-                                            ("message_id", b"mid"),
-                                            ("message_type", 7),
-                                            ))
+    @pytest.mark.parametrize(
+        "key, value",
+        (
+            ("conversation_id", b"content"),
+            ("message_id", b"mid"),
+            ("message_type", 7),
+        ),
+    )
     def test_header_param_incompatible_with_header_element_params(self, key, value):
         with pytest.raises(ValueError, match="header"):
             Message(receiver=b"", header=b"whatever", **{key: value})
@@ -125,8 +133,7 @@ class Test_Message_from_frames:
 
 def test_to_frames_without_payload(message: Message):
     message.payload = []
-    assert message.to_frames() == [VERSION_B, b"N1.receiver", b"N2.sender",
-                                   b"conversation_id;midT"]
+    assert message.to_frames() == [VERSION_B, b"N1.receiver", b"N2.sender", b"conversation_id;midT"]
 
 
 class Test_Message_frame_splitting:
@@ -171,12 +178,12 @@ class Test_Message_data_payload_conversion:
     def test_data_to_payload(self):
         message = Message(b"r", b"s", data=([{5: "1asfd"}], 8), message_type=MessageTypes.JSON)
         assert message.payload == [serialize_data([[{"5": "1asfd"}], 8])]
-        assert message.data == [[{'5': "1asfd"}], 8]  # converted to and from json, so modified!
+        assert message.data == [[{"5": "1asfd"}], 8]  # converted to and from json, so modified!
 
     def test_payload_to_data(self):
-        frames = [b"v", b"r", b"s", b"h", b'[["G", ["nodes"]]]', b'p2']
+        frames = [b"v", b"r", b"s", b"h", b'[["G", ["nodes"]]]', b"p2"]
         message = Message.from_frames(*frames)
-        assert message.payload == [b'[["G", ["nodes"]]]', b'p2']
+        assert message.payload == [b'[["G", ["nodes"]]]', b"p2"]
         assert message.data == [["G", ["nodes"]]]
 
     def test_no_payload_is_no_data(self):
@@ -211,10 +218,12 @@ class TestComparison:
         assert m1 == m2
 
     def test_dictionary_order_is_irrelevant(self):
-        m1 = Message(b"r", conversation_id=cid, data={"a": 1, "b": 2},
-                     message_type=MessageTypes.JSON)
-        m2 = Message(b"r", conversation_id=cid, data={"b": 2, "a": 1},
-                     message_type=MessageTypes.JSON)
+        m1 = Message(
+            b"r", conversation_id=cid, data={"a": 1, "b": 2}, message_type=MessageTypes.JSON
+        )
+        m2 = Message(
+            b"r", conversation_id=cid, data={"b": 2, "a": 1}, message_type=MessageTypes.JSON
+        )
         assert m1 == m2
 
     def test_distinguish_empty_payload_frame(self):
@@ -230,12 +239,12 @@ class TestComparison:
 
 
 def test_repr():
-    message = Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')
+    message = Message.from_frames(b"V", b"rec", b"send", b"cid;mid", b"data")
     assert repr(message) == r"Message.from_frames(b'V', b'rec', b'send', b'cid;mid', b'data')"
 
 
 def test_repr_without_sender():
-    message = Message.from_frames(b'V', b'rec', b'', b'cid;mid', b'data')
+    message = Message.from_frames(b"V", b"rec", b"", b"cid;mid", b"data")
     assert repr(message) == r"Message.from_frames(b'V', b'rec', b'', b'cid;mid', b'data')"
 
 

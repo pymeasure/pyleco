@@ -79,9 +79,7 @@ class RpcHandler:
                     args = args_l  # type: ignore[assignment]
                 else:
                     kwargs["additional_payload"] = self.current_message.payload[1:]
-                return_value = method(
-                    *args, **kwargs
-                )
+                return_value = method(*args, **kwargs)
                 return returner(return_value=return_value)  # type: ignore
         else:
 

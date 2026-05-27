@@ -27,8 +27,14 @@ from typing import Union
 import pytest
 
 from pyleco.json_utils.json_objects import Request, ErrorResponse
-from pyleco.json_utils.errors import (JSONRPCError, NODE_UNKNOWN, NOT_SIGNED_IN, DUPLICATE_NAME,
-                                      RECEIVER_UNKNOWN, PARSE_ERROR)
+from pyleco.json_utils.errors import (
+    JSONRPCError,
+    NODE_UNKNOWN,
+    NOT_SIGNED_IN,
+    DUPLICATE_NAME,
+    RECEIVER_UNKNOWN,
+    PARSE_ERROR,
+)
 
 from pyleco.json_utils.rpc_generator import RPCGenerator, INVALID_SERVER_RESPONSE
 
@@ -38,15 +44,22 @@ def generator() -> RPCGenerator:
     return RPCGenerator()
 
 
-@pytest.mark.parametrize("method, args, kwargs, result", (
+@pytest.mark.parametrize(
+    "method, args, kwargs, result",
+    (
         ("meth", (), {}, '{"id":1,"method":"meth","jsonrpc":"2.0"}'),
-        ("with args", (5, ), {},
-         '{"id":1,"method":"with args","params":[5],"jsonrpc":"2.0"}'),
-        ("with kwargs", (), {'kwarg': 7},
-         '{"id":1,"method":"with kwargs","params":{"kwarg":7},"jsonrpc":"2.0"}'),
-))
-def test_build_request_str(generator: RPCGenerator, method: str, args: tuple, kwargs: dict,
-                           result: str) -> None:
+        ("with args", (5,), {}, '{"id":1,"method":"with args","params":[5],"jsonrpc":"2.0"}'),
+        (
+            "with kwargs",
+            (),
+            {"kwarg": 7},
+            '{"id":1,"method":"with kwargs","params":{"kwarg":7},"jsonrpc":"2.0"}',
+        ),
+    ),
+)
+def test_build_request_str(
+    generator: RPCGenerator, method: str, args: tuple, kwargs: dict, result: str
+) -> None:
     assert generator.build_request_str(method, *args, **kwargs) == result
 
 
@@ -107,13 +120,16 @@ def test_build_json_str_auto_id(generator: RPCGenerator):
     assert result == '{"id":2,"method":"meth","jsonrpc":"2.0"}'
 
 
-@pytest.mark.parametrize("response, result", (
+@pytest.mark.parametrize(
+    "response, result",
+    (
         ('{"id": 5, "result": 7.9, "jsonrpc": "2.0"}', 7.9),
         (b'{"id": 5, "result": 7.9, "jsonrpc": "2.0"}', 7.9),  # bytes version
         ('{"id": 7, "result": null, "jsonrpc": "2.0"}', None),
         ('{"id": 8, "result": [5, 8.9], "jsonrpc": "2.0"}', [5, 8.9]),
         ('{"id": 9, "result": "whatever", "jsonrpc": "2.0"}', "whatever"),
-))
+    ),
+)
 def test_get_result_from_response(generator: RPCGenerator, response: Union[bytes, str], result):
     assert generator.get_result_from_response(response) == result
 

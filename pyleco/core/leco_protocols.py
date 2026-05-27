@@ -67,6 +67,7 @@ For unit test, that all the necessary methods are reachable via RPC, the followi
 """
 
 from __future__ import annotations
+
 try:
     from enum import StrEnum  # type: ignore
 except ImportError:
@@ -75,6 +76,7 @@ except ImportError:
 
     class StrEnum(str, Enum):  # type: ignore
         pass
+
 
 from typing import Any, Iterable, Protocol, Sequence
 
@@ -89,6 +91,7 @@ class ComponentProtocol(Protocol):
 
 class LogLevels(StrEnum):
     """Log levels for :meth:`ExtendedComponentProtocol.set_log_level` method."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"

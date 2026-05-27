@@ -54,15 +54,16 @@ class DataLoggerDirector(Director):
         valuing_mode: ValuingModes | None = None,
         value_repeating: bool | None = None,
     ) -> None:
-        self.ask_rpc(method="start_collecting",
-                     trigger_type=trigger_type,
-                     trigger_timeout=trigger_timeout,
-                     trigger_variable=trigger_variable,
-                     variables=variables,
-                     units=units,
-                     valuing_mode=valuing_mode,
-                     value_repeating=value_repeating,
-                     )
+        self.ask_rpc(
+            method="start_collecting",
+            trigger_type=trigger_type,
+            trigger_timeout=trigger_timeout,
+            trigger_variable=trigger_variable,
+            variables=variables,
+            units=units,
+            valuing_mode=valuing_mode,
+            value_repeating=value_repeating,
+        )
 
     def get_last_datapoint(self) -> dict[str, Any]:
         """Read the last datapoint."""

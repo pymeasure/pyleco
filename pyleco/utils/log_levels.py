@@ -30,6 +30,7 @@ from ..core.leco_protocols import LogLevels
 
 class PythonLogLevels(IntEnum):
     """Attribution of Python log levels to the LECO ones."""
+
     DEBUG = logging.DEBUG
     INFO = logging.INFO
     WARNING = logging.WARNING

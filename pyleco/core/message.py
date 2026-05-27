@@ -28,9 +28,16 @@ from typing import Any, Iterable
 
 
 from . import VERSION_B
-from .serialization import (create_header_frame, serialize_data, interpret_header, split_name,
-                            deserialize_data, FullName, Header, MessageTypes,
-                            )
+from .serialization import (
+    create_header_frame,
+    serialize_data,
+    interpret_header,
+    split_name,
+    deserialize_data,
+    FullName,
+    Header,
+    MessageTypes,
+)
 
 __all__ = [
     "Message",
@@ -76,10 +83,15 @@ class Message:
         self.sender = sender.encode() if isinstance(sender, str) else sender
         if header and (conversation_id or message_id or message_type != MessageTypes.NOT_DEFINED):
             raise ValueError(
-                "You may not specify the header and some header element at the same time!")
-        self.header = (create_header_frame(conversation_id=conversation_id, message_id=message_id,
-                                           message_type=message_type)
-                       if header is None else header)
+                "You may not specify the header and some header element at the same time!"
+            )
+        self.header = (
+            create_header_frame(
+                conversation_id=conversation_id, message_id=message_id, message_type=message_type
+            )
+            if header is None
+            else header
+        )
         if isinstance(data, bytes):
             self.payload = [data]
         elif isinstance(data, str):
@@ -92,8 +104,9 @@ class Message:
             self.payload.extend(additional_payload)
 
     @classmethod
-    def from_frames(cls, version: bytes, receiver: bytes, sender: bytes, header: bytes,
-                    *payload: bytes) -> Message:  # -> typing.Self for py>=3.11
+    def from_frames(
+        cls, version: bytes, receiver: bytes, sender: bytes, header: bytes, *payload: bytes
+    ) -> Message:  # -> typing.Self for py>=3.11
         """Create a message from a frames list, for example after reading from a socket.
 
         .. code::
@@ -152,10 +165,12 @@ class Message:
             # Maybe the payload is binary, compare the raw payload
             return partial_comparison and self.payload == other.payload
         else:
-            return (partial_comparison and my_data == other_data
-                    and self.payload[1:] == other.payload[1:])
+            return (
+                partial_comparison
+                and my_data == other_data
+                and self.payload[1:] == other.payload[1:]
+            )
 
     def __repr__(self) -> str:
-        list_of_frames_strings = [
-            str(frame) for frame in self._to_frames_without_sender_check()]
+        list_of_frames_strings = [str(frame) for frame in self._to_frames_without_sender_check()]
         return f"Message.from_frames({', '.join(list_of_frames_strings)})"

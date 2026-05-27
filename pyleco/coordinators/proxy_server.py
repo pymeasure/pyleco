@@ -82,7 +82,7 @@ def pub_sub_proxy(
             f"Start remote proxy server subsribing to {sub}:{_port - 1} and publishing to "
             f"{pub}:{_port}."
         )
-        s.connect(f"tcp://{sub}:{port -1 - 2 * offset}")
+        s.connect(f"tcp://{sub}:{port - 1 - 2 * offset}")
         p.connect(f"tcp://{pub}:{port - 2 * offset}")
 
     if captured:
@@ -147,9 +147,7 @@ def start_proxy(
     return context
 
 
-def main(
-    arguments: list[str] | None = None, stop_event: threading.Event | None = None
-) -> None:
+def main(arguments: list[str] | None = None, stop_event: threading.Event | None = None) -> None:
     from argparse import ArgumentParser
     from pyleco.utils.parser import parse_command_line_parameters
 

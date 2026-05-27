@@ -249,7 +249,7 @@ class Directory:
         self.rpc_generator = RPCGenerator()
 
     def add_component(self, name: bytes, identity: bytes) -> None:
-        if (component := self._components.get(name)):
+        if component := self._components.get(name):
             if component.identity == identity:
                 component.heartbeat = perf_counter()
             else:
@@ -316,11 +316,14 @@ class Directory:
         if isinstance(data, dict) and data.get("result", False) is None:
             self._finish_sign_in_to_remote(key=key, message=message)
         elif isinstance(data, dict) and (error := data.get("error") is not None):
-            log.error(f"Coordinator sign in to node {message.sender_elements.namespace!r} failed with '{error}'.")  # noqa: E501
+            log.error(
+                f"Coordinator sign in to node {message.sender_elements.namespace!r} failed with '{error}'."  # noqa: E501
+            )
             self._remove_waiting_node(key=key)
         else:
             log.warning(
-                f"Unknown message {message.payload!r} from {message.sender!r} at DEALER socket '{key}'.")  # noqa: E501
+                f"Unknown message {message.payload!r} from {message.sender!r} at DEALER socket '{key}'."  # noqa: E501
+            )
 
     def _finish_sign_in_to_remote(self, key: str, message: Message) -> None:
         node = self._waiting_nodes.pop(key)
@@ -401,7 +404,8 @@ class Directory:
             # the other Coordinator is not known yet (reconnection)
             raise CommunicationError(
                 f"Message payload '{message.payload}' from not signed in Component {message.sender!r} or node.",  # noqa: E501
-                error_payload=ErrorResponse(id=None, error=NOT_SIGNED_IN))
+                error_payload=ErrorResponse(id=None, error=NOT_SIGNED_IN),
+            )
 
     def _update_local_sender_heartbeat(self, sender_identity: bytes, message: Message) -> None:
         component = self._components.get(message.sender_elements.name)
@@ -411,15 +415,17 @@ class Directory:
             else:
                 raise CommunicationError(
                     DUPLICATE_NAME.message,
-                    error_payload=ErrorResponse(id=None, error=DUPLICATE_NAME)
+                    error_payload=ErrorResponse(id=None, error=DUPLICATE_NAME),
                 )
-        elif message.payload and (b'"sign_in"' in message.payload[0]
-                                  or b'"sign_out"' in message.payload[0]):
+        elif message.payload and (
+            b'"sign_in"' in message.payload[0] or b'"sign_out"' in message.payload[0]
+        ):
             pass  # Signing in, no heartbeat yet
         else:
             raise CommunicationError(
                 f"Message payload '{message.payload}' from not signed in Component {message.sender!r}.",  # noqa: E501
-                error_payload=ErrorResponse(id=None, error=NOT_SIGNED_IN))
+                error_payload=ErrorResponse(id=None, error=NOT_SIGNED_IN),
+            )
 
     def find_expired_components(self, expiration_time: float) -> list[tuple[bytes, bytes]]:
         """Find expired components, return those to admonish, and remove those too old."""

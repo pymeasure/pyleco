@@ -105,7 +105,7 @@ class LockingActor(Actor, Generic[Device]):
         else:
             elements = resource.split(".")
         for i in range(-1, len(elements)):
-            local_owner = self._locks.get(".".join(elements[:i + 1])) if i >= 0 else None
+            local_owner = self._locks.get(".".join(elements[: i + 1])) if i >= 0 else None
             if local_owner is not None and requester != local_owner:
                 return False
         return True

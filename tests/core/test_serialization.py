@@ -35,10 +35,18 @@ from pyleco.core.serialization import JsonContentTypes, get_json_content_type
 
 
 class Test_create_header_frame:
-    @pytest.mark.parametrize("kwargs, header", (
-        ({"conversation_id": b"\x00" * 16, }, bytes([0] * 20)),
-        ({"conversation_id": b"\x00" * 16, "message_type": b"5"}, bytes([0] * 19) + b"5")
-    ))
+    @pytest.mark.parametrize(
+        "kwargs, header",
+        (
+            (
+                {
+                    "conversation_id": b"\x00" * 16,
+                },
+                bytes([0] * 20),
+            ),
+            ({"conversation_id": b"\x00" * 16, "message_type": b"5"}, bytes([0] * 19) + b"5"),
+        ),
+    )
     def test_create_header_frame(self, kwargs, header):
         assert serialization.create_header_frame(**kwargs) == header
 
@@ -58,25 +66,32 @@ class Test_create_header_frame:
             serialization.create_header_frame(message_type=bytes([0] * mtl))
 
 
-@pytest.mark.parametrize("header, conversation_id, message_id, message_type", (
-        (bytes(range(20)), bytes(range(16)), b"\x10\x11\x12", 19),
-))
+@pytest.mark.parametrize(
+    "header, conversation_id, message_id, message_type",
+    ((bytes(range(20)), bytes(range(16)), b"\x10\x11\x12", 19),),
+)
 def test_interpret_header(header, conversation_id, message_id, message_type):
     assert serialization.interpret_header(header) == (conversation_id, message_id, message_type)
 
 
-@pytest.mark.parametrize("full_name, node, name", (
-    (b"local only", b"node", b"local only"),
-    (b"abc.def", b"abc", b"def"),
-))
+@pytest.mark.parametrize(
+    "full_name, node, name",
+    (
+        (b"local only", b"node", b"local only"),
+        (b"abc.def", b"abc", b"def"),
+    ),
+)
 def test_split_name(full_name, node, name):
     assert serialization.split_name(full_name, b"node") == (node, name)
 
 
-@pytest.mark.parametrize("full_name, node, name", (
-    ("local only", "node", "local only"),
-    ("abc.def", "abc", "def"),
-))
+@pytest.mark.parametrize(
+    "full_name, node, name",
+    (
+        ("local only", "node", "local only"),
+        ("abc.def", "abc", "def"),
+    ),
+)
 def test_split_name_str(full_name, node, name):
     assert serialization.split_name_str(full_name, "node") == (node, name)
 
@@ -149,8 +164,7 @@ def test_json_type_error_is_response():
 
 
 # Methods for get_json_content_type
-def create_request(method: str, params: list | dict | None = None, id: int = 1
-                   ) -> dict[str, Any]:
+def create_request(method: str, params: list | dict | None = None, id: int = 1) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id, "method": method, "params": params}
 
 
@@ -163,28 +177,40 @@ def create_error(error_code: int, error_message: str, id: int = 1) -> dict[str, 
 
 
 class Test_get_json_content_type:
-    @pytest.mark.parametrize("data, type", (
+    @pytest.mark.parametrize(
+        "data, type",
+        (
             (create_request("abc"), JsonContentTypes.REQUEST),
             ([create_request(method="abc")] * 2, JsonContentTypes.REQUEST | JsonContentTypes.BATCH),
             (create_result(None), JsonContentTypes.RESULT_RESPONSE),
-            ([create_result(None), create_result(5, 7)],
-             JsonContentTypes.RESULT_RESPONSE | JsonContentTypes.BATCH),
+            (
+                [create_result(None), create_result(5, 7)],
+                JsonContentTypes.RESULT_RESPONSE | JsonContentTypes.BATCH,
+            ),
             (create_error(89, "whatever"), JsonContentTypes.ERROR_RESPONSE),
-            ([create_error(89, "xy")] * 2,
-             JsonContentTypes.ERROR_RESPONSE | JsonContentTypes.BATCH),
-            ([create_result(4), create_error(32, "xy")],  # batch of result and error
-             JsonContentTypes.RESULT_RESPONSE | JsonContentTypes.BATCH | JsonContentTypes.ERROR),
-    ))
+            (
+                [create_error(89, "xy")] * 2,
+                JsonContentTypes.ERROR_RESPONSE | JsonContentTypes.BATCH,
+            ),
+            (
+                [create_result(4), create_error(32, "xy")],  # batch of result and error
+                JsonContentTypes.RESULT_RESPONSE | JsonContentTypes.BATCH | JsonContentTypes.ERROR,
+            ),
+        ),
+    )
     def test_data_is_valid_type(self, data, type):
         assert get_json_content_type(data) == type
 
-    @pytest.mark.parametrize("data", (
-        {},
-        [],
-        [{}],
-        {"some": "thing"},
-        5.6,
-        "adsfasdf",
-    ))
+    @pytest.mark.parametrize(
+        "data",
+        (
+            {},
+            [],
+            [{}],
+            {"some": "thing"},
+            5.6,
+            "adsfasdf",
+        ),
+    )
     def test_invalid_data(self, data):
         assert get_json_content_type(data) == JsonContentTypes.INVALID

@@ -144,9 +144,7 @@ class Method:
         return {"name": "result", "schema": schema}
 
 
-def _python_type_to_schema(
-    annotation: Any, param_name: str = ""
-) -> dict[str, Any]:
+def _python_type_to_schema(annotation: Any, param_name: str = "") -> dict[str, Any]:
     """Convert a Python type annotation to a JSON Schema dict for Open-RPC."""
     if annotation is inspect.Parameter.empty or annotation is None:
         return {}
@@ -169,10 +167,7 @@ def _python_type_to_schema(
     if origin is not None:
         args = typing.get_args(annotation)
         if origin is Union or origin is getattr(types, "UnionType", None):
-            sub_schemas = [
-                s for s in (_python_type_to_schema(a, param_name) for a in args)
-                if s
-            ]
+            sub_schemas = [s for s in (_python_type_to_schema(a, param_name) for a in args) if s]
             if sub_schemas:
                 return {"oneOf": sub_schemas}
             return {}
@@ -282,9 +277,7 @@ class RPCServer:
             result = self.process_request_object(json_obj)
         return result.model_dump_json() if result is not None else None
 
-    def process_request_object(
-        self, json_data: object
-    ) -> JsonRpcResponse | JsonRpcBatch | None:
+    def process_request_object(self, json_data: object) -> JsonRpcResponse | JsonRpcBatch | None:
         """Process a JSON-RPC request executing the associated method."""
         try:
             obj = get_json_object(json_data)

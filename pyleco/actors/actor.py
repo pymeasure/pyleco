@@ -135,9 +135,7 @@ class Actor(MessageHandler, Generic[Device]):
         exc_value: BaseException | None,
         exc_traceback: TracebackType | None,
     ) -> bool | None:
-        result = super().__exit__(
-            exc_type, exc_value, exc_traceback
-        )
+        result = super().__exit__(exc_type, exc_value, exc_traceback)
         self.disconnect()
         return result
 

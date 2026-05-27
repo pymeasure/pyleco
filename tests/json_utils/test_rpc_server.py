@@ -61,6 +61,8 @@ def rpc_generator() -> RPCGenerator:
 
 
 args = None
+
+
 def side_effect_method(arg=None) -> int:
     global args
     args = (arg,)
@@ -222,7 +224,6 @@ def test_notifications_do_not_return_anything(rpc_server: RPCServer, input: Requ
 
 
 class Test_discover_method:
-
     @pytest.fixture
     def discovered(self, rpc_server: RPCServer, rpc_generator: RPCGenerator) -> dict:
         request = Request(1, "rpc.discover")
@@ -507,40 +508,49 @@ class Test_python_type_to_schema:
 
     def test_str(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         assert _python_type_to_schema(str) == {"type": "string"}
 
     def test_int(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         assert _python_type_to_schema(int) == {"type": "integer"}
 
     def test_float(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         assert _python_type_to_schema(float) == {"type": "number"}
 
     def test_bool(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         assert _python_type_to_schema(bool) == {"type": "boolean"}
 
     def test_list(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         assert _python_type_to_schema(list) == {"type": "array"}
 
     def test_dict(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         assert _python_type_to_schema(dict) == {"type": "object"}
 
     def test_none_type(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         assert _python_type_to_schema(type(None)) == {"type": "null"}
 
     def test_optional_int(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         result = _python_type_to_schema(Optional[int])
         assert result == {"oneOf": [{"type": "integer"}, {"type": "null"}]}
 
     def test_pep604_union(self):
         import sys
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         if sys.version_info < (3, 10):
             pytest.skip("PEP 604 unions require Python 3.10+")
         result = _python_type_to_schema(eval("int | str"))
@@ -548,17 +558,20 @@ class Test_python_type_to_schema:
 
     def test_list_of_str(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         result = _python_type_to_schema(List[str])
         assert result == {"type": "array", "items": {"type": "string"}}
 
     def test_dict_str_int(self):
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         result = _python_type_to_schema(Dict[str, int])
         assert result == {"type": "object", "additionalProperties": {"type": "integer"}}
 
     def test_empty_annotation(self):
         import inspect
         from pyleco.json_utils.rpc_server import _python_type_to_schema
+
         assert _python_type_to_schema(inspect.Parameter.empty) == {}
 
     def test_custom_class(self):

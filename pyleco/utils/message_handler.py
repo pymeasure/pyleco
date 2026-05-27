@@ -39,7 +39,6 @@ from .rpc_handler import RpcHandler
 from .zmq_log_handler import ZmqLogHandler
 
 
-
 ReturnValue = TypeVar("ReturnValue")
 
 

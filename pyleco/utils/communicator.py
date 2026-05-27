@@ -151,9 +151,9 @@ class Communicator(BaseCommunicator):
                 pass  # sign in required, retry
         raise ConnectionRefusedError(NOT_SIGNED_IN.message)
 
-    def ask_json(self, receiver: bytes | str, json_string: str,
-                 timeout: float | None = None
-                 ) -> bytes:
+    def ask_json(
+        self, receiver: bytes | str, json_string: str, timeout: float | None = None
+    ) -> bytes:
         message = Message(receiver=receiver, data=json_string, message_type=MessageTypes.JSON)
         response = self.ask_message(message=message, timeout=timeout)
         return response.payload[0]

@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 import datetime
+
 try:
     from enum import StrEnum  # type: ignore
 except ImportError:  # pragma: no cover
@@ -32,6 +33,8 @@ except ImportError:  # pragma: no cover
 
     class StrEnum(str, Enum):  # type: ignore
         pass
+
+
 import json
 import logging
 from threading import Lock
@@ -40,6 +43,7 @@ from typing import Any, Callable, Iterable, Sequence
 try:
     import numpy as np  # type: ignore[import-not-found]
 except ModuleNotFoundError:
+
     def average(values: Sequence[float | int]) -> float:
         return sum(values) / len(values)
 else:
@@ -139,8 +143,11 @@ class DataLogger(ExtendedMessageHandler):
     def __del__(self) -> None:
         self.stop_collecting()
 
-    def _listen_setup(self, start_data: dict[str, Any] | None = None,  # type: ignore[override]
-                      **kwargs: Any) -> Poller:
+    def _listen_setup(
+        self,
+        start_data: dict[str, Any] | None = None,  # type: ignore[override]
+        **kwargs: Any,
+    ) -> Poller:
         poller = super()._listen_setup(**kwargs)
         if start_data is not None:
             self.start_collecting(**start_data)
@@ -188,13 +195,13 @@ class DataLogger(ExtendedMessageHandler):
         """Calculate data for a data point and return the data point."""
         datapoint = {}
         with self.list_lock:
-            if 'time' in self.lists.keys():
+            if "time" in self.lists.keys():
                 now = datetime.datetime.now(datetime.timezone.utc)
                 today = datetime.datetime.combine(
                     self.today, datetime.time(), datetime.timezone.utc
                 )
                 time = (now - today).total_seconds()
-                self.tmp['time'].append(time)
+                self.tmp["time"].append(time)
             for variable, datalist in self.lists.items():
                 value = datapoint[variable] = self.calculate_single_data(
                     variable, self.tmp[variable]
@@ -245,8 +252,10 @@ class DataLogger(ExtendedMessageHandler):
         If you do not give a specific parameter, the value of the last measurement is used again.
         """
         self.stop_collecting()
-        log.info(f"Start collecting data. Trigger: {trigger_type}, {trigger_timeout}, "
-                 f"{trigger_variable}; subscriptions: {variables}")
+        log.info(
+            f"Start collecting data. Trigger: {trigger_type}, {trigger_timeout}, "
+            f"{trigger_variable}; subscriptions: {variables}"
+        )
         self.today = datetime.datetime.now(datetime.timezone.utc).date()
         self.trigger_type = TriggerTypes(trigger_type) if trigger_type else self._last_trigger_type
         self._last_trigger_type = self.trigger_type
@@ -273,7 +282,9 @@ class DataLogger(ExtendedMessageHandler):
                 if len(parts) == 2:
                     # assume to be in the same namespace
                     if self.namespace is None:
-                        log.error(f"Cannot subscribe to '{variable}' as the namespace is not known.")  # noqa
+                        log.error(
+                            f"Cannot subscribe to '{variable}' as the namespace is not known."
+                        )  # noqa
                         continue
                     parts.insert(0, self.namespace)
                     variable = ".".join(parts)
@@ -320,17 +331,19 @@ class DataLogger(ExtendedMessageHandler):
         folder = self.directory
         # Pickle the header and lists.
         file_name = datetime.datetime.now().strftime("%Y_%m_%dT%H_%M_%S") + suffix
-        meta.update({
-            'units': self.units,
-            'today': self.today.isoformat(),
-            'file_name': file_name,
-            'logger_name': self.full_name,
-            'configuration': self.get_configuration(),
-            # 'user': self.user_data,  # user stored meta data
-        })
+        meta.update(
+            {
+                "units": self.units,
+                "today": self.today.isoformat(),
+                "file_name": file_name,
+                "logger_name": self.full_name,
+                "configuration": self.get_configuration(),
+                # 'user': self.user_data,  # user stored meta data
+            }
+        )
         try:
             with self.list_lock:
-                with open(f"{folder}/{file_name}.json", 'w') as file:
+                with open(f"{folder}/{file_name}.json", "w") as file:
                     json.dump(obj=(header, self.lists, meta), fp=file)
         except TypeError as exc:
             log.exception("Some type error during saving occurred.", exc_info=exc)
@@ -359,17 +372,17 @@ class DataLogger(ExtendedMessageHandler):
         """Get the currently used configuration as a dictionary."""
         config: dict[str, Any] = {}
         # Trigger
-        config['trigger_type'] = self.trigger_type.value
-        config['trigger_timeout'] = self.trigger_timeout
-        config['trigger_variable'] = self.trigger_variable
+        config["trigger_type"] = self.trigger_type.value
+        config["trigger_timeout"] = self.trigger_timeout
+        config["trigger_variable"] = self.trigger_variable
         # Value
         vm = ValuingModes.LAST if self.valuing == self.last else ValuingModes.AVERAGE
-        config['valuing_mode'] = vm.value
-        config['value_repeating'] = self.value_repeating
+        config["valuing_mode"] = vm.value
+        config["value_repeating"] = self.value_repeating
         # Header and Variables.
         with self.list_lock:
-            config['variables'] = list(self.lists.keys())
-        config['units'] = self.units
+            config["variables"] = list(self.lists.keys())
+        config["units"] = self.units
         # config['autoSave'] = self.actionAutoSave.isChecked()
         return config
 
@@ -391,12 +404,12 @@ class DataLogger(ExtendedMessageHandler):
 def main() -> None:
     """Start a datalogger at script execution."""
     parser.description = "Log data."
-    parser.add_argument("-d", "--directory",
-                        help="set the directory to save the data to")
+    parser.add_argument("-d", "--directory", help="set the directory to save the data to")
 
     gLog = logging.getLogger()  # print all log entries!
-    kwargs = parse_command_line_parameters(parser=parser, parser_description="Log data.",
-                                           logger=gLog)
+    kwargs = parse_command_line_parameters(
+        parser=parser, parser_description="Log data.", logger=gLog
+    )
     if not gLog.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(StrFormatter)

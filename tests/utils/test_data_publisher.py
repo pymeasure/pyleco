@@ -40,8 +40,7 @@ def test_socket_type(publisher: DataPublisher):
 
 
 def test_connection():
-    publisher = DataPublisher(full_name="", host="localhost", port=12345,
-                              context=FakeContext())  # type: ignore
+    publisher = DataPublisher(full_name="", host="localhost", port=12345, context=FakeContext())  # type: ignore
     assert publisher.socket.addr == "tcp://localhost:12345"
 
 
@@ -74,7 +73,7 @@ def test_send_message(publisher: DataPublisher):
 
 def test_send_legacy(publisher: DataPublisher):
     value = 5.67
-    publisher.send_legacy({'key': value})
+    publisher.send_legacy({"key": value})
     message = DataMessage.from_frames(*publisher.socket._s[0])  # type: ignore
     assert message.topic == b"key"
     assert message.payload[0] == pickle.dumps(value)

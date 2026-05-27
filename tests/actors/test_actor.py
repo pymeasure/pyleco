@@ -54,7 +54,6 @@ class FantasyChannel:
 
 
 class FantasyInstrument:
-
     def __init__(self, adapter, name: str = "FantasyInstrument", *args: Any, **kwargs: Any):
         self.name = name
         self.adapter = adapter
@@ -84,7 +83,7 @@ class FantasyInstrument:
         self._method_value = value
 
     def returning_method(self, value):
-        return value ** 2
+        return value**2
 
     @property
     def long(self):
@@ -99,7 +98,6 @@ class FantasyInstrument:
 
 
 class FakeActor(Actor):
-
     def queue_readout(self):
         logging.getLogger().info(f"queue: {time.perf_counter()}")
         super().queue_readout()
@@ -133,6 +131,7 @@ class TestProtocolImplemented:
     def static_test_methods_are_present(self):
         def testing(component: ExtendedActorProtocol):
             pass
+
         testing(FakeActor(name="test", device_class=FantasyInstrument))
 
     @pytest.fixture
@@ -144,18 +143,23 @@ class TestProtocolImplemented:
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):
         for m in component_methods:
-            if m.get('name') == method:
+            if m.get("name") == method:
                 return
         raise AssertionError(f"Method {method} is not available.")
 
 
-@pytest.mark.skipif(version_info.minor < 9,
-                    reason="It is deprecated, because it does not work for python<3.9.")
+@pytest.mark.skipif(
+    version_info.minor < 9, reason="It is deprecated, because it does not work for python<3.9."
+)
 def test_deprecated_cls_argument():
     with pytest.warns(FutureWarning, match="`cls` is deprecated"):
-        actor = FakeActor("test", cls=FantasyInstrument, auto_connect={'adapter': MagicMock()},
-                          port=1234,
-                          protocol="inproc")
+        actor = FakeActor(
+            "test",
+            cls=FantasyInstrument,
+            auto_connect={"adapter": MagicMock()},
+            port=1234,
+            protocol="inproc",
+        )
         assert actor.device_class == FantasyInstrument
 
 
@@ -192,6 +196,7 @@ def test_set_channel_parameters(actor: Actor):
     handle_request_message(actor, "set_parameters", {"channel.channel_property": 10})
     assert_response_is_result(actor)
     assert actor.device.channel.channel_property == 10
+
 
 def test_set_nested_channel_parameters(actor: Actor):
     handle_request_message(actor, "set_parameters", {"channel.trace.channel_property": 10})
@@ -233,8 +238,9 @@ def test_register_device_method(actor: Actor):
 class Test_disconnect:
     @pytest.fixture
     def disconnected_actor(self):
-        actor = FakeActor("name", device_class=FantasyInstrument,
-                          auto_connect={"adapter": MagicMock()})
+        actor = FakeActor(
+            "name", device_class=FantasyInstrument, auto_connect={"adapter": MagicMock()}
+        )
         actor._device = actor.device  # type: ignore
         actor.device.adapter.close = MagicMock()
         actor.disconnect()
@@ -265,8 +271,10 @@ class Test_listen_loop_element:
         actor.queue_readout()  # enqueue a readout
         actor.readout = MagicMock()  # type: ignore
         # act
-        socks = actor._listen_loop_element(poller=poller,  # type: ignore
-                                           waiting_time=None)
+        socks = actor._listen_loop_element(
+            poller=poller,  # type: ignore
+            waiting_time=None,
+        )
         actor._socks = socks  # type: ignore  # for assertions
         return actor
 
@@ -282,8 +290,10 @@ class Test_listen_loop_element:
         poller.register(actor.pipeL)
         actor.readout = MagicMock()  # type: ignore
         # act
-        actor._listen_loop_element(poller=poller,  # type: ignore
-                                   waiting_time=0)
+        actor._listen_loop_element(
+            poller=poller,  # type: ignore
+            waiting_time=0,
+        )
         actor.readout.assert_not_called()
 
 

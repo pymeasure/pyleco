@@ -45,8 +45,13 @@ class ZmqLogHandler(QueueHandler):
 
     full_name: str
 
-    def __init__(self, context: zmq.Context | None = None, host: str = "localhost",
-                 port: int = LOG_RECEIVING_PORT, full_name: str = "") -> None:
+    def __init__(
+        self,
+        context: zmq.Context | None = None,
+        host: str = "localhost",
+        port: int = LOG_RECEIVING_PORT,
+        full_name: str = "",
+    ) -> None:
         publisher = DataPublisher(full_name=full_name, host=host, port=port, context=context)
         super().__init__(publisher)  # type: ignore
         self.full_name = full_name
@@ -54,7 +59,7 @@ class ZmqLogHandler(QueueHandler):
     def prepare(self, record: logging.LogRecord) -> list[str]:
         """Prepare a json serializable message from the record in order to send it."""
         record.message = record.getMessage()
-        record.asctime = time.strftime('%Y-%m-%d %H:%M:%S')
+        record.asctime = time.strftime("%Y-%m-%d %H:%M:%S")
         tmp = [record.asctime, str(record.levelname), str(record.name)]
         s = self.format(record)
         if record.exc_info:

@@ -33,6 +33,7 @@ from .utils.message_handler import MessageHandler
 if TYPE_CHECKING:
     from .actors.actor import Actor
 
+
 class FakeContext:
     """A fake context instance, similar to the result of `zmq.Context.instance()."""
 
@@ -83,20 +84,26 @@ class FakeSocket:
     def disconnect(self, addr: str | None = None) -> None:
         self.addr = None
 
-    def poll(self, timeout: int | None = None,
-             flags: int = "PollEvent.POLLIN") -> int:  # type: ignore
+    def poll(self, timeout: int | None = None, flags: int = "PollEvent.POLLIN") -> int:  # type: ignore
         """Poll the socket for events.
 
         :returns: poll event mask (POLLIN, POLLOUT), 0 if the timeout was reached without an event.
         """
         return 1 if len(self._r) else 0
 
-    def recv_multipart(self, flags: int = 0, *, copy: bool = True, track: bool = False
-                       ) -> list[bytes]:
+    def recv_multipart(
+        self, flags: int = 0, *, copy: bool = True, track: bool = False
+    ) -> list[bytes]:
         return self._r.pop(0)
 
-    def send_multipart(self, msg_parts: Sequence, flags: int = 0, copy: bool = True,
-                       track: bool = False, **kwargs: Any) -> None:
+    def send_multipart(
+        self,
+        msg_parts: Sequence,
+        flags: int = 0,
+        copy: bool = True,
+        track: bool = False,
+        **kwargs: Any,
+    ) -> None:
         for i, part in enumerate(msg_parts):
             if not isinstance(part, bytes):
                 # Similar to real error message.
@@ -132,6 +139,7 @@ class FakeSocket:
 
 class FakePoller:
     """A fake zmq poller."""
+
     def __init__(self) -> None:
         self._sockets: list[FakeSocket] = []
 
@@ -143,9 +151,11 @@ class FakePoller:
                 events.append((sock, 1))
         return events
 
-    def register(self, socket: FakeSocket,
-                 flags: int = "PollEvent.POLLIN",  # type: ignore
-                 ) -> None:
+    def register(
+        self,
+        socket: FakeSocket,
+        flags: int = "PollEvent.POLLIN",  # type: ignore
+    ) -> None:
         self._sockets.append(socket)
 
     def unregister(self, socket: FakeSocket) -> None:

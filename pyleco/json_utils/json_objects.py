@@ -105,9 +105,7 @@ class Request(JsonRpcRequest):
 class ParamsRequest(JsonRpcRequest):
     """Request the result of a remote call with parameters."""
 
-    def __init__(
-        self, id: int | str, method: str, params: list | dict, jsonrpc: str = "2.0"
-    ):
+    def __init__(self, id: int | str, method: str, params: list | dict, jsonrpc: str = "2.0"):
         super().__init__(id=id, method=method, params=params, jsonrpc=jsonrpc)
 
 

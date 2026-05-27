@@ -94,9 +94,10 @@ def test_parse_data_error_response():
         "jsonrpc": "2.0",
     }
     parsed_object = get_json_object(error_response_data)
-    assert parsed_object.model_dump() == JsonRpcResponse(
-        id=1, error=METHOD_NOT_FOUND.with_data("missing_method")
-    ).model_dump()
+    assert (
+        parsed_object.model_dump()
+        == JsonRpcResponse(id=1, error=METHOD_NOT_FOUND.with_data("missing_method")).model_dump()
+    )
 
 
 def test_parse_request_batch():
@@ -121,10 +122,15 @@ def test_parse_response_batch():
         {"id": 2, "error": {"code": -32601, "message": "Method not found"}, "jsonrpc": "2.0"},
     ]
     parsed_object = get_json_object(response_batch_data)
-    assert parsed_object.model_dump() == JsonRpcBatch([
-        JsonRpcResponse(1, {"key": "value1"}),
-        JsonRpcResponse(2, error=METHOD_NOT_FOUND),
-    ]).model_dump()
+    assert (
+        parsed_object.model_dump()
+        == JsonRpcBatch(
+            [
+                JsonRpcResponse(1, {"key": "value1"}),
+                JsonRpcResponse(2, error=METHOD_NOT_FOUND),
+            ]
+        ).model_dump()
+    )
 
 
 @pytest.mark.parametrize(
@@ -146,6 +152,7 @@ def test_parse_response_batch():
 def test_parse_invalid_objects(invalid_data):
     with pytest.raises(InvalidRequest):
         get_json_object(invalid_data)
+
 
 @pytest.mark.parametrize(
     "invalid_data",
@@ -175,12 +182,14 @@ def test_parse_string_into_json_object(string: str, object):
     assert parse_string_into_json_object(string).model_dump() == object.model_dump()
 
 
-
-@pytest.mark.parametrize("string", (
-        '\x01 invalid ASCII',
+@pytest.mark.parametrize(
+    "string",
+    (
+        "\x01 invalid ASCII",
         "\xfa another invalid ASCII",
         "[array without closure",
-))
+    ),
+)
 def test_parse_string_into_json_object_raises_parse_error(string: str):
     with pytest.raises(ParseError):
         parse_string_into_json_object(string)
