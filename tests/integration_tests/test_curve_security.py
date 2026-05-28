@@ -33,7 +33,12 @@ import pytest
 import zmq
 
 from pyleco.coordinators.coordinator import Coordinator
-from pyleco.core.security import SecurityConfig, SecurityMode, generate_key_pair
+from pyleco.core.security import (
+    ServerSecurityConfig,
+    ClientSecurityConfig,
+    FullSecurityConfig,
+    generate_key_pair,
+)
 from pyleco.utils.communicator import Communicator
 
 
@@ -54,7 +59,7 @@ def _close_com(com: Communicator) -> None:
 def start_coordinator(
     namespace: str,
     port: int,
-    security_config: SecurityConfig,
+    security_config: ServerSecurityConfig | FullSecurityConfig,
     stop_event: threading.Event,
     coordinators: list[str] | None = None,
     **kwargs: Any,
@@ -75,8 +80,7 @@ def coordinator_keys():
 @pytest.fixture
 def curve_coordinator(coordinator_keys):
     server_keys, client_keys = coordinator_keys
-    server_config = SecurityConfig(
-        mode=SecurityMode.CURVE,
+    server_config = ServerSecurityConfig(
         server_key_pair=server_keys,
         curve_any_authenticated=True,
     )
@@ -103,8 +107,7 @@ def curve_coordinator(coordinator_keys):
 class TestCoordinatorCurveAnyAuthenticated:
     def test_curve_client_can_sign_in(self, curve_coordinator):
         server_keys, client_keys, port = curve_coordinator
-        client_config = SecurityConfig(
-            mode=SecurityMode.CURVE,
+        client_config = ClientSecurityConfig(
             client_key_pair=client_keys,
             server_public_key=server_keys.public_key,
         )
@@ -126,13 +129,12 @@ class TestCoordinatorCurveAnyAuthenticated:
 
     def test_none_client_rejected_by_curve_coordinator(self, curve_coordinator):
         _, _, port = curve_coordinator
-        none_config = SecurityConfig(mode=SecurityMode.NONE)
         com = Communicator(
             name="NoneClient",
             host="localhost",
             port=port,
             timeout=0.3,
-            security_config=none_config,
+            security_config=None,
         )
         try:
             com.open()
@@ -145,8 +147,7 @@ class TestCoordinatorCurveAnyAuthenticated:
     def test_wrong_server_key_client_rejected(self, curve_coordinator):
         _, client_keys, port = curve_coordinator
         wrong_server_keys = generate_key_pair()
-        bad_config = SecurityConfig(
-            mode=SecurityMode.CURVE,
+        bad_config = ClientSecurityConfig(
             client_key_pair=client_keys,
             server_public_key=wrong_server_keys.public_key,
         )
@@ -174,8 +175,7 @@ class TestCoordinatorCurveWithAuthorizedKeys:
         key_dir.mkdir()
         (key_dir / "TestClient").write_text(client_keys.public_key)
 
-        server_config = SecurityConfig(
-            mode=SecurityMode.CURVE,
+        server_config = ServerSecurityConfig(
             server_key_pair=server_keys,
             authorized_keys_dir=str(key_dir),
         )
@@ -195,8 +195,7 @@ class TestCoordinatorCurveWithAuthorizedKeys:
         thread.start()
         sleep(1)
         try:
-            client_config = SecurityConfig(
-                mode=SecurityMode.CURVE,
+            client_config = ClientSecurityConfig(
                 client_key_pair=client_keys,
                 server_public_key=server_keys.public_key,
             )
@@ -226,8 +225,7 @@ class TestCoordinatorCurveWithAuthorizedKeys:
         key_dir.mkdir()
         (key_dir / "AuthorizedClient").write_text(other_client_keys.public_key)
 
-        server_config = SecurityConfig(
-            mode=SecurityMode.CURVE,
+        server_config = ServerSecurityConfig(
             server_key_pair=server_keys,
             authorized_keys_dir=str(key_dir),
         )
@@ -247,8 +245,7 @@ class TestCoordinatorCurveWithAuthorizedKeys:
         thread.start()
         sleep(1)
         try:
-            client_config = SecurityConfig(
-                mode=SecurityMode.CURVE,
+            client_config = ClientSecurityConfig(
                 client_key_pair=client_keys,
                 server_public_key=server_keys.public_key,
             )
@@ -279,8 +276,7 @@ class TestProxyServerCurve:
         publisher_keys = generate_key_pair()
         subscriber_keys = generate_key_pair()
 
-        proxy_config = SecurityConfig(
-            mode=SecurityMode.CURVE,
+        proxy_config = ServerSecurityConfig(
             server_key_pair=proxy_keys,
             curve_any_authenticated=True,
         )
@@ -299,8 +295,7 @@ class TestProxyServerCurve:
             from pyleco.utils.data_publisher import DataPublisher
 
             data_port = PROXY_RECEIVING_PORT - 2 * 50
-            publisher_config = SecurityConfig(
-                mode=SecurityMode.CURVE,
+            publisher_config = ClientSecurityConfig(
                 client_key_pair=publisher_keys,
                 data_server_public_key=proxy_keys.public_key,
             )

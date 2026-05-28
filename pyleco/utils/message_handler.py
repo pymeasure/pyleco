@@ -32,7 +32,7 @@ import zmq
 from ..core import COORDINATOR_PORT
 from ..core.leco_protocols import ExtendedComponentProtocol
 from ..core.message import Message, MessageTypes
-from ..core.security import SecurityConfig, SecurityMode
+from ..core.security import SecurityConfig, ClientSecurityConfig, FullSecurityConfig
 from ..core.curve import configure_curve_client, warn_insecure_mode
 from ..core.serialization import JsonContentTypes, get_json_content_type
 from .log_levels import PythonLogLevels
@@ -128,13 +128,15 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
 
     def setup_socket(self, host: str, port: int, protocol: str, context: zmq.Context) -> None:
         self.socket: zmq.Socket = context.socket(zmq.DEALER)
-        if self.security_config is not None and self.security_config.mode == SecurityMode.CURVE:
+        if isinstance(self.security_config, (ClientSecurityConfig, FullSecurityConfig)):
+            if self.security_config.server_public_key is None:
+                raise ValueError("CURVE MessageHandler requires server_public_key")
             configure_curve_client(
                 self.socket,
                 self.security_config.client_key_pair,
                 self.security_config.server_public_key,
             )
-        if self.security_config is None or self.security_config.mode == SecurityMode.NONE:
+        elif self.security_config is None:
             warn_insecure_mode(address=f"{host}:{port}")
         self.log.info(f"MessageHandler connecting to {host}:{port}")
         self.socket.connect(f"{protocol}://{host}:{port}")

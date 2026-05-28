@@ -31,7 +31,7 @@ import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.message import Message, MessageTypes
-from ..core.security import SecurityConfig, SecurityMode
+from ..core.security import SecurityConfig, ClientSecurityConfig, FullSecurityConfig
 from ..core.curve import configure_curve_client, warn_insecure_mode
 from ..json_utils.rpc_generator import RPCGenerator
 from ..json_utils.errors import NOT_SIGNED_IN
@@ -95,13 +95,15 @@ class Communicator(BaseCommunicator):
         """Open the connection."""
         context = context or zmq.Context.instance()
         self.socket: zmq.Socket = context.socket(zmq.DEALER)
-        if self.security_config is not None and self.security_config.mode == SecurityMode.CURVE:
+        if isinstance(self.security_config, (ClientSecurityConfig, FullSecurityConfig)):
+            if self.security_config.server_public_key is None:
+                raise ValueError("CURVE Communicator requires server_public_key")
             configure_curve_client(
                 self.socket,
                 self.security_config.client_key_pair,
                 self.security_config.server_public_key,
             )
-        if self.security_config is None or self.security_config.mode == SecurityMode.NONE:
+        elif self.security_config is None:
             warn_insecure_mode(address=f"{self.host}:{self.port}")
         protocol, standalone = self._conn_details
         if standalone:

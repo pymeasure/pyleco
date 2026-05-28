@@ -29,7 +29,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pyleco.core.security import KeyPair, SecurityConfig, SecurityMode
+from pyleco.core.security import KeyPair, FullSecurityConfig
 
 
 FAKE_PUBLIC = "a" * 40
@@ -37,9 +37,8 @@ FAKE_SECRET = "b" * 40
 FAKE_SERVER_PUBLIC = "c" * 40
 
 
-def _make_server_config() -> SecurityConfig:
-    return SecurityConfig(
-        mode=SecurityMode.CURVE,
+def _make_server_config() -> FullSecurityConfig:
+    return FullSecurityConfig(
         server_key_pair=KeyPair(public_key=FAKE_PUBLIC, secret_key=FAKE_SECRET),
         client_key_pair=KeyPair(public_key=FAKE_PUBLIC, secret_key=FAKE_SECRET),
         server_public_key=FAKE_SERVER_PUBLIC,
@@ -116,7 +115,7 @@ class TestCoordinatorCurveStartAuthenticator:
             )
             mock_start.assert_called_once_with(mock_context, cfg)
 
-    def test_none_mode_does_not_call_start_authenticator(self) -> None:
+    def test_none_config_does_not_call_start_authenticator(self) -> None:
         mock_start = MagicMock()
         mock_stop = MagicMock()
         with patch("pyleco.coordinators.coordinator.start_authenticator", mock_start), patch(
@@ -127,7 +126,7 @@ class TestCoordinatorCurveStartAuthenticator:
             mock_context = MagicMock()
             Coordinator(
                 namespace="N1",
-                security_config=SecurityConfig(mode=SecurityMode.NONE),
+                security_config=None,
                 context=mock_context,
                 multi_socket=_FakeMultiSocket(),  # type: ignore
             )
@@ -176,7 +175,7 @@ class TestCoordinatorCurveCloseStopsAuthenticator:
             c.close()
             mock_stop.assert_called_once_with(mock_authenticator)
 
-    def test_close_does_not_call_stop_authenticator_when_none_mode(self) -> None:
+    def test_close_does_not_call_stop_authenticator_when_none_config(self) -> None:
         mock_start = MagicMock()
         mock_stop = MagicMock()
         with patch("pyleco.coordinators.coordinator.start_authenticator", mock_start), patch(
@@ -187,7 +186,7 @@ class TestCoordinatorCurveCloseStopsAuthenticator:
             mock_context = MagicMock()
             c = Coordinator(
                 namespace="N1",
-                security_config=SecurityConfig(mode=SecurityMode.NONE),
+                security_config=None,
                 context=mock_context,
                 multi_socket=_FakeMultiSocket(),  # type: ignore
             )
@@ -215,7 +214,7 @@ class TestCoordinatorStoresSecurityConfig:
             )
             assert c.security_config is cfg
 
-    def test_none_config_creates_default(self) -> None:
+    def test_none_config_stored_as_none(self) -> None:
         mock_start = MagicMock()
         mock_stop = MagicMock()
         with patch("pyleco.coordinators.coordinator.start_authenticator", mock_start), patch(
@@ -229,4 +228,4 @@ class TestCoordinatorStoresSecurityConfig:
                 context=mock_context,
                 multi_socket=_FakeMultiSocket(),  # type: ignore
             )
-            assert c.security_config.mode == SecurityMode.NONE
+            assert c.security_config is None

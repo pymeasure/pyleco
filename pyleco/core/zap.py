@@ -30,7 +30,7 @@ import zmq
 from zmq.auth import CURVE_ALLOW_ANY
 from zmq.auth.thread import ThreadAuthenticator
 
-from pyleco.core.security import SecurityConfig, SecurityMode, load_authorized_keys
+from pyleco.core.security import ServerSecurityConfig, FullSecurityConfig, load_authorized_keys
 
 __all__ = [
     "start_authenticator",
@@ -59,11 +59,8 @@ class _CredentialsProvider:
 
 
 def start_authenticator(
-    context: zmq.Context, security_config: SecurityConfig
+    context: zmq.Context, security_config: ServerSecurityConfig | FullSecurityConfig
 ) -> ThreadAuthenticator:
-
-    if security_config.mode != SecurityMode.CURVE:
-        raise ValueError("start_authenticator requires SecurityMode.CURVE")
 
     authenticator = ThreadAuthenticator(context)
     authenticator.start()

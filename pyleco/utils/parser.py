@@ -51,9 +51,6 @@ parser.add_argument(
     default=0,
     help="increase the logging level by one, may be used more than once",
 )
-parser.add_argument(
-    "--security-mode", choices=["NONE", "CURVE"], default=None, help="security mode (default: NONE)"
-)
 parser.add_argument("--server-secret-key", default=None, help="server secret key for CURVE mode")
 parser.add_argument(
     "--server-public-key", default=None, help="server public key (for client-side configuration)"
@@ -105,7 +102,6 @@ def parse_command_line_parameters(
 
 
 _SECURITY_KWARG_KEYS = (
-    "security_mode",
     "server_secret_key",
     "server_public_key",
     "client_secret_key",
@@ -116,14 +112,11 @@ _SECURITY_KWARG_KEYS = (
 )
 
 
-def build_security_config_from_kwargs(kwargs: dict) -> SecurityConfig:
+def build_security_config_from_kwargs(kwargs: dict) -> SecurityConfig | None:
     config_path = kwargs.pop("config", None)
     cli_security_args: dict = {}
     for key in _SECURITY_KWARG_KEYS:
         value = kwargs.pop(key, None)
         if value is not None:
-            cli_key = key
-            if key == "security_mode":
-                cli_key = "mode"
-            cli_security_args[cli_key] = value
+            cli_security_args[key] = value
     return load_security_config(config_path=config_path, cli_args=cli_security_args)

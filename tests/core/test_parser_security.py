@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import pytest
 
-from pyleco.core.security import SecurityMode
+from pyleco.core.security import ServerSecurityConfig
 from pyleco.utils.parser import (
     build_security_config_from_kwargs,
     parse_command_line_parameters,
@@ -34,28 +34,7 @@ from pyleco.utils.parser import (
 )
 
 
-class TestSecurityModeArg:
-    def test_security_mode_curve(self) -> None:
-        kwargs = parse_command_line_parameters(
-            parser=parser,
-            arguments=["--security-mode", "CURVE"],
-        )
-        assert kwargs.get("security_mode") == "CURVE"
-
-    def test_security_mode_none(self) -> None:
-        kwargs = parse_command_line_parameters(
-            parser=parser,
-            arguments=["--security-mode", "NONE"],
-        )
-        assert kwargs.get("security_mode") == "NONE"
-
-    def test_security_mode_default(self) -> None:
-        kwargs = parse_command_line_parameters(
-            parser=parser,
-            arguments=[],
-        )
-        assert "security_mode" not in kwargs
-
+class TestSecurityArgs:
     def test_server_secret_key(self) -> None:
         kwargs = parse_command_line_parameters(
             parser=parser,
@@ -114,34 +93,31 @@ class TestSecurityModeArg:
 
 
 class TestBuildSecurityConfigFromKwargs:
-    def test_no_security_args_returns_none_mode(self) -> None:
+    def test_no_security_args_returns_none(self) -> None:
         kwargs: dict = {"host": "localhost", "name": "test"}
         cfg = build_security_config_from_kwargs(kwargs)
-        assert cfg.mode == SecurityMode.NONE
+        assert cfg is None
 
-    def test_extracts_curve_args(self) -> None:
+    def test_extracts_server_keys(self) -> None:
         kwargs: dict = {
-            "security_mode": "CURVE",
             "server_public_key": "a" * 40,
             "server_secret_key": "b" * 40,
             "host": "localhost",
         }
         cfg = build_security_config_from_kwargs(kwargs)
-        assert cfg.mode == SecurityMode.CURVE
+        assert isinstance(cfg, ServerSecurityConfig)
         assert cfg.server_key_pair is not None
         assert cfg.server_key_pair.public_key == "a" * 40
         assert cfg.server_key_pair.secret_key == "b" * 40
 
     def test_removes_security_keys_from_kwargs(self) -> None:
         kwargs: dict = {
-            "security_mode": "CURVE",
             "server_public_key": "a" * 40,
             "server_secret_key": "b" * 40,
             "host": "localhost",
             "name": "comp",
         }
         build_security_config_from_kwargs(kwargs)
-        assert "security_mode" not in kwargs
         assert "server_public_key" not in kwargs
         assert "server_secret_key" not in kwargs
         assert "host" in kwargs
@@ -149,7 +125,6 @@ class TestBuildSecurityConfigFromKwargs:
 
     def test_removes_all_security_kwarg_keys(self) -> None:
         kwargs: dict = {
-            "security_mode": "NONE",
             "server_secret_key": None,
             "server_public_key": None,
             "client_secret_key": None,
@@ -160,7 +135,6 @@ class TestBuildSecurityConfigFromKwargs:
             "host": "localhost",
         }
         build_security_config_from_kwargs(kwargs)
-        assert "security_mode" not in kwargs
         assert "server_secret_key" not in kwargs
         assert "server_public_key" not in kwargs
         assert "client_secret_key" not in kwargs
@@ -172,7 +146,7 @@ class TestBuildSecurityConfigFromKwargs:
 
     def test_removes_config_key(self, tmp_path: pytest.TempPath) -> None:
         toml_file = tmp_path / "test.toml"
-        toml_file.write_text('[security]\nmode = "NONE"\n')
+        toml_file.write_text("[security]\n")
         kwargs: dict = {"config": str(toml_file), "host": "localhost"}
         build_security_config_from_kwargs(kwargs)
         assert "config" not in kwargs
@@ -180,33 +154,47 @@ class TestBuildSecurityConfigFromKwargs:
 
     def test_client_keys_extracted(self) -> None:
         kwargs: dict = {
-            "security_mode": "CURVE",
             "client_public_key": "a" * 40,
             "client_secret_key": "b" * 40,
             "server_public_key": "c" * 40,
         }
         cfg = build_security_config_from_kwargs(kwargs)
+        from pyleco.core.security import ClientSecurityConfig
+
+        assert isinstance(cfg, ClientSecurityConfig)
         assert cfg.client_key_pair is not None
         assert cfg.client_key_pair.public_key == "a" * 40
         assert cfg.server_public_key == "c" * 40
 
     def test_data_server_public_key_extracted(self) -> None:
         kwargs: dict = {
+            "client_public_key": "a" * 40,
+            "client_secret_key": "b" * 40,
+            "server_public_key": "c" * 40,
             "data_server_public_key": "d" * 40,
         }
         cfg = build_security_config_from_kwargs(kwargs)
+        from pyleco.core.security import ClientSecurityConfig
+
+        assert isinstance(cfg, ClientSecurityConfig)
         assert cfg.data_server_public_key == "d" * 40
 
     def test_authorized_keys_dir_extracted(self) -> None:
         kwargs: dict = {
+            "server_public_key": "a" * 40,
+            "server_secret_key": "b" * 40,
             "authorized_keys_dir": "/keys",
         }
         cfg = build_security_config_from_kwargs(kwargs)
+        assert isinstance(cfg, ServerSecurityConfig)
         assert cfg.authorized_keys_dir == "/keys"
 
     def test_curve_any_authenticated_extracted(self) -> None:
         kwargs: dict = {
+            "server_public_key": "a" * 40,
+            "server_secret_key": "b" * 40,
             "curve_any_authenticated": True,
         }
         cfg = build_security_config_from_kwargs(kwargs)
+        assert isinstance(cfg, ServerSecurityConfig)
         assert cfg.curve_any_authenticated is True

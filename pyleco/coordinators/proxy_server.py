@@ -50,7 +50,12 @@ import threading
 import zmq
 
 from pyleco.core.curve import configure_curve_client, configure_curve_server, warn_insecure_mode
-from pyleco.core.security import SecurityConfig, SecurityMode
+from pyleco.core.security import (
+    SecurityConfig,
+    ServerSecurityConfig,
+    ClientSecurityConfig,
+    FullSecurityConfig,
+)
 from pyleco.core.zap import start_authenticator, stop_authenticator
 
 if __name__ == "__main__":
@@ -80,31 +85,25 @@ def pub_sub_proxy(
     auth = None
     _port = port - 2 * offset
     if sub == "localhost" and pub == "localhost":
-        if security_config is not None and security_config.mode == SecurityMode.CURVE:
+        if isinstance(security_config, (ServerSecurityConfig, FullSecurityConfig)):
             configure_curve_server(s, security_config.server_key_pair)
             configure_curve_server(p, security_config.server_key_pair)
             auth = start_authenticator(context, security_config)
-        if security_config is None or security_config.mode == SecurityMode.NONE:
+        elif security_config is None:
             warn_insecure_mode(address=f"*:{_port}")
         log.info(f"Start local proxy server: listening on {_port}, publishing on {_port - 1}.")
         s.bind(f"tcp://*:{_port}")
         p.bind(f"tcp://*:{_port - 1}")
     else:
-        if security_config is not None and security_config.mode == SecurityMode.CURVE:
-            if (
-                security_config.client_key_pair is not None
-                and security_config.server_public_key is not None
-            ):
-                configure_curve_client(
-                    s, security_config.client_key_pair, security_config.server_public_key
-                )
-                configure_curve_client(
-                    p, security_config.client_key_pair, security_config.server_public_key
-                )
-            else:
-                raise ValueError(
-                    "CURVE mode for remote proxy requires client_key_pair and server_public_key"
-                )
+        if isinstance(security_config, (ClientSecurityConfig, FullSecurityConfig)):
+            if security_config.server_public_key is None:
+                raise ValueError("Remote proxy requires client_key_pair and server_public_key")
+            configure_curve_client(
+                s, security_config.client_key_pair, security_config.server_public_key
+            )
+            configure_curve_client(
+                p, security_config.client_key_pair, security_config.server_public_key
+            )
         log.info(
             f"Start remote proxy server subsribing to {sub}:{_port - 1} and publishing to "
             f"{pub}:{_port}."
@@ -204,12 +203,6 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
         help="log all messages sent through the proxy",
     )
     parser.add_argument("-o", "--offset", help="shifting the port numbers.", default=0, type=int)
-    parser.add_argument(
-        "--security-mode",
-        choices=["NONE", "CURVE"],
-        default=None,
-        help="security mode (default: NONE)",
-    )
     parser.add_argument("--server-secret-key", default=None, help="proxy server secret key")
     parser.add_argument("--server-public-key", default=None, help="proxy server public key")
     parser.add_argument(
@@ -231,8 +224,6 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
         log.setLevel(logging.DEBUG)
 
     security_config = build_security_config_from_kwargs(kwargs)
-    if security_config.mode == SecurityMode.CURVE:
-        security_config.validate()
 
     merely_local = kwargs.get("pub") == "localhost" and kwargs.get("sub") == "localhost"
 

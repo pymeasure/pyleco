@@ -25,11 +25,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 
 __all__ = [
-    "SecurityMode",
+    "ServerSecurityConfig",
+    "ClientSecurityConfig",
+    "FullSecurityConfig",
     "KeyPair",
     "SecurityConfig",
     "generate_key_pair",
@@ -38,43 +39,33 @@ __all__ = [
 ]
 
 
-class SecurityMode(Enum):
-    NONE = "NONE"
-    CURVE = "CURVE"
-
-
 @dataclass
 class KeyPair:
     public_key: str
     secret_key: str
 
 
-@dataclass
-class SecurityConfig:
-    mode: SecurityMode = SecurityMode.NONE
-    server_key_pair: KeyPair | None = None
-    client_key_pair: KeyPair | None = None
-    server_public_key: str | None = None
-    data_server_public_key: str | None = None
+@dataclass(kw_only=True)
+class ServerSecurityConfig:
+    server_key_pair: KeyPair
     authorized_keys_dir: str | None = None
     authorized_keys: dict[str, str] | None = None
     curve_any_authenticated: bool = False
 
-    def validate(self) -> None:
-        if self.mode == SecurityMode.NONE:
-            return
-        if self.mode == SecurityMode.CURVE:
-            has_server_keys = self.server_key_pair is not None
-            has_client_keys = (
-                self.client_key_pair is not None and self.server_public_key is not None
-            )
-            if not has_server_keys and not has_client_keys:
-                raise ValueError(
-                    "CURVE mode requires either server_key_pair (for servers) "
-                    "or client_key_pair + server_public_key (for clients)"
-                )
-            if self.client_key_pair is not None and self.server_public_key is None:
-                raise ValueError("CURVE mode with client_key_pair also requires server_public_key")
+
+@dataclass(kw_only=True)
+class ClientSecurityConfig:
+    client_key_pair: KeyPair
+    server_public_key: str | None = None
+    data_server_public_key: str | None = None
+
+
+@dataclass(kw_only=True)
+class FullSecurityConfig(ServerSecurityConfig, ClientSecurityConfig):
+    server_public_key: str
+
+
+SecurityConfig = ServerSecurityConfig | ClientSecurityConfig | FullSecurityConfig
 
 
 def generate_key_pair() -> KeyPair:
@@ -84,7 +75,9 @@ def generate_key_pair() -> KeyPair:
     return KeyPair(public_key=public_key.decode(), secret_key=secret_key.decode())
 
 
-def load_authorized_keys(security_config: SecurityConfig) -> dict[str, str]:
+def load_authorized_keys(
+    security_config: ServerSecurityConfig | FullSecurityConfig,
+) -> dict[str, str]:
     keys: dict[str, str] = {}
     if security_config.authorized_keys_dir is not None:
         key_dir = Path(security_config.authorized_keys_dir)
@@ -103,46 +96,52 @@ def load_authorized_keys(security_config: SecurityConfig) -> dict[str, str]:
 def load_security_config(
     config_path: str | None = None,
     cli_args: dict | None = None,
-) -> SecurityConfig:
+) -> SecurityConfig | None:
     config_dict: dict = {}
     if config_path is not None:
         from pyleco.core.config import _load_toml
 
         data = _load_toml(config_path)
         config_dict = data.get("security", {})
-    kwargs: dict = {}
-    if "mode" in config_dict:
-        kwargs["mode"] = SecurityMode(config_dict["mode"])
+
+    server_key_pair: KeyPair | None = None
+    client_key_pair: KeyPair | None = None
+    server_public_key: str | None = None
+    data_server_public_key: str | None = None
+    authorized_keys_dir: str | None = None
+    authorized_keys: dict[str, str] | None = None
+    curve_any_authenticated: bool = False
+
     if "server_secret_key" in config_dict and "server_public_key" in config_dict:
-        kwargs["server_key_pair"] = KeyPair(
+        server_key_pair = KeyPair(
             public_key=config_dict["server_public_key"],
             secret_key=config_dict["server_secret_key"],
         )
     if "client_secret_key" in config_dict and "client_public_key" in config_dict:
-        kwargs["client_key_pair"] = KeyPair(
+        client_key_pair = KeyPair(
             public_key=config_dict["client_public_key"],
             secret_key=config_dict["client_secret_key"],
         )
-    if "server_public_key" in config_dict and "server_key_pair" not in kwargs:
-        kwargs["server_public_key"] = config_dict["server_public_key"]
+    if "server_public_key" in config_dict and server_key_pair is None:
+        server_public_key = config_dict["server_public_key"]
     if "data_server_public_key" in config_dict:
-        kwargs["data_server_public_key"] = config_dict["data_server_public_key"]
+        data_server_public_key = config_dict["data_server_public_key"]
     if "authorized_keys_dir" in config_dict:
-        kwargs["authorized_keys_dir"] = config_dict["authorized_keys_dir"]
+        authorized_keys_dir = config_dict["authorized_keys_dir"]
     if "authorized_keys" in config_dict:
-        kwargs["authorized_keys"] = dict(config_dict["authorized_keys"])
+        authorized_keys = dict(config_dict["authorized_keys"])
     if "curve_any_authenticated" in config_dict:
-        kwargs["curve_any_authenticated"] = config_dict["curve_any_authenticated"]
+        curve_any_authenticated = config_dict["curve_any_authenticated"]
+
     cli_server_secret = None
     cli_server_public = None
     cli_client_secret = None
     cli_client_public = None
+
     if cli_args is not None:
         for key, value in cli_args.items():
             if value is not None:
-                if key == "mode":
-                    kwargs["mode"] = SecurityMode(value)
-                elif key == "server_secret_key":
+                if key == "server_secret_key":
                     cli_server_secret = value
                 elif key == "server_public_key":
                     cli_server_public = value
@@ -150,46 +149,83 @@ def load_security_config(
                     cli_client_secret = value
                 elif key == "client_public_key":
                     cli_client_public = value
-                else:
-                    kwargs[key] = value
+                elif key == "data_server_public_key":
+                    data_server_public_key = value
+                elif key == "authorized_keys_dir":
+                    authorized_keys_dir = value
+                elif key == "curve_any_authenticated":
+                    curve_any_authenticated = value
+
     if cli_server_secret is not None and cli_server_public is not None:
-        kwargs["server_key_pair"] = KeyPair(
+        server_key_pair = KeyPair(
             public_key=cli_server_public,
             secret_key=cli_server_secret,
         )
     elif cli_server_secret is not None:
-        existing = kwargs.get("server_key_pair")
-        if existing is not None and existing.public_key:
-            kwargs["server_key_pair"] = KeyPair(
-                public_key=existing.public_key,
+        if server_key_pair is not None and server_key_pair.public_key:
+            server_key_pair = KeyPair(
+                public_key=server_key_pair.public_key,
                 secret_key=cli_server_secret,
             )
     elif cli_server_public is not None:
-        existing = kwargs.get("server_key_pair")
-        if existing is not None and existing.secret_key:
-            kwargs["server_key_pair"] = KeyPair(
+        if server_key_pair is not None and server_key_pair.secret_key:
+            server_key_pair = KeyPair(
                 public_key=cli_server_public,
-                secret_key=existing.secret_key,
+                secret_key=server_key_pair.secret_key,
             )
+
     if cli_server_public is not None:
-        kwargs["server_public_key"] = cli_server_public
+        server_public_key = cli_server_public
+
     if cli_client_secret is not None and cli_client_public is not None:
-        kwargs["client_key_pair"] = KeyPair(
+        client_key_pair = KeyPair(
             public_key=cli_client_public,
             secret_key=cli_client_secret,
         )
     elif cli_client_secret is not None:
-        existing = kwargs.get("client_key_pair")
-        if existing is not None and existing.public_key:
-            kwargs["client_key_pair"] = KeyPair(
-                public_key=existing.public_key,
+        if client_key_pair is not None and client_key_pair.public_key:
+            client_key_pair = KeyPair(
+                public_key=client_key_pair.public_key,
                 secret_key=cli_client_secret,
             )
     elif cli_client_public is not None:
-        existing = kwargs.get("client_key_pair")
-        if existing is not None and existing.secret_key:
-            kwargs["client_key_pair"] = KeyPair(
+        if client_key_pair is not None and client_key_pair.secret_key:
+            client_key_pair = KeyPair(
                 public_key=cli_client_public,
-                secret_key=existing.secret_key,
+                secret_key=client_key_pair.secret_key,
             )
-    return SecurityConfig(**kwargs)
+
+    has_server = server_key_pair is not None
+    has_client = client_key_pair is not None
+    has_server_public_key = server_public_key is not None
+
+    if has_server and has_client and has_server_public_key:
+        assert server_key_pair is not None
+        assert client_key_pair is not None
+        assert server_public_key is not None
+        return FullSecurityConfig(
+            server_key_pair=server_key_pair,
+            client_key_pair=client_key_pair,
+            server_public_key=server_public_key,
+            data_server_public_key=data_server_public_key,
+            authorized_keys_dir=authorized_keys_dir,
+            authorized_keys=authorized_keys,
+            curve_any_authenticated=curve_any_authenticated,
+        )
+    elif has_server:
+        assert server_key_pair is not None
+        return ServerSecurityConfig(
+            server_key_pair=server_key_pair,
+            authorized_keys_dir=authorized_keys_dir,
+            authorized_keys=authorized_keys,
+            curve_any_authenticated=curve_any_authenticated,
+        )
+    elif has_client:
+        assert client_key_pair is not None
+        return ClientSecurityConfig(
+            client_key_pair=client_key_pair,
+            server_public_key=server_public_key,
+            data_server_public_key=data_server_public_key,
+        )
+    else:
+        return None

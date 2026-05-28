@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pyleco.core.security import KeyPair, SecurityConfig, SecurityMode
+from pyleco.core.security import KeyPair, ClientSecurityConfig, ServerSecurityConfig
 
 
 FAKE_PUBLIC = "a" * 40
@@ -14,18 +14,16 @@ FAKE_SERVER_PUBLIC = "c" * 40
 FAKE_DATA_PUBLIC = "d" * 40
 
 
-def _make_client_config() -> SecurityConfig:
-    return SecurityConfig(
-        mode=SecurityMode.CURVE,
+def _make_client_config() -> ClientSecurityConfig:
+    return ClientSecurityConfig(
         client_key_pair=KeyPair(public_key=FAKE_PUBLIC, secret_key=FAKE_SECRET),
         server_public_key=FAKE_SERVER_PUBLIC,
         data_server_public_key=FAKE_DATA_PUBLIC,
     )
 
 
-def _make_server_config() -> SecurityConfig:
-    return SecurityConfig(
-        mode=SecurityMode.CURVE,
+def _make_server_config() -> ServerSecurityConfig:
+    return ServerSecurityConfig(
         server_key_pair=KeyPair(public_key=FAKE_PUBLIC, secret_key=FAKE_SECRET),
     )
 
@@ -82,7 +80,7 @@ class TestCommunicatorCurveMode:
                 mock_socket, cfg.client_key_pair, cfg.server_public_key
             )
 
-    def test_none_mode_does_not_call_configure_curve_client(self) -> None:
+    def test_none_config_does_not_call_configure_curve_client(self) -> None:
         mock_configure = MagicMock()
         with patch("pyleco.utils.communicator.configure_curve_client", mock_configure), patch(
             "pyleco.utils.communicator.warn_insecure_mode"
@@ -114,7 +112,7 @@ class TestMessageHandlerCurveMode:
                 mock_socket, cfg.client_key_pair, cfg.server_public_key
             )
 
-    def test_none_mode_does_not_call_configure_curve_client(self) -> None:
+    def test_none_config_does_not_call_configure_curve_client(self) -> None:
         mock_configure = MagicMock()
         with patch("pyleco.utils.message_handler.configure_curve_client", mock_configure), patch(
             "pyleco.utils.message_handler.warn_insecure_mode"
@@ -143,7 +141,7 @@ class TestDataPublisherCurveMode:
                 mock_socket, cfg.client_key_pair, cfg.data_server_public_key
             )
 
-    def test_none_mode_does_not_call_configure_curve_client(self) -> None:
+    def test_none_config_does_not_call_configure_curve_client(self) -> None:
         mock_configure = MagicMock()
         with patch("pyleco.utils.data_publisher.configure_curve_client", mock_configure):
             from pyleco.utils.data_publisher import DataPublisher

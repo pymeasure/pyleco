@@ -42,7 +42,7 @@ if __name__ != "__main__":
     )
     from ..core.message import Message, MessageTypes
     from ..core.serialization import get_json_content_type, JsonContentTypes
-    from ..core.security import SecurityConfig, SecurityMode
+    from ..core.security import SecurityConfig, ServerSecurityConfig, FullSecurityConfig
     from ..core.curve import warn_insecure_mode
     from ..core.zap import start_authenticator, stop_authenticator
     from ..json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
@@ -63,7 +63,7 @@ else:  # pragma: no cover
     )
     from pyleco.core.message import Message, MessageTypes
     from pyleco.core.serialization import get_json_content_type, JsonContentTypes
-    from pyleco.core.security import SecurityConfig, SecurityMode
+    from pyleco.core.security import SecurityConfig, ServerSecurityConfig, FullSecurityConfig
     from pyleco.core.curve import warn_insecure_mode
     from pyleco.core.zap import start_authenticator, stop_authenticator
     from pyleco.json_utils.errors import NODE_UNKNOWN, RECEIVER_UNKNOWN
@@ -98,6 +98,7 @@ class Coordinator:
     current_message: Message
     current_identity: bytes
     closed: bool = False
+    _authenticator: Any = None
 
     def __init__(
         self,
@@ -137,16 +138,17 @@ class Coordinator:
         self.cleaner.start()
 
         if security_config is None:
-            security_config = SecurityConfig()
-        self.security_config = security_config
+            self.security_config = None
+        else:
+            self.security_config = security_config
         context = context or zmq.Context.instance()
         self.sock = multi_socket or ZmqMultiSocket(context=context, security_config=security_config)
         self.context = context
-        if self.security_config.mode == SecurityMode.CURVE:
+        if isinstance(self.security_config, (ServerSecurityConfig, FullSecurityConfig)):
             self._authenticator = start_authenticator(self.context, self.security_config)
         else:
             self._authenticator = None
-            if self.security_config.mode == SecurityMode.NONE:
+            if self.security_config is None:
                 warn_insecure_mode(address=f"{host or gethostname()}:{port}")
         self.sock.bind(port=port)
 
@@ -562,8 +564,6 @@ def main() -> None:
     coordinators = [c for c in cos.replace(" ", "").split(",") if c]
 
     security_config = build_security_config_from_kwargs(kwargs)
-    if security_config.mode == SecurityMode.CURVE:
-        security_config.validate()
 
     with Coordinator(security_config=security_config, **kwargs) as c:
         handler = ZmqLogHandler(full_name=c.full_name.decode())
