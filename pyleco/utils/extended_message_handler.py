@@ -25,7 +25,7 @@
 from __future__ import annotations
 import json
 import pickle
-from typing import Any, Optional
+from typing import Any
 
 import zmq
 
@@ -38,13 +38,15 @@ from ..core.internal_protocols import SubscriberProtocol
 class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
     """Message handler, which handles also data protocol messages."""
 
-    def __init__(self,
-                 name: str,
-                 context: Optional[zmq.Context] = None,
-                 host: str = "localhost",
-                 data_host: Optional[str] = None,
-                 data_port: int = PROXY_SENDING_PORT,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self,
+        name: str,
+        context: zmq.Context | None = None,
+        host: str = "localhost",
+        data_host: str | None = None,
+        data_port: int = PROXY_SENDING_PORT,
+        **kwargs: Any,
+    ) -> None:
         if context is None:
             context = zmq.Context.instance()
         super().__init__(name=name, context=context, host=host, **kwargs)
@@ -69,8 +71,9 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         poller.register(self.subscriber, zmq.POLLIN)
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
-                             ) -> dict[zmq.Socket, int]:
+    def _listen_loop_element(
+        self, poller: zmq.Poller, waiting_time: int | None
+    ) -> dict[zmq.Socket, int]:
         socks = super()._listen_loop_element(poller=poller, waiting_time=waiting_time)
         if self.subscriber in socks:
             self.read_subscription_message()

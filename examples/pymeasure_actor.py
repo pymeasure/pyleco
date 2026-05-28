@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Example scheme for an Actor for pymeasure instruments. 'pymeasure_actor'
 """

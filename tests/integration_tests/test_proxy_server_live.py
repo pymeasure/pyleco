@@ -42,8 +42,9 @@ offset = 100
 
 
 class ModListener(Listener):
-    def __init__(self, name: str, host: str = "localhost", data_port: int = PROXY_SENDING_PORT,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self, name: str, host: str = "localhost", data_port: int = PROXY_SENDING_PORT, **kwargs: Any
+    ) -> None:
         super().__init__(name=name, host=host, data_port=data_port, **kwargs)
         self._data: list[dict] = []
 
@@ -62,7 +63,7 @@ def listener(publisher):
     listener = ModListener(name="listener", data_port=port - 1 - 2 * offset)
     listener.start_listen()
     listener.communicator.subscribe("")
-    sleep(.5)  # due to slow joiner: Allow time for connections.
+    sleep(0.5)  # due to slow joiner: Allow time for connections.
     yield listener  # type: ignore
     listener.close()
     context.destroy()  # in order to stop the proxy
@@ -70,5 +71,5 @@ def listener(publisher):
 
 def test_publishing(publisher: DataPublisher, listener: ModListener):
     publisher.send_data(topic="topic", data="value")
-    sleep(.1)
+    sleep(0.1)
     assert listener._data == [{"topic": "value"}]

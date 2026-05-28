@@ -23,7 +23,6 @@
 #
 
 from __future__ import annotations
-from typing import Optional
 
 import pytest
 
@@ -35,6 +34,7 @@ from pyleco.json_utils.json_objects import ResultResponse, ParamsRequest
 @pytest.fixture
 def handler() -> RpcHandler:
     return RpcHandler()
+
 
 def test_handle_binary_return_value(handler: RpcHandler):
     payload = [b"abc", b"def"]
@@ -49,6 +49,7 @@ class Test_generate_binary_method:
         def binary_method(index: int, additional_payload: list[bytes]) -> tuple[None, list[bytes]]:
             """Docstring of binary method."""
             return None, [additional_payload[index]]
+
         return binary_method
 
     @pytest.fixture(params=(True, False))
@@ -83,11 +84,10 @@ class Test_generate_binary_method:
             (True, True, "(binary input output method)"),
         ),
     )
-    def test_docstring_without_original_docstring(
-        self, handler: RpcHandler, input, output, string
-    ):
+    def test_docstring_without_original_docstring(self, handler: RpcHandler, input, output, string):
         def binary_method(additional_payload):
             return 7
+
         mod = handler._generate_binary_capable_method(
             binary_method, accept_binary_input=input, return_binary_output=output
         )
@@ -115,8 +115,9 @@ class Test_generate_binary_method:
     def test_binary_input_from_message(self, handler: RpcHandler):
         handler.current_message = Message("rec", "send", data=b"", additional_payload=[b"0"])
 
-        def binary_method(additional_payload = None):
+        def binary_method(additional_payload=None):
             return 7
+
         mod = handler._generate_binary_capable_method(
             binary_method, accept_binary_input=True, return_binary_output=False
         )
@@ -152,6 +153,7 @@ class Test_process_json_message_with_created_binary:
     @pytest.fixture
     def handler_b(self, handler: RpcHandler):
         test_class = self
+
         class SpecialHandler(RpcHandler):
             def do_binary_manually(self, data: int) -> int:
                 test_class.payload_in = self.current_message.payload[1:]
@@ -159,7 +161,7 @@ class Test_process_json_message_with_created_binary:
                 return data
 
             def do_binary(
-                self, data: int, additional_payload: Optional[list[bytes]] = None
+                self, data: int, additional_payload: list[bytes] | None = None
             ) -> tuple[int, list[bytes]]:
                 test_class.payload_in = additional_payload  # type: ignore
                 return data, test_class.payload_out

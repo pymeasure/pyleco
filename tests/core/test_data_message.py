@@ -47,9 +47,13 @@ class TestDataMessageInit:
     def test_data(self, message: DataMessage):
         assert message.data == [4, 5]
 
-    @pytest.mark.parametrize("key, value", (("conversation_id", b"content"),
-                                            ("message_type", 7),
-                                            ))
+    @pytest.mark.parametrize(
+        "key, value",
+        (
+            ("conversation_id", b"content"),
+            ("message_type", 7),
+        ),
+    )
     def test_header_param_incompatible_with_header_element_params(self, key, value):
         with pytest.raises(ValueError, match="header"):
             DataMessage(topic="topic", header=b"whatever", **{key: value})
@@ -140,5 +144,5 @@ class TestComparison:
 
 
 def test_repr():
-    message = DataMessage.from_frames(b'topic', b'conversation_id;\x00', b'data')
+    message = DataMessage.from_frames(b"topic", b"conversation_id;\x00", b"data")
     assert repr(message) == r"DataMessage.from_frames(b'topic', b'conversation_id;\x00', b'data')"

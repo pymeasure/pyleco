@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from time import perf_counter
 from types import TracebackType
-from typing import Any, Optional, Protocol, Type, TypeVar
+from typing import Any, Protocol, TypeVar
 
 import zmq
 
@@ -64,7 +64,7 @@ class MessageBuffer:
         """Add a message to the buffer."""
         self._messages.append(message)
 
-    def retrieve_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
+    def retrieve_message(self, conversation_id: bytes | None = None) -> Message | None:
         """Retrieve the requested message or the next free one for `conversation_id=None`."""
         for i, msg in enumerate(self._messages):
             cid = msg.conversation_id
@@ -80,12 +80,11 @@ class MessageBuffer:
 
 
 class BaseCommunicator(CommunicatorProtocol, Protocol):
-    """Abstract class of a Communicator with some logic.
-    """
+    """Abstract class of a Communicator with some logic."""
 
     socket: zmq.Socket
     log: logging.Logger
-    namespace: Optional[str]
+    namespace: str | None
     message_buffer: MessageBuffer
 
     # Setup methods for call in init
@@ -103,10 +102,10 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_traceback: Optional[TracebackType]
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ) -> bool | None:
         self.close()
         return None
 
@@ -161,15 +160,17 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         self.namespace = None
 
     # Reading messages with buffer
-    def _read_socket_message(self, timeout: Optional[float] = None) -> Message:
+    def _read_socket_message(self, timeout: float | None = None) -> Message:
         """Read the next message from the socket, without further processing."""
         if self.socket.poll(int((timeout if timeout is not None else self.timeout) * 1000)):
             return Message.from_frames(*self.socket.recv_multipart())
         raise TimeoutError("Reading timed out")
 
-    def _find_socket_message(self, conversation_id: Optional[bytes] = None,
-                             timeout: Optional[float] = None,
-                             ) -> Message:
+    def _find_socket_message(
+        self,
+        conversation_id: bytes | None = None,
+        timeout: float | None = None,
+    ) -> Message:
         """Find a specific message among socket messages, storing the other ones in the buffer.
 
         :param conversation_id: Conversation ID to filter for, or next free message if None.
@@ -194,14 +195,17 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         raise TimeoutError("Message not found.")
 
     def check_for_not_signed_in_error(self, message: Message) -> None:
-        if (message.sender_elements.name == b"COORDINATOR"
-                and message.payload
-                and b"error" in message.payload[0]
-                and NOT_SIGNED_IN_ERROR_CODE in message.payload[0]):
+        if (
+            message.sender_elements.name == b"COORDINATOR"
+            and message.payload
+            and b"error" in message.payload[0]
+            and NOT_SIGNED_IN_ERROR_CODE in message.payload[0]
+        ):
             self.handle_not_signed_in()
 
-    def read_message(self, conversation_id: Optional[bytes] = None,
-                     timeout: Optional[float] = None) -> Message:
+    def read_message(
+        self, conversation_id: bytes | None = None, timeout: float | None = None
+    ) -> Message:
         message = self.message_buffer.retrieve_message(conversation_id=conversation_id)
         if message is None:
             message = self._find_socket_message(conversation_id=conversation_id, timeout=timeout)
@@ -212,6 +216,6 @@ class BaseCommunicator(CommunicatorProtocol, Protocol):
         self.sign_in()
         self.log.warning("I was not signed in, signing in.")
 
-    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
+    def ask_message(self, message: Message, timeout: float | None = None) -> Message:
         self.send_message(message=message)
         return self.read_message(conversation_id=message.conversation_id, timeout=timeout)

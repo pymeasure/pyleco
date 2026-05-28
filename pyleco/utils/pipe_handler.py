@@ -25,7 +25,7 @@
 from __future__ import annotations
 from enum import Enum
 from threading import get_ident, Condition
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 from warnings import warn
 
 import zmq
@@ -97,18 +97,18 @@ class LockedMessageBuffer(MessageBuffer):
         else:
             return False
 
-    def retrieve_message(self, conversation_id: Optional[bytes] = None) -> Optional[Message]:
+    def retrieve_message(self, conversation_id: bytes | None = None) -> Message | None:
         """Retrieve the requested message or the next free one for `conversation_id=None`."""
         with self._buffer_lock:
             return super().retrieve_message(conversation_id=conversation_id)
 
-    def _retrieve_message_without_lock(self, conversation_id: Optional[bytes]) -> Optional[Message]:
+    def _retrieve_message_without_lock(self, conversation_id: bytes | None) -> Message | None:
         return super().retrieve_message(conversation_id=conversation_id)
 
-    def _predicate_generator(self, conversation_id: bytes) -> Callable[[], Optional[Message]]:
-        def check_message_in_buffer() -> Optional[Message]:
-            return self._retrieve_message_without_lock(
-                conversation_id=conversation_id)
+    def _predicate_generator(self, conversation_id: bytes) -> Callable[[], Message | None]:
+        def check_message_in_buffer() -> Message | None:
+            return self._retrieve_message_without_lock(conversation_id=conversation_id)
+
         return check_message_in_buffer
 
     def wait_for_message(self, conversation_id: bytes, timeout: float = 1) -> Message:
@@ -119,8 +119,8 @@ class LockedMessageBuffer(MessageBuffer):
         """
         with self._buffer_lock:
             result = self._buffer_lock.wait_for(
-                self._predicate_generator(conversation_id=conversation_id),
-                timeout=timeout)
+                self._predicate_generator(conversation_id=conversation_id), timeout=timeout
+            )
             if result:
                 return result
         # No result found:
@@ -133,13 +133,15 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
     You can create this endpoint in any thread you like and use it there.
     """
 
-    def __init__(self,
-                 handler: ExtendedMessageHandler,
-                 pipe_port: int,
-                 message_buffer: LockedMessageBuffer,
-                 context: Optional[zmq.Context] = None,
-                 timeout: float = 1,
-                 **kwargs: Any):
+    def __init__(
+        self,
+        handler: ExtendedMessageHandler,
+        pipe_port: int,
+        message_buffer: LockedMessageBuffer,
+        context: zmq.Context | None = None,
+        timeout: float = 1,
+        **kwargs: Any,
+    ):
         super().__init__(**kwargs)
         self.handler = handler
         context = context or zmq.Context.instance()
@@ -156,13 +158,13 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         return self.handler.name
 
     @name.setter
-    def name(self, value: Union[bytes, str]) -> None:
+    def name(self, value: bytes | str) -> None:
         if isinstance(value, str):
             value = value.encode()
         self._send_pipe_message(PipeCommands.RENAME, value)
 
     @property
-    def namespace(self) -> Union[str, None]:  # type: ignore[override]
+    def namespace(self) -> str | None:  # type: ignore[override]
         return self.handler.namespace
 
     @property
@@ -173,16 +175,16 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         try:
             self.socket.send_multipart((command, *content))
         except zmq.ZMQError as exc:
-            raise ConnectionRefusedError(f"Connection to the handler refused with '{exc}', "
-                                         "probably the handler stopped.") from exc
+            raise ConnectionRefusedError(
+                f"Connection to the handler refused with '{exc}', probably the handler stopped."
+            ) from exc
 
     def send_message(self, message: Message) -> None:
         if not message.sender:
             message.sender = self.full_name.encode()
         self._send_pipe_message(PipeCommands.SEND, *message.to_frames())
 
-    def read_message(self, conversation_id: Optional[bytes], timeout: Optional[float] = None
-                     ) -> Message:
+    def read_message(self, conversation_id: bytes | None, timeout: float | None = None) -> Message:
         if conversation_id is None:
             raise ValueError("You have to request a message with its conversation_id.")
         return self.message_buffer.wait_for_message(
@@ -190,7 +192,7 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
             timeout=self.timeout if timeout is None else timeout,
         )
 
-    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
+    def ask_message(self, message: Message, timeout: float | None = None) -> Message:
         self.message_buffer.add_conversation_id(message.conversation_id)
         self.send_message(message=message)
         return self.read_message(conversation_id=message.conversation_id, timeout=timeout)
@@ -249,16 +251,18 @@ class PipeHandler(ExtendedMessageHandler):
 
     :attr name_changing_methods: List of methods which are called, whenever the full_name changes.
     """
+
     message_buffer: LockedMessageBuffer
     _communicators: dict[int, CommunicatorPipe]
     _on_name_change_methods: set[Callable[[str], None]] = set()
 
-    def __init__(self, name: str, context: Optional[zmq.Context] = None, **kwargs: Any) -> None:
+    def __init__(self, name: str, context: zmq.Context | None = None, **kwargs: Any) -> None:
         context = context or zmq.Context.instance()
         super().__init__(name=name, context=context, **kwargs)
         self.internal_pipe: zmq.Socket = context.socket(zmq.PULL)
-        self.pipe_port = self.internal_pipe.bind_to_random_port("inproc://listenerPipe",
-                                                                min_port=12345)
+        self.pipe_port = self.internal_pipe.bind_to_random_port(
+            "inproc://listenerPipe", min_port=12345
+        )
         self._communicators = {}
 
     def setup_message_buffer(self) -> None:
@@ -275,8 +279,9 @@ class PipeHandler(ExtendedMessageHandler):
             try:
                 method(full_name)
             except Exception as exc:
-                self.log.exception("Setting the name with a registered method failed.",
-                                   exc_info=exc)
+                self.log.exception(
+                    "Setting the name with a registered method failed.", exc_info=exc
+                )
 
     def register_on_name_change_method(self, method: Callable[[str], None]) -> None:
         """Register a method (accepting a string) to be called whenever the full name changes."""
@@ -290,8 +295,9 @@ class PipeHandler(ExtendedMessageHandler):
         poller.register(self.internal_pipe, zmq.POLLIN)
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
-                             ) -> dict[zmq.Socket, int]:
+    def _listen_loop_element(
+        self, poller: zmq.Poller, waiting_time: int | None
+    ) -> dict[zmq.Socket, int]:
         socks = super()._listen_loop_element(poller=poller, waiting_time=waiting_time)
         if self.internal_pipe in socks:
             self.read_and_handle_pipe_message()
@@ -349,9 +355,9 @@ class PipeHandler(ExtendedMessageHandler):
     # Thread safe methods for access from other threads
     def create_communicator(self, **kwargs: Any) -> CommunicatorPipe:
         """Create a communicator wherever you want to access the pipe handler."""
-        com = CommunicatorPipe(message_buffer=self.message_buffer, pipe_port=self.pipe_port,
-                               handler=self,
-                               **kwargs)
+        com = CommunicatorPipe(
+            message_buffer=self.message_buffer, pipe_port=self.pipe_port, handler=self, **kwargs
+        )
         self._communicators[get_ident()] = com
         return com
 

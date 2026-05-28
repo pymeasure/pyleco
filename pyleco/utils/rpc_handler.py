@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Callable, TypeVar
 
 from ..core.message import Message, MessageTypes
 from ..json_utils.rpc_generator import RPCGenerator
@@ -38,7 +38,7 @@ class RpcHandler:
     """Handles registration and processing of RPC methods in LECO context."""
 
     current_message: Message
-    additional_response_payload: Optional[list[bytes]]
+    additional_response_payload: list[bytes] | None
 
     def __init__(self, title: str = "RpcHandler") -> None:
         self.rpc = RPCServer(title=title)
@@ -60,7 +60,7 @@ class RpcHandler:
 
     def _generate_binary_capable_method(
         self,
-        method: Callable[..., Union[ReturnValue, tuple[ReturnValue, list[bytes]]]],
+        method: Callable[..., ReturnValue | tuple[ReturnValue, list[bytes]]],
         accept_binary_input: bool = False,
         return_binary_output: bool = False,
     ) -> Callable[..., ReturnValue]:
@@ -79,9 +79,7 @@ class RpcHandler:
                     args = args_l  # type: ignore[assignment]
                 else:
                     kwargs["additional_payload"] = self.current_message.payload[1:]
-                return_value = method(
-                    *args, **kwargs
-                )
+                return_value = method(*args, **kwargs)
                 return returner(return_value=return_value)  # type: ignore
         else:
 
@@ -101,7 +99,7 @@ class RpcHandler:
 
     def register_binary_rpc_method(
         self,
-        method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
+        method: Callable[..., Any | tuple[Any, list[bytes]]],
         accept_binary_input: bool = False,
         return_binary_output: bool = False,
         **kwargs: Any,
@@ -120,7 +118,7 @@ class RpcHandler:
         )
         self.register_rpc_method(modified_method, **kwargs)
 
-    def process_request(self, message: Message) -> Optional[Message]:
+    def process_request(self, message: Message) -> Message | None:
         """Process an RPC request and return the response message."""
         if not message.payload:
             return None

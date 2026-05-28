@@ -26,7 +26,7 @@ from __future__ import annotations
 import datetime
 from enum import IntEnum, IntFlag
 import json
-from typing import Any, Optional, NamedTuple, Union
+from typing import Any, NamedTuple
 
 # as long as uuid does not yet support UUIDv7 use uuid6
 from uuid6 import uuid7
@@ -74,12 +74,14 @@ class Header(NamedTuple):
 
 class MessageTypes(IntEnum):
     """The different message types, represented as an integer in the range [0, 255]."""
+
     NOT_DEFINED = 0
     JSON = 1
 
 
 class JsonContentTypes(IntFlag):
     """Type of the JSON content."""
+
     INVALID = 0
     REQUEST = 1
     RESPONSE = 2
@@ -90,10 +92,11 @@ class JsonContentTypes(IntFlag):
     ERROR_RESPONSE = RESPONSE + ERROR
 
 
-def create_header_frame(conversation_id: Optional[bytes] = None,
-                        message_id: Optional[Union[bytes, int]] = 0,
-                        message_type: Union[bytes, int, MessageTypes] = MessageTypes.NOT_DEFINED,
-                        ) -> bytes:
+def create_header_frame(
+    conversation_id: bytes | None = None,
+    message_id: bytes | int | None = 0,
+    message_type: bytes | int | MessageTypes = MessageTypes.NOT_DEFINED,
+) -> bytes:
     """Create the header frame.
 
     :param bytes conversation_id: ID of the conversation.
@@ -107,7 +110,7 @@ def create_header_frame(conversation_id: Optional[bytes] = None,
     if message_id is None:
         message_id = b"\x00" * 3
     elif isinstance(message_id, int):
-        message_id = message_id.to_bytes(length=3, byteorder='big')
+        message_id = message_id.to_bytes(length=3, byteorder="big")
     elif len(message_id) != 3:
         raise ValueError("Length of 'message_id' is not 3 bytes.")
     if isinstance(message_type, int):
@@ -150,7 +153,7 @@ def serialize_data(data: Any) -> bytes:
     if isinstance(data, json_objects):
         return data.model_dump_json().encode()
     else:
-        return json.dumps(data, separators=(',', ':')).encode()
+        return json.dumps(data, separators=(",", ":")).encode()
 
 
 def deserialize_data(content: bytes) -> Any:

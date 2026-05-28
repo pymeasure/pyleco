@@ -23,7 +23,8 @@
 #
 
 
-from typing import Any, Callable, Iterable, Mapping, Optional
+from __future__ import annotations
+from typing import Any, Callable, Iterable, Mapping
 from threading import Event, Timer
 
 
@@ -39,8 +40,8 @@ class RepeatingTimer(Timer):
         self,
         interval: float,
         function: Callable,
-        args: Optional[Iterable[Any]] = None,
-        kwargs: Optional[Mapping[str, Any]] = None,
+        args: Iterable[Any] | None = None,
+        kwargs: Mapping[str, Any] | None = None,
     ):
         super().__init__(interval, function, args, kwargs)
         self.daemon = True

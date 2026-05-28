@@ -25,24 +25,34 @@
 from __future__ import annotations
 from argparse import ArgumentParser
 import logging
-from typing import Optional
 
 
 parser = ArgumentParser()
 parser.add_argument("-r", "--host", help="set the host name of this Node's Coordinator")
 parser.add_argument("-n", "--name", help="set the application name")
-parser.add_argument("-q", "--quiet", action="count", default=0,
-                    help="decrease the logging level by one, may be used more than once")
-parser.add_argument("-v", "--verbose", action="count", default=0,
-                    help="increase the logging level by one, may be used more than once")
+parser.add_argument(
+    "-q",
+    "--quiet",
+    action="count",
+    default=0,
+    help="decrease the logging level by one, may be used more than once",
+)
+parser.add_argument(
+    "-v",
+    "--verbose",
+    action="count",
+    default=0,
+    help="increase the logging level by one, may be used more than once",
+)
 
 
-def parse_command_line_parameters(parser: ArgumentParser = parser,
-                                  logger: Optional[logging.Logger] = None,
-                                  arguments: Optional[list[str]] = None,
-                                  parser_description: Optional[str] = None,
-                                  logging_default: int = logging.WARNING,
-                                  ) -> dict:
+def parse_command_line_parameters(
+    parser: ArgumentParser = parser,
+    logger: logging.Logger | None = None,
+    arguments: list[str] | None = None,
+    parser_description: str | None = None,
+    logging_default: int = logging.WARNING,
+) -> dict:
     """Parse the command line parameters and return a dictionary for GUIs.
 
     :param parser: parser to use, for example with more settings.

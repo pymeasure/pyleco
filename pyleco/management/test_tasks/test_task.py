@@ -36,11 +36,14 @@ class FakeInstrument:  # pragma: no cover
 def task(stop_event: Event) -> None:
     """The task which is run by the starter."""
     # Initialize
-    while stop_event.wait(.5):
-        sleep(.1)
+    while stop_event.wait(0.5):
+        sleep(0.1)
     return
-    with Actor(name="pymeasure_actor", device_class=FakeInstrument,  # type: ignore[unreachable]
-               periodic_reading=-1) as actor:
+    with Actor(  # type: ignore[unreachable]
+        name="pymeasure_actor",
+        device_class=FakeInstrument,
+        periodic_reading=-1,
+    ) as actor:
         actor.connect()  # connect to the device
 
         # Continuous loop

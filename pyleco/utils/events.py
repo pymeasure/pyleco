@@ -27,6 +27,7 @@ from typing import Protocol
 
 class Event(Protocol):
     """Check compatibility with `threading.Event`."""
+
     def is_set(self) -> bool: ...  # pragma: no cover
 
     def set(self) -> None: ...  # pragma: no cover
@@ -34,6 +35,7 @@ class Event(Protocol):
 
 class SimpleEvent(Event):
     """A simple Event if the one from `threading` module is not necessary."""
+
     def __init__(self) -> None:
         self._flag = False
 

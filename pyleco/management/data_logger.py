@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 import datetime
+
 try:
     from enum import StrEnum  # type: ignore
 except ImportError:  # pragma: no cover
@@ -32,15 +33,18 @@ except ImportError:  # pragma: no cover
 
     class StrEnum(str, Enum):  # type: ignore
         pass
+
+
 import json
 import logging
 from threading import Lock
-from typing import Any, Callable, Optional, Iterable, Sequence, Union
+from typing import Any, Callable, Iterable, Sequence
 
 try:
     import numpy as np  # type: ignore[import-not-found]
 except ModuleNotFoundError:
-    def average(values: Sequence[Union[float, int]]) -> float:
+
+    def average(values: Sequence[float | int]) -> float:
         return sum(values) / len(values)
 else:
     average = np.average  # type: ignore
@@ -137,16 +141,23 @@ class DataLogger(ExtendedMessageHandler):
         self.register_rpc_method(self.get_configuration)
 
     def __del__(self) -> None:
-        self.stop_collecting()
+        try:
+            self.trigger_type = TriggerTypes.NONE
+            self.timer.cancel()
+        except Exception:
+            pass
 
-    def _listen_setup(self, start_data: Optional[dict[str, Any]] = None,  # type: ignore[override]
-                      **kwargs: Any) -> Poller:
+    def _listen_setup(
+        self,
+        start_data: dict[str, Any] | None = None,  # type: ignore[override]
+        **kwargs: Any,
+    ) -> Poller:
         poller = super()._listen_setup(**kwargs)
         if start_data is not None:
             self.start_collecting(**start_data)
         return poller
 
-    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
+    def _listen_close(self, waiting_time: int | None = None) -> None:
         self.stop_collecting()
         super()._listen_close(waiting_time=waiting_time)
 
@@ -188,13 +199,13 @@ class DataLogger(ExtendedMessageHandler):
         """Calculate data for a data point and return the data point."""
         datapoint = {}
         with self.list_lock:
-            if 'time' in self.lists.keys():
+            if "time" in self.lists.keys():
                 now = datetime.datetime.now(datetime.timezone.utc)
                 today = datetime.datetime.combine(
                     self.today, datetime.time(), datetime.timezone.utc
                 )
                 time = (now - today).total_seconds()
-                self.tmp['time'].append(time)
+                self.tmp["time"].append(time)
             for variable, datalist in self.lists.items():
                 value = datapoint[variable] = self.calculate_single_data(
                     variable, self.tmp[variable]
@@ -229,22 +240,26 @@ class DataLogger(ExtendedMessageHandler):
             return nan
 
     # Control
-    def start_collecting(self, *,
-                         variables: Optional[list[str]] = None,
-                         units: Optional[dict[str, Any]] = None,
-                         trigger_type: Optional[TriggerTypes] = None,  # TODO also str, but openrpc
-                         trigger_timeout: Optional[float] = None,
-                         trigger_variable: Optional[str] = None,
-                         valuing_mode: Optional[ValuingModes] = None,  # TODO also str, but openrpc
-                         value_repeating: Optional[bool] = None,
-                         ) -> None:
+    def start_collecting(
+        self,
+        *,
+        variables: list[str] | None = None,
+        units: dict[str, Any] | None = None,
+        trigger_type: TriggerTypes | None = None,  # TODO also str, but openrpc
+        trigger_timeout: float | None = None,
+        trigger_variable: str | None = None,
+        valuing_mode: ValuingModes | None = None,  # TODO also str, but openrpc
+        value_repeating: bool | None = None,
+    ) -> None:
         """Start collecting data.
 
         If you do not give a specific parameter, the value of the last measurement is used again.
         """
         self.stop_collecting()
-        log.info(f"Start collecting data. Trigger: {trigger_type}, {trigger_timeout}, "
-                 f"{trigger_variable}; subscriptions: {variables}")
+        log.info(
+            f"Start collecting data. Trigger: {trigger_type}, {trigger_timeout}, "
+            f"{trigger_variable}; subscriptions: {variables}"
+        )
         self.today = datetime.datetime.now(datetime.timezone.utc).date()
         self.trigger_type = TriggerTypes(trigger_type) if trigger_type else self._last_trigger_type
         self._last_trigger_type = self.trigger_type
@@ -258,7 +273,7 @@ class DataLogger(ExtendedMessageHandler):
             self.start_timer_trigger(timeout=self.trigger_timeout)
         self.set_valuing_mode(valuing_mode=valuing_mode)
         self.setup_variables(self.lists.keys() if variables is None else variables)
-        self.units = units if units else {}
+        self.units = units or {}
 
     def setup_variables(self, variables: Iterable[str]) -> None:
         """Subscribe to the variables."""
@@ -271,7 +286,9 @@ class DataLogger(ExtendedMessageHandler):
                 if len(parts) == 2:
                     # assume to be in the same namespace
                     if self.namespace is None:
-                        log.error(f"Cannot subscribe to '{variable}' as the namespace is not known.")  # noqa
+                        log.error(
+                            f"Cannot subscribe to '{variable}' as the namespace is not known."
+                        )  # noqa
                         continue
                     parts.insert(0, self.namespace)
                     variable = ".".join(parts)
@@ -295,7 +312,7 @@ class DataLogger(ExtendedMessageHandler):
         self.timer = RepeatingTimer(timeout, self.make_datapoint)
         self.timer.start()
 
-    def set_valuing_mode(self, valuing_mode: Optional[ValuingModes]) -> None:  # also str
+    def set_valuing_mode(self, valuing_mode: ValuingModes | None) -> None:  # also str
         if valuing_mode == ValuingModes.LAST:
             self.valuing = self.last
         elif valuing_mode == ValuingModes.AVERAGE:
@@ -303,7 +320,7 @@ class DataLogger(ExtendedMessageHandler):
         elif valuing_mode is None:
             pass  # already setup
 
-    def save_data(self, meta: Optional[dict] = None, suffix: str = "", header: str = "") -> str:
+    def save_data(self, meta: dict | None = None, suffix: str = "", header: str = "") -> str:
         """Save the data.
 
         :param addr: Reply address for the filename.
@@ -318,17 +335,19 @@ class DataLogger(ExtendedMessageHandler):
         folder = self.directory
         # Pickle the header and lists.
         file_name = datetime.datetime.now().strftime("%Y_%m_%dT%H_%M_%S") + suffix
-        meta.update({
-            'units': self.units,
-            'today': self.today.isoformat(),
-            'file_name': file_name,
-            'logger_name': self.full_name,
-            'configuration': self.get_configuration(),
-            # 'user': self.user_data,  # user stored meta data
-        })
+        meta.update(
+            {
+                "units": self.units,
+                "today": self.today.isoformat(),
+                "file_name": file_name,
+                "logger_name": self.full_name,
+                "configuration": self.get_configuration(),
+                # 'user': self.user_data,  # user stored meta data
+            }
+        )
         try:
             with self.list_lock:
-                with open(f"{folder}/{file_name}.json", 'w') as file:
+                with open(f"{folder}/{file_name}.json", "w") as file:
                     json.dump(obj=(header, self.lists, meta), fp=file)
         except TypeError as exc:
             log.exception("Some type error during saving occurred.", exc_info=exc)
@@ -345,6 +364,9 @@ class DataLogger(ExtendedMessageHandler):
     def stop_collecting(self) -> None:
         """Stop the data acquisition."""
         log.info("Stopping to collect data.")
+        self._stop_collecting()
+
+    def _stop_collecting(self) -> None:
         self.trigger_type = TriggerTypes.NONE
         self.unsubscribe_all()
         try:
@@ -357,17 +379,17 @@ class DataLogger(ExtendedMessageHandler):
         """Get the currently used configuration as a dictionary."""
         config: dict[str, Any] = {}
         # Trigger
-        config['trigger_type'] = self.trigger_type.value
-        config['trigger_timeout'] = self.trigger_timeout
-        config['trigger_variable'] = self.trigger_variable
+        config["trigger_type"] = self.trigger_type.value
+        config["trigger_timeout"] = self.trigger_timeout
+        config["trigger_variable"] = self.trigger_variable
         # Value
         vm = ValuingModes.LAST if self.valuing == self.last else ValuingModes.AVERAGE
-        config['valuing_mode'] = vm.value
-        config['value_repeating'] = self.value_repeating
+        config["valuing_mode"] = vm.value
+        config["value_repeating"] = self.value_repeating
         # Header and Variables.
         with self.list_lock:
-            config['variables'] = list(self.lists.keys())
-        config['units'] = self.units
+            config["variables"] = list(self.lists.keys())
+        config["units"] = self.units
         # config['autoSave'] = self.actionAutoSave.isChecked()
         return config
 
@@ -375,7 +397,7 @@ class DataLogger(ExtendedMessageHandler):
         """Read the last datapoint."""
         return self.last_datapoint
 
-    def get_last_save_name(self) -> Union[str, None]:
+    def get_last_save_name(self) -> str | None:
         """Return the name of the last save."""
         return self.last_save_name
 
@@ -389,12 +411,12 @@ class DataLogger(ExtendedMessageHandler):
 def main() -> None:
     """Start a datalogger at script execution."""
     parser.description = "Log data."
-    parser.add_argument("-d", "--directory",
-                        help="set the directory to save the data to")
+    parser.add_argument("-d", "--directory", help="set the directory to save the data to")
 
     gLog = logging.getLogger()  # print all log entries!
-    kwargs = parse_command_line_parameters(parser=parser, parser_description="Log data.",
-                                           logger=gLog)
+    kwargs = parse_command_line_parameters(
+        parser=parser, parser_description="Log data.", logger=gLog
+    )
     if not gLog.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(StrFormatter)

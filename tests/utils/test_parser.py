@@ -33,17 +33,18 @@ class Test_parse_command_line_parameters:
     @pytest.fixture
     def parsed_kwargs(self):
         self.parser = parser
-        return parse_command_line_parameters(parser=self.parser,
-                                             arguments=["-v", "--name", "name_value", "-v"],
-                                             parser_description="Some description",
-                                             logging_default=logging.WARNING
-                                             )
+        return parse_command_line_parameters(
+            parser=self.parser,
+            arguments=["-v", "--name", "name_value", "-v"],
+            parser_description="Some description",
+            logging_default=logging.WARNING,
+        )
 
     def test_parser_description(self, parsed_kwargs):
         assert self.parser.description == "Some description"
 
     def test_kwargs(self, parsed_kwargs):
-        assert parsed_kwargs == {'name': "name_value"}
+        assert parsed_kwargs == {"name": "name_value"}
 
     def test_logging_level(self, parsed_kwargs):
         assert logging.getLogger("__main__").level == logging.DEBUG

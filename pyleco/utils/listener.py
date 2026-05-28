@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from threading import Thread, Event
 from time import sleep
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 from ..core import PROXY_SENDING_PORT, COORDINATOR_PORT
 from .pipe_handler import PipeHandler, CommunicatorPipe
@@ -59,15 +59,17 @@ class Listener:
     communicator: CommunicatorPipe
     message_handler: PipeHandler
 
-    def __init__(self,
-                 name: str,
-                 host: str = "localhost",
-                 port: int = COORDINATOR_PORT,
-                 data_host: Optional[str] = None,
-                 data_port: int = PROXY_SENDING_PORT,
-                 logger: Optional[logging.Logger] = None,
-                 timeout: float = 1,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self,
+        name: str,
+        host: str = "localhost",
+        port: int = COORDINATOR_PORT,
+        data_host: str | None = None,
+        data_port: int = PROXY_SENDING_PORT,
+        logger: logging.Logger | None = None,
+        timeout: float = 1,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         log.info(f"Start Listener for '{name}'.")
 
@@ -111,14 +113,16 @@ class Listener:
                 self.coordinator_address[1],
                 self.data_address[0],
                 self.data_address[1],
-            ))
+            ),
+        )
         self.thread.daemon = True
         self.thread.start()
         for _ in range(10):
             sleep(0.05)
             try:
                 self.communicator: CommunicatorPipe = self.message_handler.get_communicator(
-                    timeout=self.timeout)
+                    timeout=self.timeout
+                )
             except AttributeError:
                 pass
             else:
@@ -142,7 +146,7 @@ class Listener:
 
     def register_binary_rpc_method(
         self,
-        method: Callable[..., Union[Any, tuple[Any, list[bytes]]]],
+        method: Callable[..., Any | tuple[Any, list[bytes]]],
         accept_binary_input: bool = False,
         return_binary_output: bool = False,
         **kwargs: Any,
@@ -176,9 +180,21 @@ class Listener:
     Methods below are executed in the thread, DO NOT CALL DIRECTLY!
     """
 
-    def _listen(self, name: str, stop_event: Event, coordinator_host: str, coordinator_port: int,
-                data_host: str, data_port: int) -> None:
+    def _listen(
+        self,
+        name: str,
+        stop_event: Event,
+        coordinator_host: str,
+        coordinator_port: int,
+        data_host: str,
+        data_port: int,
+    ) -> None:
         """Start a PipeHandler, which has to be executed in a separate thread."""
-        self.message_handler = PipeHandler(name, host=coordinator_host, port=coordinator_port,
-                                           data_host=data_host, data_port=data_port)
+        self.message_handler = PipeHandler(
+            name,
+            host=coordinator_host,
+            port=coordinator_port,
+            data_host=data_host,
+            data_port=data_port,
+        )
         self.message_handler.listen(stop_event=stop_event)

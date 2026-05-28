@@ -30,8 +30,11 @@ from .json_utils.json_objects import Error, ErrorResponse, JsonRpcError
 from .json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME, NODE_UNKNOWN, RECEIVER_UNKNOWN  # noqa
 
 
-warn("The `pyleco.errors` module is deprecated, use the objects from the `pyleco.json_utils` "
-     "subpackage instead.", FutureWarning)
+warn(
+    "The `pyleco.errors` module is deprecated, use the objects from the `pyleco.json_utils` "
+    "subpackage instead.",
+    FutureWarning,
+)
 
 
 def generate_error_with_data(error: Error, data: Any) -> JsonRpcError:

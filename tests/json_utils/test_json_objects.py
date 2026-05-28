@@ -176,7 +176,7 @@ class TestJsonRpcBatch:
             ("request_batch", json_objects.BatchContentType.REQUESTS),
             ("response_batch", json_objects.BatchContentType.RESPONSES),
             ("mixed_batch", json_objects.BatchContentType.MIXED),
-        ]
+        ],
     )
     def test_batch_type(self, batch_fixture, expected_type, request):
         batch = request.getfixturevalue(batch_fixture)
@@ -188,7 +188,7 @@ class TestJsonRpcBatch:
             ("request_batch", True, False, False),
             ("response_batch", False, True, False),
             ("mixed_batch", False, False, True),
-        ]
+        ],
     )
     def test_batch_flags(self, batch_fixture, is_request, is_response, is_mixed, request):
         batch = request.getfixturevalue(batch_fixture)

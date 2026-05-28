@@ -29,13 +29,16 @@ import pytest
 from pyleco.utils.log_levels import get_leco_log_level, LogLevels, PythonLogLevels
 
 
-@pytest.mark.parametrize("level, value", (
-    (logging.DEBUG, LogLevels.DEBUG),
-    (logging.INFO, LogLevels.INFO),
-    (logging.WARNING, LogLevels.WARNING),
-    (logging.ERROR, LogLevels.ERROR),
-    (logging.CRITICAL, LogLevels.CRITICAL),
-))
+@pytest.mark.parametrize(
+    "level, value",
+    (
+        (logging.DEBUG, LogLevels.DEBUG),
+        (logging.INFO, LogLevels.INFO),
+        (logging.WARNING, LogLevels.WARNING),
+        (logging.ERROR, LogLevels.ERROR),
+        (logging.CRITICAL, LogLevels.CRITICAL),
+    ),
+)
 def test_get_leco_log_level(level, value):
     assert get_leco_log_level(level) == value
 

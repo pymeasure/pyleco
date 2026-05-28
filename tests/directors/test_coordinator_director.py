@@ -39,8 +39,14 @@ def coordinator_director():
     return data_logger_director
 
 
-@pytest.mark.parametrize("method", ("get_local_components", "get_global_components", "get_nodes",
-                                    ))
+@pytest.mark.parametrize(
+    "method",
+    (
+        "get_local_components",
+        "get_global_components",
+        "get_nodes",
+    ),
+)
 def test_method_call_existing_remote_methods(coordinator_director: FakeCoordinatorDirector, method):
     """Test that the remote method exists."""
     coordinator_director.return_value = None

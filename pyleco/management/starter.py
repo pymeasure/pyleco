@@ -30,7 +30,7 @@ import os
 from os import path
 import sys
 import threading
-from typing import Any, Optional, Union
+from typing import Any
 
 if __name__ != "__main__":
     from ..utils.message_handler import MessageHandler
@@ -48,8 +48,8 @@ modules: dict[str, Any] = {}  # A dictionary of the task modules
 
 
 def sanitize_tasks(
-    tasks: Optional[Union[list[str], tuple[str, ...], str]],
-) -> Union[tuple[str, ...], list[str]]:
+    tasks: list[str] | tuple[str, ...] | str | None,
+) -> tuple[str, ...] | list[str]:
     """Ensure that the tasks are a list of tasks."""
     if tasks is None:
         return ()
@@ -100,8 +100,8 @@ class Starter(MessageHandler):
     def __init__(
         self,
         name: str = "starter",
-        directory: Optional[str] = None,
-        tasks: Optional[list[str]] = None,
+        directory: str | None = None,
+        tasks: list[str] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(name=name, **kwargs)
@@ -131,7 +131,7 @@ class Starter(MessageHandler):
         self.register_rpc_method(self.status_tasks)
         self.register_rpc_method(self.uninstall_tasks)
 
-    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
+    def _listen_close(self, waiting_time: int | None = None) -> None:
         """Close the listening loop."""
         super()._listen_close(waiting_time=waiting_time)
         self.stop_all_tasks()
@@ -151,7 +151,7 @@ class Starter(MessageHandler):
         super().heartbeat()
         self.check_installed_tasks()
 
-    def start_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
+    def start_tasks(self, names: list[str] | tuple[str, ...]) -> None:
         for name in sanitize_tasks(names):
             self.start_task(name)
 
@@ -181,7 +181,7 @@ class Starter(MessageHandler):
                 return
             thread.start()
 
-    def stop_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
+    def stop_tasks(self, names: list[str] | tuple[str, ...]) -> None:
         for name in sanitize_tasks(names):
             self.stop_task(name)
 
@@ -208,12 +208,12 @@ class Starter(MessageHandler):
         except Exception as exc:
             log.exception(f"Deleting task '{name}' failed", exc_info=exc)
 
-    def restart_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
+    def restart_tasks(self, names: list[str] | tuple[str, ...]) -> None:
         for name in sanitize_tasks(names):
             self.stop_task(name)
             self.start_task(name)
 
-    def install_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
+    def install_tasks(self, names: list[str] | tuple[str, ...]) -> None:
         for name in sanitize_tasks(names):
             self.install_task(name)
 
@@ -222,7 +222,7 @@ class Starter(MessageHandler):
         log.info(f"Install task '{name}'.")
         self.started_tasks[name] = self.started_tasks.get(name, 0) | Status.INSTALLED
 
-    def uninstall_tasks(self, names: Union[list[str], tuple[str, ...]]) -> None:
+    def uninstall_tasks(self, names: list[str] | tuple[str, ...]) -> None:
         for name in sanitize_tasks(names):
             self.uninstall_task(name)
 
@@ -230,7 +230,7 @@ class Starter(MessageHandler):
         """Uninstalls a task without stopping it, if it is already running."""
         self.started_tasks[name] = self.started_tasks.get(name, 0) & ~Status.INSTALLED
 
-    def status_tasks(self, names: Optional[list[str]] = None) -> dict[str, Status]:
+    def status_tasks(self, names: list[str] | None = None) -> dict[str, Status]:
         """Enumerate the status of the started/running tasks and keep the records clean.
 
         :param list names: List of tasks to look for.
@@ -256,7 +256,7 @@ class Starter(MessageHandler):
         tasks = []
         for name in filenames:
             if name.endswith(".py") and not name == "__init__.py":
-                with open(f"{self.directory}/{name}", "r") as file:
+                with open(f"{self.directory}/{name}") as file:
                     # Search for the first line with triple quotes
                     for i in range(10):
                         if file.readline().strip() == '"""':

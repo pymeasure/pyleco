@@ -24,7 +24,7 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Any, Callable, Generic, Optional, Sequence, Type, TypeVar, Union
+from typing import Any, Callable, Generic, Sequence, TypeVar
 from warnings import warn
 
 import zmq
@@ -68,7 +68,7 @@ class Actor(MessageHandler, Generic[Device]):
         .. deprecated:: 0.3
             Deprecated, use :code:`device_class` instead.
 
-    :param \\**kwargs: Keywoard arguments for the general message handling.
+    :param \\**kwargs: Keyword arguments for the general message handling.
     """
 
     device: Device
@@ -76,11 +76,11 @@ class Actor(MessageHandler, Generic[Device]):
     def __init__(
         self,
         name: str,
-        device_class: Optional[type[Device]] = None,
+        device_class: type[Device] | None = None,
         periodic_reading: float = -1,
-        auto_connect: Optional[dict] = None,
-        context: Optional[zmq.Context] = None,
-        cls: Optional[type[Device]] = None,
+        auto_connect: dict | None = None,
+        context: zmq.Context | None = None,
+        cls: type[Device] | None = None,
         **kwargs: Any,
     ):
         context = context or zmq.Context.instance()
@@ -127,17 +127,18 @@ class Actor(MessageHandler, Generic[Device]):
         self.register_rpc_method(method=method, name="device." + name)
 
     def __del__(self) -> None:
-        self.disconnect()
+        try:
+            self._disconnect()
+        except Exception:
+            pass
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_traceback: Optional[TracebackType],
-    ) -> Optional[bool]:
-        result = super().__exit__(
-            exc_type, exc_value, exc_traceback
-        )
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ) -> bool | None:
+        result = super().__exit__(exc_type, exc_value, exc_traceback)
         self.disconnect()
         return result
 
@@ -151,8 +152,9 @@ class Actor(MessageHandler, Generic[Device]):
         poller.register(self.pipeL, zmq.POLLIN)
         return poller
 
-    def _listen_loop_element(self, poller: zmq.Poller, waiting_time: Optional[int]
-                             ) -> dict[zmq.Socket, int]:
+    def _listen_loop_element(
+        self, poller: zmq.Poller, waiting_time: int | None
+    ) -> dict[zmq.Socket, int]:
         """Check the socks for incoming messages and handle them.
 
         :param waiting_time: Timeout of the poller in ms.
@@ -181,7 +183,7 @@ class Actor(MessageHandler, Generic[Device]):
         """
         self.read_publish(device=self.device, publisher=self.publisher)
 
-    def start_timer(self, interval: Optional[float] = None) -> None:
+    def start_timer(self, interval: float | None = None) -> None:
         """Start the readout timer.
 
         :param interval: Readout interval in s. If None, use the last value.
@@ -203,7 +205,7 @@ class Actor(MessageHandler, Generic[Device]):
         except AttributeError:
             pass
 
-    def start_polling(self, polling_interval: Optional[float] = None) -> None:
+    def start_polling(self, polling_interval: float | None = None) -> None:
         self.start_timer(interval=polling_interval)
 
     def stop_polling(self) -> None:
@@ -234,6 +236,9 @@ class Actor(MessageHandler, Generic[Device]):
     def disconnect(self) -> None:
         """Disconnect the device."""
         self.log.info("Disconnecting.")
+        self._disconnect()
+
+    def _disconnect(self) -> None:
         self.stop_timer()
         try:
             # Assumes a pymeasure instrument
@@ -245,7 +250,7 @@ class Actor(MessageHandler, Generic[Device]):
         except AttributeError:
             pass
 
-    def get_parameters(self, parameters: Union[list[str], tuple[str, ...]]) -> dict[str, Any]:
+    def get_parameters(self, parameters: list[str] | tuple[str, ...]) -> dict[str, Any]:
         """Get device properties from the list `properties`."""
         # `parameters` should be `Iterable[str]`, however, openrpc does not like that.
         data = {}
@@ -268,8 +273,9 @@ class Actor(MessageHandler, Generic[Device]):
                 obj = getattr(obj, attr)
             setattr(obj, path[-1], value)
 
-    def call_action(self, action: str, args: Optional[Sequence] = None,
-                    kwargs: Optional[dict[str, Any]] = None) -> Any:
+    def call_action(
+        self, action: str, args: Sequence | None = None, kwargs: dict[str, Any] | None = None
+    ) -> Any:
         """Call a device action with positional ``args`` and keyword arguments ``kwargs``."""
         if args is None:
             args = ()

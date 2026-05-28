@@ -25,7 +25,7 @@
 from __future__ import annotations
 import logging
 from time import perf_counter
-from typing import Any, cast, Dict, Optional, Union, TypeVar
+from typing import Any, cast, Dict, TypeVar
 
 import zmq
 
@@ -65,7 +65,7 @@ class Communicator(BaseCommunicator):
         self,
         name: str,
         host: str = "localhost",
-        port: Optional[int] = COORDINATOR_PORT,
+        port: int | None = COORDINATOR_PORT,
         timeout: float = 0.1,
         auto_open: bool = True,
         protocol: str = "tcp",
@@ -87,7 +87,7 @@ class Communicator(BaseCommunicator):
         super().__init__(**kwargs)
         self.setup_message_buffer()
 
-    def open(self, context: Optional[zmq.Context] = None) -> None:
+    def open(self, context: zmq.Context | None = None) -> None:
         """Open the connection."""
         context = context or zmq.Context.instance()
         self.socket: zmq.Socket = context.socket(zmq.DEALER)
@@ -108,7 +108,10 @@ class Communicator(BaseCommunicator):
         except ConnectionRefusedError:
             self.log.warning("Closing, the sign out failed with a refused connection.")
         finally:
-            super().close()
+            self._close()
+
+    def _close(self) -> None:
+        super().close()
 
     def reset(self) -> None:
         """Reset socket"""
@@ -116,7 +119,10 @@ class Communicator(BaseCommunicator):
         self.open()
 
     def __del__(self) -> None:
-        self.close()
+        try:
+            self._close()
+        except Exception:
+            pass
 
     def __enter__(self: _Self) -> _Self:  # -> typing.Self for py>=3.11
         """Called with `with` keyword, returns the Director."""
@@ -132,7 +138,7 @@ class Communicator(BaseCommunicator):
         self._last_beat = now
         super().send_message(message=message)
 
-    def poll(self, timeout: Optional[float] = None) -> int:
+    def poll(self, timeout: float | None = None) -> int:
         """Check how many messages arrived."""
         if timeout is None:
             timeout = self.timeout
@@ -142,7 +148,7 @@ class Communicator(BaseCommunicator):
         super().handle_not_signed_in()
         raise ConnectionResetError("Have not been signed in, signing in.")
 
-    def ask_message(self, message: Message, timeout: Optional[float] = None) -> Message:
+    def ask_message(self, message: Message, timeout: float | None = None) -> Message:
         """Send and read the answer, signing in if necessary."""
         for _ in range(2):
             try:
@@ -151,9 +157,9 @@ class Communicator(BaseCommunicator):
                 pass  # sign in required, retry
         raise ConnectionRefusedError(NOT_SIGNED_IN.message)
 
-    def ask_json(self, receiver: Union[bytes, str], json_string: str,
-                 timeout: Optional[float] = None
-                 ) -> bytes:
+    def ask_json(
+        self, receiver: bytes | str, json_string: str, timeout: float | None = None
+    ) -> bytes:
         message = Message(receiver=receiver, data=json_string, message_type=MessageTypes.JSON)
         response = self.ask_message(message=message, timeout=timeout)
         return response.payload[0]
@@ -166,5 +172,5 @@ class Communicator(BaseCommunicator):
         if self.namespace is None:
             raise ConnectionRefusedError("Sign in failed.")
 
-    def get_capabilities(self, receiver: Union[bytes, str]) -> dict[str, Any]:
+    def get_capabilities(self, receiver: bytes | str) -> dict[str, Any]:
         return cast(Dict[str, Any], self.ask_rpc(receiver=receiver, method="rpc.discover"))

@@ -72,9 +72,10 @@ exclude = [
     "dist",
     "docs/conf.py",
 ]
+target-version = "py38"
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
+select = ["E", "F", "W", "FURB", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]

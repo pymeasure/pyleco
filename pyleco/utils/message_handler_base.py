@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from time import perf_counter
-from typing import Any, Optional
+from typing import Any
 import zmq
 
 from ..core.message import Message
@@ -82,7 +82,7 @@ class MessageHandlerBase(BaseCommunicator):
         return poller
 
     def _listen_loop_element(
-        self, poller: zmq.Poller, waiting_time: Optional[int]
+        self, poller: zmq.Poller, waiting_time: int | None
     ) -> dict[zmq.Socket, int]:
         """Check sockets for incoming messages and handle them.
 
@@ -97,7 +97,7 @@ class MessageHandlerBase(BaseCommunicator):
             self.next_beat = now + heartbeat_interval
         return socks
 
-    def _listen_close(self, waiting_time: Optional[int] = None) -> None:
+    def _listen_close(self, waiting_time: int | None = None) -> None:
         """Close the listening loop."""
         self.log.info(f"Stopping to listen as '{self.name}'.")
         self.sign_out()

@@ -41,7 +41,7 @@ def test_communicator_name_is_returned(listener: Listener):
     assert listener.name == "N.Pipe"
 
 
-class Test_communicator_closed_at_stopped_listener():
+class Test_communicator_closed_at_stopped_listener:
     @pytest.fixture(scope="class")
     def communicator(self) -> CommunicatorPipe:
         # scope is class as starting the listener takes some time

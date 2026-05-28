@@ -47,9 +47,10 @@ def test_start_collecting_signature():
     assert orig_spec == dir_spec
 
 
-@pytest.mark.parametrize("method", ("save_data", "start_collecting", "stop_collecting",
-                                    "save_data_async", "get_last_datapoint"
-                                    ))
+@pytest.mark.parametrize(
+    "method",
+    ("save_data", "start_collecting", "stop_collecting", "save_data_async", "get_last_datapoint"),
+)
 def test_method_call_existing_remote_methods(data_logger_director: FakeDataLoggerDirector, method):
     data_logger_director.return_value = None
     getattr(data_logger_director, method)()

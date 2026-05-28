@@ -45,4 +45,4 @@ def test_enqueue(handler: ZmqLogHandler):
     handler.enqueue("whatever")
     message = DataMessage.from_frames(*handler.queue.socket._s.pop())  # type: ignore
     assert message.topic == b"fullname"
-    assert message.payload == [b'whatever']
+    assert message.payload == [b"whatever"]

@@ -22,18 +22,18 @@
 # THE SOFTWARE.
 #
 
-from typing import cast, Optional
+from __future__ import annotations
+from typing import cast
 
 from .director import Director
 
 
 class LockingDirector(Director):
-
-    def lock(self, resource: Optional[str] = None) -> bool:
+    def lock(self, resource: str | None = None) -> bool:
         return cast(bool, self.ask_rpc("lock", resource=resource))
 
-    def unlock(self, resource: Optional[str] = None) -> None:
+    def unlock(self, resource: str | None = None) -> None:
         return cast(None, self.ask_rpc("unlock", resource=resource))
 
-    def force_unlock(self, resource: Optional[str] = None) -> None:
+    def force_unlock(self, resource: str | None = None) -> None:
         return cast(None, self.ask_rpc("force_unlock", resource=resource))

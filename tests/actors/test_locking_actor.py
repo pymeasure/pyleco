@@ -65,6 +65,7 @@ class FantasyInstrument:
 
     The prefix "l" indicates properties etc. which should be locked.
     """
+
     def __init__(self, adapter, name="FantasyInstrument", *args: Any, **kwargs: Any):
         self.name = name
         self.adapter = adapter
@@ -167,6 +168,7 @@ class TestProtocolImplemented:
             if m.get("name") == method:
                 return
         raise AssertionError(f"Method {method} is not available.")
+
 
 class Test_check_access_rights:
     @pytest.mark.parametrize("resource", resources)

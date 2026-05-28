@@ -24,7 +24,7 @@
 
 from __future__ import annotations
 from json import JSONDecodeError
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Iterable
 
 from .serialization import deserialize_data, generate_conversation_id, serialize_data, MessageTypes
 
@@ -41,20 +41,22 @@ class DataMessage:
     header: bytes
     payload: list[bytes]
 
-    def __init__(self,
-                 topic: Union[bytes, str],
-                 header: Optional[bytes] = None,
-                 data: Optional[Union[bytes, str, Any]] = None,
-                 conversation_id: Optional[bytes] = None,
-                 message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
-                 additional_payload: Optional[Iterable[bytes]] = None,
-                 **kwargs: Any
-                 ) -> None:
+    def __init__(
+        self,
+        topic: bytes | str,
+        header: bytes | None = None,
+        data: bytes | str | Any | None = None,
+        conversation_id: bytes | None = None,
+        message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
+        additional_payload: Iterable[bytes] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.topic = topic.encode() if isinstance(topic, str) else topic
         if header and (conversation_id or message_type != MessageTypes.NOT_DEFINED):
             raise ValueError(
-                "You may not specify the header and some header element at the same time!")
+                "You may not specify the header and some header element at the same time!"
+            )
         if header is None:
             cid = generate_conversation_id() if conversation_id is None else conversation_id
             self.header = cid + message_type.to_bytes(length=1, byteorder="big")
@@ -101,10 +103,7 @@ class DataMessage:
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, DataMessage):
             return NotImplemented
-        partial_comparison = (
-            self.topic == other.topic
-            and self.header == other.header
-        )
+        partial_comparison = self.topic == other.topic and self.header == other.header
         try:
             # Try to compare the data (python objects) instead of their bytes representation.
             my_data = self.data
@@ -113,8 +112,11 @@ class DataMessage:
             # Maybe the payload is binary, compare the raw payload
             return partial_comparison and self.payload == other.payload
         else:
-            return (partial_comparison and my_data == other_data
-                    and self.payload[1:] == other.payload[1:])
+            return (
+                partial_comparison
+                and my_data == other_data
+                and self.payload[1:] == other.payload[1:]
+            )
 
     def __repr__(self) -> str:
         list_of_frames_strings = [str(frame) for frame in self.to_frames()]

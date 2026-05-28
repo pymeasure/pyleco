@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 import pickle
 from types import TracebackType
-from typing import Any, Iterable, Optional, Type, Union
+from typing import Any, Iterable
 
 import zmq
 
@@ -55,8 +55,8 @@ class DataPublisher:
         full_name: str,
         host: str = "localhost",
         port: int = PROXY_RECEIVING_PORT,
-        log: Optional[logging.Logger] = None,
-        context: Optional[zmq.Context] = None,
+        log: logging.Logger | None = None,
+        context: zmq.Context | None = None,
         **kwargs: Any,
     ) -> None:
         if log is None:
@@ -71,21 +71,27 @@ class DataPublisher:
         super().__init__(**kwargs)
 
     def __del__(self) -> None:
-        self.close()
+        try:
+            self._close()
+        except Exception:
+            pass
 
     def __enter__(self) -> DataPublisher:
         return self
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_traceback: Optional[TracebackType]
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ) -> bool | None:
         self.close()
         return None
 
     def close(self) -> None:
+        self._close()
+
+    def _close(self) -> None:
         self.socket.close(1)
 
     def __call__(self, data: Any) -> None:
@@ -99,10 +105,10 @@ class DataPublisher:
     def send_data(
         self,
         data: Any,
-        topic: Optional[Union[bytes, str]] = None,
-        conversation_id: Optional[bytes] = None,
-        message_type: Union[MessageTypes, int] = MessageTypes.NOT_DEFINED,
-        additional_payload: Optional[Iterable[bytes]] = None,
+        topic: bytes | str | None = None,
+        conversation_id: bytes | None = None,
+        message_type: MessageTypes | int = MessageTypes.NOT_DEFINED,
+        additional_payload: Iterable[bytes] | None = None,
     ) -> None:
         """Send the `data` via the data protocol."""
         message = DataMessage(

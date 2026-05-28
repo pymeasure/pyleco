@@ -29,7 +29,7 @@ import logging
 import re
 import types
 import typing
-from typing import Any, Callable, cast, Optional, Union
+from typing import Any, Callable, cast, Union
 from dataclasses import dataclass
 
 from .errors import (
@@ -62,8 +62,8 @@ class Method:
     # See https://spec.open-rpc.org/#method-object for values
     method: Callable
     name: str
-    summary: Optional[str] = None
-    description: Optional[str] = None
+    summary: str | None = None
+    description: str | None = None
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self.method(*args, **kwargs)
@@ -95,6 +95,7 @@ class Method:
             hints = typing.get_type_hints(self.method)
         except Exception:
             hints = {}
+        globalns = getattr(self.method, "__globals__", None)
         params: list[dict[str, Any]] = []
         for param_name, param in sig.parameters.items():
             if param_name == "self":
@@ -106,7 +107,7 @@ class Method:
                 continue
             descriptor: dict[str, Any] = {"name": param_name}
             annotation = hints.get(param_name, param.annotation)
-            schema = _python_type_to_schema(annotation, param_name)
+            schema = _python_type_to_schema(annotation, param_name, globalns=globalns)
             if schema:
                 descriptor["schema"] = schema
             if param.default is inspect.Parameter.empty:
@@ -138,20 +139,89 @@ class Method:
             return_annotation = sig.return_annotation
         if return_annotation is inspect.Signature.empty:
             return {}
-        schema = _python_type_to_schema(return_annotation, "result")
+        globalns = getattr(self.method, "__globals__", None)
+        schema = _python_type_to_schema(return_annotation, "result", globalns=globalns)
         if not schema:
             return {}
         return {"name": "result", "schema": schema}
 
 
+_PEP585_FALLBACKS: dict[str, Any] = {
+    "list": typing.List,
+    "dict": typing.Dict,
+    "set": typing.Set,
+    "frozenset": typing.FrozenSet,
+    "tuple": typing.Tuple,
+    "type": typing.Type,
+}
+# HACK: remove both _PEP585_FALLBACKS and its usage when Python >= 3.9 is the
+# minimum version (PEP 585) and Python >= 3.10 is the minimum version (PEP 604).
+
+
+def _make_eval_ns(globalns: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build an eval namespace with PEP 585 fallbacks for older Python.
+
+    HACK: remove when Python >= 3.9 is the minimum version.
+    """
+    ns: dict[str, Any] = {}
+    ns.update(_PEP585_FALLBACKS)
+    if globalns:
+        ns.update(globalns)
+    return ns
+
+
+def _eval_pep604_union(annotation: str, ns: dict[str, Any] | None = None) -> Any:
+    """Evaluate a PEP 604 union string (e.g. 'str | None') on Python < 3.10.
+
+    Splits on ``|`` at the top level (outside brackets), evaluates each part
+    individually, and returns a ``Union`` of them.
+
+    HACK: remove when Python >= 3.10 is the minimum version.
+    """
+    namespace = ns or {}
+    parts = _split_union(annotation)
+    if len(parts) <= 1:
+        raise ValueError(f"Not a PEP 604 union: {annotation!r}")
+    evaluated = [eval(p.strip(), namespace) for p in parts]
+    return Union[tuple(evaluated)]
+
+
+def _split_union(annotation: str) -> list[str]:
+    """Split a type annotation string on ``|`` at the top level only."""
+    parts: list[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(annotation):
+        if ch in ("[", "("):
+            depth += 1
+        elif ch in ("]", ")"):
+            depth -= 1
+        elif ch == "|" and depth == 0:
+            parts.append(annotation[start:i])
+            start = i + 1
+    parts.append(annotation[start:])
+    return parts
+
+
 def _python_type_to_schema(
-    annotation: Any, param_name: str = ""
+    annotation: Any, param_name: str = "", globalns: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Convert a Python type annotation to a JSON Schema dict for Open-RPC."""
     if annotation is inspect.Parameter.empty or annotation is None:
         return {}
     if isinstance(annotation, str):
-        return {}
+        ns = _make_eval_ns(globalns)
+        try:
+            annotation = eval(annotation, ns)
+        except Exception:
+            # PEP 604 unions (e.g. "str | None") fail on Python < 3.10 where
+            # the | operator on types is not supported.  Parse the string
+            # manually and eval each part, then combine via Union.
+            # HACK: remove when Python >= 3.10 is the minimum version.
+            try:
+                annotation = _eval_pep604_union(annotation, ns)
+            except Exception:
+                return {}
     if annotation is type(None):
         return {"type": "null"}
     type_map: dict[Any, str] = {
@@ -169,10 +239,7 @@ def _python_type_to_schema(
     if origin is not None:
         args = typing.get_args(annotation)
         if origin is Union or origin is getattr(types, "UnionType", None):
-            sub_schemas = [
-                s for s in (_python_type_to_schema(a, param_name) for a in args)
-                if s
-            ]
+            sub_schemas = [s for s in (_python_type_to_schema(a, param_name) for a in args) if s]
             if sub_schemas:
                 return {"oneOf": sub_schemas}
             return {}
@@ -223,8 +290,8 @@ class RPCServer:
 
     def __init__(
         self,
-        title: Optional[str] = None,
-        version: Optional[str] = None,
+        title: str | None = None,
+        version: str | None = None,
         debug: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -235,7 +302,7 @@ class RPCServer:
         self.method(name="rpc.discover")(self.discover)
 
     def method(
-        self, name: Optional[str] = None, description: Optional[str] = None
+        self, name: str | None = None, description: str | None = None
     ) -> Callable[[Callable], None]:
         """Decorator for registering a new RPC method.
 
@@ -270,8 +337,8 @@ class RPCServer:
     def unregister_method(self, name: str) -> None:
         self._rpc_methods.pop(name, None)
 
-    def process_request(self, data: Union[bytes, str]) -> Optional[str]:
-        result: Optional[Union[JsonRpcResponse, JsonRpcBatch]]
+    def process_request(self, data: bytes | bytearray | str) -> str | None:
+        result: JsonRpcResponse | JsonRpcBatch | None
         try:
             json_obj = parse_string(data)
         except JSONRPCError as exc:
@@ -282,9 +349,7 @@ class RPCServer:
             result = self.process_request_object(json_obj)
         return result.model_dump_json() if result is not None else None
 
-    def process_request_object(
-        self, json_data: object
-    ) -> Optional[Union[JsonRpcResponse, JsonRpcBatch]]:
+    def process_request_object(self, json_data: object) -> JsonRpcResponse | JsonRpcBatch | None:
         """Process a JSON-RPC request executing the associated method."""
         try:
             obj = get_json_object(json_data)
@@ -296,8 +361,8 @@ class RPCServer:
             return self._generate_error(None, INTERNAL_ERROR, exc)
 
     def process_json_request_object(
-        self, obj: Union[JsonRpcRequest, JsonRpcResponse, JsonRpcBatch]
-    ) -> Optional[Union[JsonRpcResponse, JsonRpcBatch]]:
+        self, obj: JsonRpcRequest | JsonRpcResponse | JsonRpcBatch
+    ) -> JsonRpcResponse | JsonRpcBatch | None:
         if isinstance(obj, JsonRpcBatch) and obj.is_request_batch:
             result = [
                 response
@@ -314,7 +379,7 @@ class RPCServer:
                 error=self._generate_invalid_request_error("Not a request", obj.model_dump()),
             )
 
-    def _process_single_request_object(self, obj: JsonRpcRequest) -> Optional[JsonRpcResponse]:
+    def _process_single_request_object(self, obj: JsonRpcRequest) -> JsonRpcResponse | None:
         id_ = obj.id
         method = self._get_method(obj.method)
 
@@ -332,7 +397,7 @@ class RPCServer:
 
         return ResultResponse(id=id_, result=result) if id_ is not None else None
 
-    def _get_method(self, method_name: str) -> Optional[Method]:
+    def _get_method(self, method_name: str) -> Method | None:
         return self._rpc_methods.get(method_name)
 
     def _execute_method(self, method: Method, obj: JsonRpcRequest) -> Any:
@@ -350,8 +415,8 @@ class RPCServer:
         )
 
     def _handle_method_not_found(
-        self, id_: Optional[Union[int, str]], method_name: str
-    ) -> Optional[JsonRpcResponse]:
+        self, id_: int | str | None, method_name: str
+    ) -> JsonRpcResponse | None:
         """Handle method not found error."""
         error = METHOD_NOT_FOUND.with_data(data=method_name)
         return self._generate_error(
@@ -362,8 +427,8 @@ class RPCServer:
         )
 
     def _handle_type_error(
-        self, id_: Optional[Union[int, str]], obj: JsonRpcRequest, exc: TypeError
-    ) -> Optional[JsonRpcResponse]:
+        self, id_: int | str | None, obj: JsonRpcRequest, exc: TypeError
+    ) -> JsonRpcResponse | None:
         """Handle TypeError during method execution."""
         if isinstance(obj.method, str) and str(exc).startswith(f"{obj.method}()"):
             # The method complains about invalid arguments
@@ -379,8 +444,8 @@ class RPCServer:
         )
 
     def _handle_general_error(
-        self, id_: Optional[Union[int, str]], exc: Exception
-    ) -> Optional[JsonRpcResponse]:
+        self, id_: int | str | None, exc: Exception
+    ) -> JsonRpcResponse | None:
         """Handle general exceptions during method execution."""
         error = INTERNAL_ERROR.with_data(data=f"{type(exc).__name__}: {exc}")
         return self._generate_error(
@@ -396,11 +461,11 @@ class RPCServer:
 
     @staticmethod
     def _generate_error(
-        id: Optional[Union[int, str]],
+        id: int | str | None,
         error: JsonRpcError,
-        exc: Optional[Exception],
+        exc: Exception | None,
         return_response: bool = True,
-    ) -> Optional[JsonRpcResponse]:
+    ) -> JsonRpcResponse | None:
         if exc is None:
             log.error(
                 f"Error during message handling: '{error.message}': %s.", error.model_dump_json()
