@@ -46,6 +46,7 @@ Created on Mon Jun 27 09:57:05 2022 by Benedikt Burger
 from __future__ import annotations
 import logging
 import threading
+from warnings import warn
 
 import zmq
 
@@ -79,7 +80,7 @@ def pub_sub_proxy(
         p.bind(f"tcp://*:{_port - 1}")
     else:
         log.info(
-            f"Start remote proxy server subsribing to {sub}:{_port - 1} and publishing to "
+            f"Start remote proxy server subscribing to {sub}:{_port - 1} and publishing to "
             f"{pub}:{_port}."
         )
         s.connect(f"tcp://{sub}:{port - 1 - 2 * offset}")
@@ -129,7 +130,15 @@ def start_proxy(
     :param context: The zmq context.
     :param bool captured: Print the captured messages.
     :param str sub: Name or IP Address of the server to subscribe to.
+
+        .. deprecated:: 0.7.0
+            Use the :class:`DataCoordinator` instead.
+
     :param str pub: Name or IP Address of the server to publish to.
+
+        .. deprecated:: 0.7.0
+            Use the :class:`DataCoordinator` instead.
+
     :param offset: How many servers (pairs of ports) to offset from the base one.
     :return: The zmq context. To stop, call `context.destroy()`.
     """
@@ -153,9 +162,11 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
 
     parser = ArgumentParser(prog="Proxy server")
     parser.add_argument(
-        "-s", "--sub", help="set the host name to subscribe to", default="localhost"
+        "-s", "--sub", help="set the host name to subscribe to (deprecated)", default="localhost"
     )
-    parser.add_argument("-p", "--pub", help="set the host name to publish to", default="localhost")
+    parser.add_argument(
+        "-p", "--pub", help="set the host name to publish to (deprecated)", default="localhost"
+    )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -181,6 +192,11 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
     merely_local = kwargs.get("pub") == "localhost" and kwargs.get("sub") == "localhost"
 
     if not merely_local:
+        warn(
+            "Using the proxy_server to connect different proxy servers is deprecated, "
+            "use DataCoordinator instead.",
+            FutureWarning,
+        )
         log.info(
             f"Remote proxy from {kwargs.get('sub', 'localhost')} "
             f"to {kwargs.get('pub', 'localhost')}."
