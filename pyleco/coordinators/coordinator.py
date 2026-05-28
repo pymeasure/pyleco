@@ -161,9 +161,9 @@ class Coordinator:
 
     def __del__(self) -> None:
         try:
-            self.close()
-        except AttributeError:
-            pass  # if creation failed, closing may fail during deletion.
+            self._close()
+        except Exception:
+            pass
 
     def __enter__(self) -> Coordinator:
         return self
@@ -180,11 +180,14 @@ class Coordinator:
     def close(self) -> None:
         """Sign out and close the sockets."""
         log.debug("Closing Coordinator.")
+        self._close()
+        log.info(f"Coordinator {self.full_name!r} closed.")
+
+    def _close(self) -> None:
         if not self.closed:
             self.shut_down()
             self.sock.close(timeout=1)
             self.cleaner.cancel()
-            log.info(f"Coordinator {self.full_name!r} closed.")
             self.closed = True
 
     def create_message(

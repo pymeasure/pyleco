@@ -108,7 +108,10 @@ class Communicator(BaseCommunicator):
         except ConnectionRefusedError:
             self.log.warning("Closing, the sign out failed with a refused connection.")
         finally:
-            super().close()
+            self._close()
+
+    def _close(self) -> None:
+        super().close()
 
     def reset(self) -> None:
         """Reset socket"""
@@ -116,7 +119,10 @@ class Communicator(BaseCommunicator):
         self.open()
 
     def __del__(self) -> None:
-        self.close()
+        try:
+            self._close()
+        except Exception:
+            pass
 
     def __enter__(self: _Self) -> _Self:  # -> typing.Self for py>=3.11
         """Called with `with` keyword, returns the Director."""

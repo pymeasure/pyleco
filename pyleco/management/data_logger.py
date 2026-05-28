@@ -141,7 +141,10 @@ class DataLogger(ExtendedMessageHandler):
         self.register_rpc_method(self.get_configuration)
 
     def __del__(self) -> None:
-        self.stop_collecting()
+        try:
+            self._stop_collecting()
+        except Exception:
+            pass
 
     def _listen_setup(
         self,
@@ -360,6 +363,9 @@ class DataLogger(ExtendedMessageHandler):
     def stop_collecting(self) -> None:
         """Stop the data acquisition."""
         log.info("Stopping to collect data.")
+        self._stop_collecting()
+
+    def _stop_collecting(self) -> None:
         self.trigger_type = TriggerTypes.NONE
         self.unsubscribe_all()
         try:

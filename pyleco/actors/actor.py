@@ -127,7 +127,10 @@ class Actor(MessageHandler, Generic[Device]):
         self.register_rpc_method(method=method, name="device." + name)
 
     def __del__(self) -> None:
-        self.disconnect()
+        try:
+            self._disconnect()
+        except Exception:
+            pass
 
     def __exit__(
         self,
@@ -233,6 +236,9 @@ class Actor(MessageHandler, Generic[Device]):
     def disconnect(self) -> None:
         """Disconnect the device."""
         self.log.info("Disconnecting.")
+        self._disconnect()
+
+    def _disconnect(self) -> None:
         self.stop_timer()
         try:
             # Assumes a pymeasure instrument

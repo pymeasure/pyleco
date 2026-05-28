@@ -71,7 +71,10 @@ class DataPublisher:
         super().__init__(**kwargs)
 
     def __del__(self) -> None:
-        self.close()
+        try:
+            self._close()
+        except Exception:
+            pass
 
     def __enter__(self) -> DataPublisher:
         return self
@@ -86,6 +89,9 @@ class DataPublisher:
         return None
 
     def close(self) -> None:
+        self._close()
+
+    def _close(self) -> None:
         self.socket.close(1)
 
     def __call__(self, data: Any) -> None:
