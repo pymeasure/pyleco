@@ -17,9 +17,10 @@ The core of the infrastructure are communication servers, called Coordinators.
 As LECO consists in two parts, the control protocol and the data protocol, there are two servers:
 
 1. The _Coordinator_ in [`coordinator.py`](pyleco/coordinators/coordinator.py) is the server of the control protocol.
-2. [`proxy_server.py`](pyleco/coordinators/proxy_server.py) contains the server of the data protocol.
+2. The _DataCoordinator_ in [`data_coordinator.py`](pyleco/coordinators/data_coordinator.py) is the server for the data protocol, supporting both single-node and multi-node deployments.
+3. or alternatively [`proxy_server.py`](pyleco/coordinators/proxy_server.py) contains a more simple server of the data protocol for a single computer.
 
-In order to start these Coordinators, execute `coordinator` and `proxy_server` in a terminal.
+In order to start these Coordinators, execute `coordinator` and `data_coordinator` in a terminal.
 Alternatively, execute the corresponding files with python:
 for example, change directory in the folder of this getting started file and execute `python3 pyleco/coordinators/coordinator.py` under linux or `py pyleco/coordinators/coordinator.py` under Windows with the Windows Launcher installed.
 
@@ -30,16 +31,16 @@ For example `python3 pyleco/coordinators/coordinator.py -h` gives the informatio
 ### The Starter
 
 LECO allows to have many small parts working together instead of one monolithic program.
-For convenience, there is an additional server, the [`Starter`](pyleco/management/starter.py), which can be used to start a bigger number of small parts all at once. 
-With the starter, we can sidestep having to start all these small parts individually in their own terminal window. 
+For convenience, there is an additional server, the [`Starter`](pyleco/management/starter.py), which can be used to start a bigger number of small parts all at once.
+With the starter, we can sidestep having to start all these small parts individually in their own terminal window.
 
 The starter scans a directory (given as argument) for python files.
 It will start, if told to do so, the method `task` of a given file name in a separate thread.
 That allows to specify several different tasks, for example each one controlling one measurement instrument, and to start them by sending a command to the starter.
-How this works exactly, is described below. 
+How this works exactly, is described below.
 
 In order to start the starter itself, execute `starter --directory ~/tasks` in a terminal with the tasks being in the subfolder `tasks` of the home directory.
-Alternatively, execute its file with the path to the directory, for example `python3 pyleco/management/starter.py --directory ~/tasks`. 
+Alternatively, execute its file with the path to the directory, for example `python3 pyleco/management/starter.py --directory ~/tasks`.
 
 #### Define a Task File
 
@@ -82,9 +83,10 @@ For example you can get or set properties of the `YAR` instance, or you can call
 
 #### Start / Stop a Task
 
-Now we have our three servers (Coordinator, proxy_server, Starter) up and running, but the task is not yet started.
+Now we have our three servers (Coordinator, DataCoordinator, Starter) up and running, but the task is not yet started.
 In order to start a task, we have to tell the Starter to do so.
 The easiest way is to use the [`StarterDirector`](pyleco/directors/starter_director.py) (found in the `directors` directory) in a python console or script:
+
 ```python
 from pyleco.directors.starter_director import StarterDirector
 director = StarterDirector(actor="starter")
@@ -97,7 +99,6 @@ You can give a list of tasks to start.
 
 The starter director has also methods to stop a task, give a list of available tasks, and to give a list of the state of the known tasks (running, stopped, crashed).
 
-
 ## Control an Experiment
 
 ### Control the Instrument: The Director
@@ -109,6 +110,7 @@ Again we have a director to direct the actions of the fiber amplifier.
 This time, the director is a more generic one, the [`TransparentDirector`](pyleco/directors/transparent_director.py) (also in the directors directory).
 If you read or write any property of the TransparentDirector's `device`, it will read or write to the remotely controlled instrument.
 For example
+
 ```python
 from pyleco.directors.transparent_director import TransparentDirector
 
@@ -118,6 +120,7 @@ if not director.device.emission_enabled:
     director.device.emission_enabled = True
 
 ```
+
 will read, whether the emission of the fiber amplifier is enabled, if not, it will be enabled.
 
 Behind the scenes, the transparent director sends a request to the Actor named `"fiberAmp"` (remember, that is the name we gave to the actor in the task file) to read the `emission_enabled` property of the `YAR` instance.
@@ -125,16 +128,17 @@ The Actor will read the `device.emission_enabled` property and return it to the 
 
 Alternatively, you could get/set the parameters manually.
 The following lines are equivalent to the previous code:
+
 ```python
 if not director.get_parameters(parameters=["emission_enabled"])["emission_enabled"]:
     director.set_parameters({"emission_enabled": True})
 ```
+
 The get/set parameters method allow to get/set more than one parameter in one message.
 
 If you want to call the method `clear` of the `YAR` instance, you can use `director.call_action(action="clear")`.
 Any positional or keyword arguments you give to the `call_action` method will be given to the `clear` method.
 For example `director.call_action(action="set_power", power=5)` will cause the actor to call `device.set_power(power=5)`.
-
 
 ### Different Computers
 
@@ -157,7 +161,7 @@ Each Coordinator needs its own combination of host name and port number (a singl
 That means, they have at least to reside on different computers or have different port numbers.
 
 You can tell a Coordinator about other Coordinators, either by specifying the `--coordinators` command line argument (a comma separated list of coordinator addresses) or by using the `CoordinatorDirector`'s `add_nodes({namespace: address})` command.
-If you tell one Coordinator about a second one, it will connect to all other Coordinators, to which the second one is connected. 
+If you tell one Coordinator about a second one, it will connect to all other Coordinators, to which the second one is connected.
 In this way, the network is established automatically, and Components connected to a single Coordinator, can get access to all other Components as soon as this single Coordinator is connected to the wider network.
 
 ##### The namespace
@@ -205,6 +209,80 @@ flowchart TD
     c1d <--> C1
 ```
 
+#### Multi-Node Data Coordinator Setup
+
+For deployments spanning multiple computers, the [`DataCoordinator`](pyleco/coordinators/data_coordinator.py) uses a Gatherer/Distributor architecture that enables loop-free cross-node data distribution.
+
+Each DataCoordinator contains two internally coupled proxy servers:
+
+- **Gatherer**: collects messages from local publishers. Its XSUB socket is bound to the standard publisher port for local publishers to connect to. Its XPUB socket is bound to a separate port for remote Distributors to connect to.
+- **Distributor**: distributes messages to local subscribers. Its XSUB socket connects to the local Gatherer's XPUB socket and to remote Gatherers' XPUB sockets. Its XPUB socket is bound to the standard subscriber port for local subscribers to connect to.
+
+Messages flow strictly from publishers through the Gatherer to the Distributor and then to subscribers.
+Since there is no path from a Distributor back into any Gatherer, the topology is structurally loop-free without requiring topic-based filtering.
+
+```mermaid
+flowchart LR
+    subgraph Node1
+        P1["Publisher 1"]
+        P2["Publisher 2"]
+        subgraph X1[Data Coordinator N1]
+            G1["Gatherer N1"]
+            D1["Distributor N1"]
+        end
+        S1["Subscriber 1"]
+        S2["Subscriber 2"]
+        P1 -->|"PUB → XSUB"| G1
+        P2 -->|"PUB → XSUB"| G1
+        G1 -->|"XPUB → XSUB"| D1
+        D1 -->|"XPUB → SUB"| S1
+        D1 -->|"XPUB → SUB"| S2
+    end
+    subgraph Node2
+        P3["Publisher 3"]
+        subgraph X2[Data Coordinator N2]
+            G2["Gatherer N2"]
+            D2["Distributor N2"]
+        end
+        S3["Subscriber 3"]
+        P3 -->|"PUB → XSUB"| G2
+        G2 -->|"XPUB → XSUB"| D2
+        D2 -->|"XPUB → SUB"| S3
+    end
+    G1 -.->|"XPUB → XSUB (remote)"| D2
+    G2 -.->|"XPUB → XSUB (remote)"| D1
+```
+
+Each Distributor subscribes to both the local Gatherer and all remote Gatherers, ensuring that local subscribers receive messages from all nodes in the network.
+
+The DataCoordinator participates in the control protocol (via a Listener) and exposes RPC methods for dynamic remote Gatherer connection management:
+
+| Method                              | Description                                                                          |
+|-------------------------------------|--------------------------------------------------------------------------------------|
+| `connect_to_gatherer(address)`      | Connect the local Distributor to a remote Gatherer's XPUB socket                     |
+| `disconnect_from_gatherer(address)` | Disconnect the local Distributor from a remote Gatherer's XPUB socket                |
+| `list_gatherers()`                  | List the addresses of connected remote Gatherers                                     |
+| `send_data_addresses()`             | Return the bound socket addresses of this DataCoordinator's Gatherer and Distributor |
+
+To set up a multi-node data network, start a DataCoordinator on each node and then connect the Distributors to the remote Gatherers. For example, to connect the DataCoordinator on node N2 to the Gatherer on node N1:
+
+```python
+from pyleco.directors.data_coordinator_director import DataCoordinatorDirector
+
+director = DataCoordinatorDirector(actor="N2.DATA_COORDINATOR")
+director.connect_to_gatherer(address="N1-host:11101")
+```
+
+This makes all data published on N1 available to subscribers on N2, and vice versa if the reverse connection is also established.
+
+A single DataCoordinator instance manages one proxy pair (either data or log).
+By default, the `data_coordinator` command starts both a `DATA_COORDINATOR` and a `LOG_COORDINATOR`.
+Use `--no-log` to start only the data coordinator.
+You can customize the ports with command line arguments:
+
+```bash
+data_coordinator --host myserver.com --data-xsub-port 11100 --data-gatherer-xpub-port 11101 --data-xpub-port 11099
+```
 
 ### Collect Data
 
@@ -212,20 +290,21 @@ If you're doing an experiment, you typically want to collect data as well.
 
 You can publish data via the data protocol.
 As a helper class, you can use the [`DataPublisher`](pyleco/utils/data_publisher.py):
+
 ```python
 from pyleco.utils.data_publisher import DataPublisher
 
 publisher = DataPublisher(full_name="N1.abc")
 publisher.send_data("def")
 ```
+
 That will publish the data `"def"` from the sender `"N1.abc"`.
 
-Anyone connected to the same proxy_server can listen to that published data.
+Anyone connected to the same _DataCoordinator_ (or _proxy_server_) can listen to that published data.
 You have to subscribe to the sender `"N1.abc"` first, though.
 
 The [`DataLogger`](pyleco/management/data_logger.py) (in the `management` directory) collects these data snippets (if they are in the form of dictionaries: `{variable: value}` with a variable name and an associated value) and creates datapoints.
 Afterwards you can save the collected datapoints.
-
 
 ## Include LECO in your own Programs
 
@@ -253,7 +332,6 @@ However, it does not listen continuously for incoming messages.
 It is great for scripts as it does not require additional threads.
 _Directors_ create such a `Communicator`, unless they are given one.
 
-
 ### Daemon Type
 
 For a program, which runs happily in the background listening for commands and executing them, you can base your code on the [`MessageHandler`](pyleco/utils/message_handler.py) (in `utils` directory).
@@ -265,12 +343,12 @@ The `listen` method has three parts:
    Typically, it listens for incoming messages and handles them,
 1. the method `_listen_close`, which finishes after having been told to stop.
 
-
 If you want to make a method available for RPC calls, you can use the `register_rpc_method` method.
 That allows any Component to use that method via `ask_rpc`.
 For example `register_rpc_method(do_something)` would register the method `do_something`, such that someone else could do `ask_rpc(method="do_something")` calling that method.
 
 The message handler (and its subclasses) have to be in their listening loop to do their work:
+
 ```python
 from pyleco.utils.message_handler import MessageHandler
 
@@ -279,7 +357,6 @@ message_handler.listen()  # infinity loop
 ```
 
 The [`ExtendedMessageHandler`](pyleco/utils/extended_message_handler.py) is a subclass, which can subscribe to the data protocol and act on received data messages.
-
 
 ### In an Additional Thread
 
@@ -310,14 +387,14 @@ Rounded elements run in a continuous loop.
 
 ```mermaid
 flowchart TD
-    Proxy(((proxy_server)))
+    Proxy(((DATA_COORDINATOR)))
     C((COORDINATOR))
 
     subgraph Application
         subgraph MainThread[Main Thread]
             main([main])-.->|creates|Listener
             main -.->|calls|sl
-            
+
             subgraph Listener
             sl[[start_listen]]-.->
             gc[[get_communicator]]
@@ -353,11 +430,10 @@ flowchart TD
     Proxy ==> ListenerEMH
 
 ```
+
 The `main` method creates a `Listener` and calls its `start_listen` method, which creates a new thread (`Listener Thread`) with an `ExtendedMessageHandler`.
 It can use the `Listener Communicator` (generated via `get_communicator`) to communicate to the LECO network, either directly or via one or several `Director`s.
 Similarly, another thread can use (its own) `Listener Communicator` to communicate with the LECO network.
-
-
 
 ## Graphical overview
 
@@ -365,7 +441,7 @@ Here a graphical overview over a single computer experimental setup.
 Solid lines indicate data flow, dashed lines actions.
 Rounded fields elements run in a continuous loop.
 Circles are Coordinators.
-Note that the control protocol (with the _COORDINATOR_) is symmetric, while the data protocol (_proxy_server_, bold lines) is one way only.
+Note that the control protocol (with the _COORDINATOR_) is symmetric, while the data protocol (_DATA_COORDINATOR_, bold lines) is one way only.
 
 ```mermaid
 flowchart TD
@@ -373,7 +449,7 @@ flowchart TD
     (control protocol)"))
 
     PUB[DataPublisher] ==> Proxy
-    Proxy((("proxy_server
+    Proxy((("DATA_COORDINATOR
     (data protocol)"))) ==> SUB[Subscriber]
     Proxy ==>SUBD
 
@@ -440,6 +516,7 @@ flowchart TD
     t3 ==> Proxy
 
 ```
+
 The `Actor` contains a `MessageHandler` handling incoming messages in order to control a hardware measurement instrument via a _Driver_. It also has a `DataPublisher` to publish measurement data regularly.
 
 A script uses _Directors_ to send messages via a `Communicator` (generated by the first _Director_) to that measurement instrument.
@@ -453,4 +530,4 @@ The GUI can then communicate via that Communicator to the network, either direct
 It can send commands to the measurement instrument via the _Actor_.
 It can also subscribe to the data published by the _Actor_.
 
-The `DataLogger` collects the data published via the data protocol (`proxy_server`).
+The `DataLogger` collects the data published via the data protocol (`DATA_COORDINATOR`).
