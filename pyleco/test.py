@@ -63,6 +63,11 @@ class FakeSocket:
         # they contain a list of messages sent/received
         self._s: list[list[bytes]] = []
         self._r: list[list[bytes]] = []
+        self.curve_server: int = 0
+        self.curve_secretkey: bytes = b""
+        self.curve_publickey: bytes = b""
+        self.curve_serverkey: bytes = b""
+        self._hwm: int = 0
         if socket_type == 2:  # zmq.SUB
             # empirical data shots, that you have to unsubscribe as many times as you have
             # subscribed, therefore a list is best
@@ -135,6 +140,28 @@ class FakeSocket:
 
     def set_hwm(self, hwm: int) -> None:
         self._hwm = hwm
+
+    def setsockopt(self, option: int, value: Any) -> None:
+        try:
+            import zmq
+
+            _CURVE_SERVER = zmq.CURVE_SERVER
+            _CURVE_SECRETKEY = zmq.CURVE_SECRETKEY
+            _CURVE_PUBLICKEY = zmq.CURVE_PUBLICKEY
+            _CURVE_SERVERKEY = zmq.CURVE_SERVERKEY
+        except ImportError:
+            _CURVE_SERVER = 61
+            _CURVE_SECRETKEY = 63
+            _CURVE_PUBLICKEY = 62
+            _CURVE_SERVERKEY = 64
+        if option == _CURVE_SERVER:
+            self.curve_server = value
+        elif option == _CURVE_SECRETKEY:
+            self.curve_secretkey = value if isinstance(value, bytes) else value.encode()
+        elif option == _CURVE_PUBLICKEY:
+            self.curve_publickey = value if isinstance(value, bytes) else value.encode()
+        elif option == _CURVE_SERVERKEY:
+            self.curve_serverkey = value if isinstance(value, bytes) else value.encode()
 
 
 class FakePoller:

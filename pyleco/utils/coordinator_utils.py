@@ -27,16 +27,21 @@ from abc import abstractmethod
 from dataclasses import dataclass
 import logging
 from time import perf_counter
-from typing import Any, Protocol
+from typing import Any, Protocol, TYPE_CHECKING
 
 import zmq
 
 from ..core import COORDINATOR_PORT
 from ..core.message import Message, MessageTypes
 from ..core.serialization import deserialize_data
+from ..core.curve import configure_curve_server, configure_curve_client
+from ..core.security import ServerSecurityConfig, ClientSecurityConfig, FullSecurityConfig
 from ..json_utils.errors import NOT_SIGNED_IN, DUPLICATE_NAME
 from ..json_utils.rpc_generator import RPCGenerator
 from ..json_utils.json_objects import ErrorResponse, Request, JsonRpcBatch, ParamsNotification
+
+if TYPE_CHECKING:
+    from ..core.security import SecurityConfig
 
 
 log = logging.getLogger(__name__)
@@ -78,9 +83,17 @@ class MultiSocket(Protocol):
 class ZmqMultiSocket(MultiSocket):
     """A MultiSocket using a zmq ROUTER socket."""
 
-    def __init__(self, context: zmq.Context | None = None, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        context: zmq.Context | None = None,
+        security_config: SecurityConfig | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         context = zmq.Context.instance() if context is None else context
         self._sock: zmq.Socket = context.socket(zmq.ROUTER)
+        if isinstance(security_config, (ServerSecurityConfig, FullSecurityConfig)):
+            configure_curve_server(self._sock, security_config.server_key_pair)
         super().__init__(*args, **kwargs)
 
     @property
@@ -109,7 +122,12 @@ class ZmqMultiSocket(MultiSocket):
 
 
 class FakeMultiSocket(MultiSocket):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        security_config: SecurityConfig | None = None,
+        **kwargs: Any,
+    ) -> None:
         self._messages_read: list[tuple[bytes, Message]] = []
         self._messages_sent: list[tuple[bytes, Message]] = []
         super().__init__(*args, **kwargs)
@@ -172,14 +190,29 @@ class Node:
 class ZmqNode(Node):
     """Represents a zmq connection to another node."""
 
-    def __init__(self, context: zmq.Context | None = None, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        context: zmq.Context | None = None,
+        security_config: SecurityConfig | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._context = context or zmq.Context.instance()
+        self._security_config = security_config
 
     def connect(self, address: str) -> None:
         """Connect to a Coordinator at address."""
         super().connect(address)
         self._dealer = self._context.socket(zmq.DEALER)
+        if isinstance(self._security_config, (ClientSecurityConfig, FullSecurityConfig)):
+            if self._security_config.server_public_key is None:
+                raise ValueError("CURVE ZmqNode requires server_public_key")
+            configure_curve_client(
+                self._dealer,
+                self._security_config.client_key_pair,
+                self._security_config.server_public_key,
+            )
         self._dealer.connect(f"tcp://{address}")
 
     def disconnect(self, closing_time: float | None = None) -> None:
@@ -209,7 +242,11 @@ class ZmqNode(Node):
 
 class FakeNode(Node):
     def __init__(
-        self, messages_read: list[Message] | None = None, *args: Any, **kwargs: Any
+        self,
+        messages_read: list[Message] | None = None,
+        security_config: SecurityConfig | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._messages_sent: list[Message] = []

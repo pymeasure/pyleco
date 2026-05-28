@@ -35,6 +35,7 @@ from .base_communicator import MessageBuffer
 from ..core.message import Message, MessageTypes
 from ..core.internal_protocols import CommunicatorProtocol, SubscriberProtocol
 from ..core.serialization import generate_conversation_id
+from ..core.security import SecurityConfig
 
 
 class PipeCommands(bytes, Enum):
@@ -256,9 +257,15 @@ class PipeHandler(ExtendedMessageHandler):
     _communicators: dict[int, CommunicatorPipe]
     _on_name_change_methods: set[Callable[[str], None]] = set()
 
-    def __init__(self, name: str, context: zmq.Context | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        name: str,
+        context: zmq.Context | None = None,
+        security_config: SecurityConfig | None = None,
+        **kwargs: Any,
+    ) -> None:
         context = context or zmq.Context.instance()
-        super().__init__(name=name, context=context, **kwargs)
+        super().__init__(name=name, context=context, security_config=security_config, **kwargs)
         self.internal_pipe: zmq.Socket = context.socket(zmq.PULL)
         self.pipe_port = self.internal_pipe.bind_to_random_port(
             "inproc://listenerPipe", min_port=12345

@@ -33,6 +33,8 @@ from .message_handler import MessageHandler
 from ..core import PROXY_SENDING_PORT
 from ..core.data_message import DataMessage
 from ..core.internal_protocols import SubscriberProtocol
+from ..core.security import SecurityConfig, ClientSecurityConfig, FullSecurityConfig
+from ..core.curve import configure_curve_client, warn_insecure_mode
 
 
 class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
@@ -45,13 +47,26 @@ class ExtendedMessageHandler(MessageHandler, SubscriberProtocol):
         host: str = "localhost",
         data_host: str | None = None,
         data_port: int = PROXY_SENDING_PORT,
+        security_config: SecurityConfig | None = None,
         **kwargs: Any,
     ) -> None:
         if context is None:
             context = zmq.Context.instance()
-        super().__init__(name=name, context=context, host=host, **kwargs)
-        self._subscriptions: list[bytes] = []  # List of all subscriptions
+        super().__init__(
+            name=name, context=context, host=host, security_config=security_config, **kwargs
+        )
+        self._subscriptions: list[bytes] = []
         self.subscriber: zmq.Socket = context.socket(zmq.SUB)
+        if isinstance(security_config, (ClientSecurityConfig, FullSecurityConfig)):
+            if security_config.data_server_public_key is None:
+                raise ValueError("CURVE subscriber requires data_server_public_key")
+            configure_curve_client(
+                self.subscriber,
+                security_config.client_key_pair,
+                security_config.data_server_public_key,
+            )
+        elif security_config is None:
+            warn_insecure_mode(address=f"{data_host or host}:{data_port}")
         if data_host is None:
             data_host = host
         self.subscriber.connect(f"tcp://{data_host}:{data_port}")
