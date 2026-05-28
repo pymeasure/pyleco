@@ -142,7 +142,8 @@ class DataLogger(ExtendedMessageHandler):
 
     def __del__(self) -> None:
         try:
-            self._stop_collecting()
+            self.trigger_type = TriggerTypes.NONE
+            self.timer.cancel()
         except Exception:
             pass
 
