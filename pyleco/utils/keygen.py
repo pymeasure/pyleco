@@ -39,7 +39,9 @@ def main() -> None:
     parser.add_argument("--name", default=None, help="name for key files (e.g. component name)")
     args = parser.parse_args()
 
-    public_key, secret_key = generate_key_pair()
+    kp = generate_key_pair()
+    public_key = kp.public_key
+    secret_key = kp.secret_key
 
     print(f"Public key: {public_key}")
     print(f"Secret key: {secret_key}")

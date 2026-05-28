@@ -1,3 +1,27 @@
+#
+# This file is part of the PyLECO package.
+#
+# Copyright (c) 2023-2026 PyLECO Developers
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
 from __future__ import annotations
 
 import sys
@@ -84,11 +108,11 @@ class TestCoordinatorCurveStartAuthenticator:
 
             mock_context = MagicMock()
             cfg = _make_server_config()
-            c = Coordinator(
+            Coordinator(
                 namespace="N1",
                 security_config=cfg,
                 context=mock_context,
-                multi_socket=_FakeMultiSocket(),
+                multi_socket=_FakeMultiSocket(),  # type: ignore
             )
             mock_start.assert_called_once_with(mock_context, cfg)
 
@@ -101,11 +125,11 @@ class TestCoordinatorCurveStartAuthenticator:
             from pyleco.coordinators.coordinator import Coordinator
 
             mock_context = MagicMock()
-            c = Coordinator(
+            Coordinator(
                 namespace="N1",
                 security_config=SecurityConfig(mode=SecurityMode.NONE),
                 context=mock_context,
-                multi_socket=_FakeMultiSocket(),
+                multi_socket=_FakeMultiSocket(),  # type: ignore
             )
             mock_start.assert_not_called()
 
@@ -122,7 +146,7 @@ class TestCoordinatorCurvePassesConfig:
 
             mock_context = MagicMock()
             cfg = _make_server_config()
-            c = Coordinator(
+            Coordinator(
                 namespace="N1",
                 security_config=cfg,
                 context=mock_context,
@@ -147,7 +171,7 @@ class TestCoordinatorCurveCloseStopsAuthenticator:
                 namespace="N1",
                 security_config=cfg,
                 context=mock_context,
-                multi_socket=_FakeMultiSocket(),
+                multi_socket=_FakeMultiSocket(),  # type: ignore
             )
             c.close()
             mock_stop.assert_called_once_with(mock_authenticator)
@@ -165,7 +189,7 @@ class TestCoordinatorCurveCloseStopsAuthenticator:
                 namespace="N1",
                 security_config=SecurityConfig(mode=SecurityMode.NONE),
                 context=mock_context,
-                multi_socket=_FakeMultiSocket(),
+                multi_socket=_FakeMultiSocket(),  # type: ignore
             )
             c.close()
             mock_stop.assert_not_called()
@@ -187,7 +211,7 @@ class TestCoordinatorStoresSecurityConfig:
                 namespace="N1",
                 security_config=cfg,
                 context=mock_context,
-                multi_socket=_FakeMultiSocket(),
+                multi_socket=_FakeMultiSocket(),  # type: ignore
             )
             assert c.security_config is cfg
 
@@ -203,6 +227,6 @@ class TestCoordinatorStoresSecurityConfig:
             c = Coordinator(
                 namespace="N1",
                 context=mock_context,
-                multi_socket=_FakeMultiSocket(),
+                multi_socket=_FakeMultiSocket(),  # type: ignore
             )
             assert c.security_config.mode == SecurityMode.NONE

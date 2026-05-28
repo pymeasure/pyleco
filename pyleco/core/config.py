@@ -26,6 +26,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib  # type: ignore[no-redef,import-not-found]
+    except ImportError:
+        raise ImportError(
+            "TOML support requires tomli for Python < 3.11. Install it: pip install tomli"
+        )
+
 __all__ = [
     "find_config_file",
     "load_config",
@@ -39,15 +49,6 @@ _DEFAULT_SEARCH_PATHS: list[str] = [
 
 
 def _load_toml(path: str) -> dict:
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib  # type: ignore[no-redef]
-        except ImportError:
-            raise ImportError(
-                "TOML support requires tomli for Python < 3.11. Install it: pip install tomli"
-            )
     with open(path, "rb") as f:
         return tomllib.load(f)
 

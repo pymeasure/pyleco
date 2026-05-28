@@ -78,12 +78,8 @@ class SecurityConfig:
 
 
 def generate_key_pair() -> KeyPair:
-    try:
-        import zmq
-    except ImportError:
-        raise ImportError(
-            "zmq is required to generate CURVE key pairs. Install pyzmq: pip install pyzmq"
-        )
+    import zmq
+
     public_key, secret_key = zmq.curve_keypair()
     return KeyPair(public_key=public_key.decode(), secret_key=secret_key.decode())
 

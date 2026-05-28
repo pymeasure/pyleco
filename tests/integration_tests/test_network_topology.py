@@ -27,7 +27,8 @@ import logging
 import socket
 import threading
 from time import sleep
-from typing import Any, List, Optional
+from typing import Any
+
 import pytest
 
 from pyleco.coordinators.coordinator import Coordinator
@@ -50,8 +51,8 @@ def _find_free_port() -> int:
 def start_coordinator(
     namespace: str,
     port: int,
-    coordinators: Optional[List[str]] = None,
-    stop_event: Optional[threading.Event] = None,
+    coordinators: list[str] | None = None,
+    stop_event: threading.Event | None = None,
     **kwargs: Any,
 ) -> None:
     """Start a coordinator in a separate thread."""
@@ -198,7 +199,7 @@ class TestMultiHopCommunication:
         comm = multi_coordinator_network
 
         # Add a component to N3
-        with Communicator(name="RemoteComponent", port=comm._ports[2]) as remote_comp:
+        with Communicator(name="RemoteComponent", port=comm._ports[2]):
             sleep(TALKING_TIME)  # Time for registration to propagate
 
             with CoordinatorDirector(communicator=comm) as director:
@@ -381,7 +382,7 @@ class TestCoordinatorFailureRecovery:
             try:
                 response = comm.ask_rpc(target, method="pong")
                 assert response is None, f"Failed to ping {target}: {description}"
-            except Exception as e:
+            except Exception:
                 # In a real failure scenario, we'd expect timeouts or connection errors
                 # For this test, we're verifying normal operation
                 pass

@@ -109,7 +109,7 @@ class TestMessageHandlerCurveMode:
             mock_socket = MagicMock()
             mock_context.socket.return_value = mock_socket
             cfg = _make_client_config()
-            handler = MessageHandler(name="test", security_config=cfg, context=mock_context)
+            MessageHandler(name="test", security_config=cfg, context=mock_context)
             mock_configure.assert_called_once_with(
                 mock_socket, cfg.client_key_pair, cfg.server_public_key
             )
@@ -124,7 +124,7 @@ class TestMessageHandlerCurveMode:
             mock_context = MagicMock()
             mock_socket = MagicMock()
             mock_context.socket.return_value = mock_socket
-            handler = MessageHandler(name="test", context=mock_context)
+            MessageHandler(name="test", context=mock_context)
             mock_configure.assert_not_called()
 
 
@@ -138,7 +138,7 @@ class TestDataPublisherCurveMode:
             mock_socket = MagicMock()
             mock_context.socket.return_value = mock_socket
             cfg = _make_client_config()
-            pub = DataPublisher(full_name="test", security_config=cfg, context=mock_context)
+            DataPublisher(full_name="test", security_config=cfg, context=mock_context)
             mock_configure.assert_called_once_with(
                 mock_socket, cfg.client_key_pair, cfg.data_server_public_key
             )
@@ -151,13 +151,12 @@ class TestDataPublisherCurveMode:
             mock_context = MagicMock()
             mock_socket = MagicMock()
             mock_context.socket.return_value = mock_socket
-            pub = DataPublisher(full_name="test", context=mock_context)
+            DataPublisher(full_name="test", context=mock_context)
             mock_configure.assert_not_called()
 
 
 class TestFakeSocketCurveAttributes:
     def test_curve_server(self) -> None:
-        from pyleco.core.message import Message
 
         class FakeSocket:
             def __init__(self):

@@ -25,8 +25,12 @@
 from __future__ import annotations
 
 import warnings
+from typing import TYPE_CHECKING
 
 from pyleco.core.security import KeyPair
+
+if TYPE_CHECKING:
+    import zmq
 
 __all__ = [
     "configure_curve_server",
@@ -35,12 +39,14 @@ __all__ = [
 ]
 
 
-def configure_curve_server(socket, server_key_pair: KeyPair) -> None:
+def configure_curve_server(socket: zmq.Socket, server_key_pair: KeyPair) -> None:
     socket.curve_server = True
     socket.curve_secretkey = server_key_pair.secret_key.encode()
 
 
-def configure_curve_client(socket, client_key_pair: KeyPair, server_public_key: str) -> None:
+def configure_curve_client(
+    socket: zmq.Socket, client_key_pair: KeyPair, server_public_key: str
+) -> None:
     socket.curve_serverkey = server_public_key.encode()
     socket.curve_publickey = client_key_pair.public_key.encode()
     socket.curve_secretkey = client_key_pair.secret_key.encode()
