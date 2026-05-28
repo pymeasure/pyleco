@@ -24,8 +24,6 @@
 
 from __future__ import annotations
 
-import sys
-import types
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -34,64 +32,40 @@ from pyleco.core.security import KeyPair, ServerSecurityConfig, FullSecurityConf
 from pyleco.core.zap import start_authenticator, stop_authenticator
 
 
-def _create_mock_zmq_auth():
-    mock_zmq_auth = types.ModuleType("zmq.auth")
-    mock_zmq_auth.ThreadAuthenticator = MagicMock()
-    mock_zmq_auth.CURVE_ALLOW_ANY = "*"
-    mock_zmq_auth_thread = types.ModuleType("zmq.auth.thread")
-    mock_zmq_auth_thread.ThreadAuthenticator = mock_zmq_auth.ThreadAuthenticator
-    return mock_zmq_auth, mock_zmq_auth_thread
-
-
 class TestStartAuthenticator:
     @patch("pyleco.core.zap.load_authorized_keys", return_value={})
-    def test_any_authenticated_mode(self, mock_load_keys: MagicMock) -> None:
-        mock_zmq_auth, mock_zmq_auth_thread = _create_mock_zmq_auth()
+    @patch("pyleco.core.zap.ThreadAuthenticator")
+    @patch("pyleco.core.zap.CURVE_ALLOW_ANY", "*")
+    def test_any_authenticated_mode(
+        self, mock_thread_auth_cls: MagicMock, mock_load_keys: MagicMock
+    ) -> None:
         mock_auth = MagicMock()
-        mock_zmq_auth.ThreadAuthenticator.return_value = mock_auth
-        mock_zmq = types.ModuleType("zmq")
-        mock_zmq.auth = mock_zmq_auth
-        with patch.dict(
-            sys.modules,
-            {
-                "zmq": mock_zmq,
-                "zmq.auth": mock_zmq_auth,
-                "zmq.auth.thread": mock_zmq_auth_thread,
-            },
-        ):
-            ctx = MagicMock()
-            kp = KeyPair(public_key="a" * 40, secret_key="b" * 40)
-            cfg = ServerSecurityConfig(server_key_pair=kp, curve_any_authenticated=True)
-            result = start_authenticator(ctx, cfg)
-        mock_zmq_auth.ThreadAuthenticator.assert_called_once_with(ctx)
+        mock_thread_auth_cls.return_value = mock_auth
+        ctx = MagicMock()
+        kp = KeyPair(public_key="a" * 40, secret_key="b" * 40)
+        cfg = ServerSecurityConfig(server_key_pair=kp, curve_any_authenticated=True)
+        result = start_authenticator(ctx, cfg)
+        mock_thread_auth_cls.assert_called_once_with(ctx)
         mock_auth.start.assert_called_once()
         mock_auth.configure_curve.assert_called_once_with(domain="*", location="*")
         assert result is mock_auth
         mock_load_keys.assert_not_called()
 
     @patch("pyleco.core.zap.load_authorized_keys")
-    def test_authorized_keys_dict(self, mock_load_keys: MagicMock) -> None:
+    @patch("pyleco.core.zap.ThreadAuthenticator")
+    def test_authorized_keys_dict(
+        self, mock_thread_auth_cls: MagicMock, mock_load_keys: MagicMock
+    ) -> None:
         mock_load_keys.return_value = {"N1.Actor1": "a" * 40, "N1.Actor2": "b" * 40}
-        mock_zmq_auth, mock_zmq_auth_thread = _create_mock_zmq_auth()
         mock_auth = MagicMock()
-        mock_zmq_auth.ThreadAuthenticator.return_value = mock_auth
-        mock_zmq = types.ModuleType("zmq")
-        mock_zmq.auth = mock_zmq_auth
-        with patch.dict(
-            sys.modules,
-            {
-                "zmq": mock_zmq,
-                "zmq.auth": mock_zmq_auth,
-                "zmq.auth.thread": mock_zmq_auth_thread,
-            },
-        ):
-            ctx = MagicMock()
-            kp = KeyPair(public_key="s" * 40, secret_key="t" * 40)
-            cfg = ServerSecurityConfig(
-                server_key_pair=kp,
-                authorized_keys={"N1.Actor1": "a" * 40, "N1.Actor2": "b" * 40},
-            )
-            result = start_authenticator(ctx, cfg)
+        mock_thread_auth_cls.return_value = mock_auth
+        ctx = MagicMock()
+        kp = KeyPair(public_key="s" * 40, secret_key="t" * 40)
+        cfg = ServerSecurityConfig(
+            server_key_pair=kp,
+            authorized_keys={"N1.Actor1": "a" * 40, "N1.Actor2": "b" * 40},
+        )
+        result = start_authenticator(ctx, cfg)
         mock_auth.configure_curve_callback.assert_called_once()
         call_kwargs = mock_auth.configure_curve_callback.call_args
         assert call_kwargs[1]["domain"] == "*"
@@ -101,28 +75,20 @@ class TestStartAuthenticator:
         assert result is mock_auth
 
     @patch("pyleco.core.zap.load_authorized_keys")
-    def test_authorized_keys_dir(self, mock_load_keys: MagicMock, tmp_path) -> None:
+    @patch("pyleco.core.zap.ThreadAuthenticator")
+    def test_authorized_keys_dir(
+        self, mock_thread_auth_cls: MagicMock, mock_load_keys: MagicMock, tmp_path
+    ) -> None:
         key_dir = tmp_path / "keys"
         key_dir.mkdir()
         (key_dir / "N1.Actor1.public").write_text("a" * 40)
         mock_load_keys.return_value = {"N1.Actor1": "a" * 40}
-        mock_zmq_auth, mock_zmq_auth_thread = _create_mock_zmq_auth()
         mock_auth = MagicMock()
-        mock_zmq_auth.ThreadAuthenticator.return_value = mock_auth
-        mock_zmq = types.ModuleType("zmq")
-        mock_zmq.auth = mock_zmq_auth
-        with patch.dict(
-            sys.modules,
-            {
-                "zmq": mock_zmq,
-                "zmq.auth": mock_zmq_auth,
-                "zmq.auth.thread": mock_zmq_auth_thread,
-            },
-        ):
-            ctx = MagicMock()
-            kp = KeyPair(public_key="s" * 40, secret_key="t" * 40)
-            cfg = ServerSecurityConfig(server_key_pair=kp, authorized_keys_dir=str(key_dir))
-            start_authenticator(ctx, cfg)
+        mock_thread_auth_cls.return_value = mock_auth
+        ctx = MagicMock()
+        kp = KeyPair(public_key="s" * 40, secret_key="t" * 40)
+        cfg = ServerSecurityConfig(server_key_pair=kp, authorized_keys_dir=str(key_dir))
+        start_authenticator(ctx, cfg)
         mock_auth.configure_curve_callback.assert_called_once()
         call_kwargs = mock_auth.configure_curve_callback.call_args
         provider = call_kwargs[1]["credentials_provider"]
@@ -130,52 +96,37 @@ class TestStartAuthenticator:
         mock_load_keys.assert_called_once_with(cfg)
 
     @patch("pyleco.core.zap.load_authorized_keys", return_value={})
-    def test_no_keys_raises_value_error(self, mock_load_keys: MagicMock) -> None:
-        mock_zmq_auth, mock_zmq_auth_thread = _create_mock_zmq_auth()
+    @patch("pyleco.core.zap.ThreadAuthenticator")
+    def test_no_keys_raises_value_error(
+        self, mock_thread_auth_cls: MagicMock, mock_load_keys: MagicMock
+    ) -> None:
         mock_auth = MagicMock()
-        mock_zmq_auth.ThreadAuthenticator.return_value = mock_auth
-        mock_zmq = types.ModuleType("zmq")
-        mock_zmq.auth = mock_zmq_auth
-        with patch.dict(
-            sys.modules,
-            {
-                "zmq": mock_zmq,
-                "zmq.auth": mock_zmq_auth,
-                "zmq.auth.thread": mock_zmq_auth_thread,
-            },
-        ):
-            ctx = MagicMock()
-            kp = KeyPair(public_key="a" * 40, secret_key="b" * 40)
-            cfg = ServerSecurityConfig(server_key_pair=kp)
-            with pytest.raises(ValueError, match="authorized_keys"):
-                start_authenticator(ctx, cfg)
+        mock_thread_auth_cls.return_value = mock_auth
+        ctx = MagicMock()
+        kp = KeyPair(public_key="a" * 40, secret_key="b" * 40)
+        cfg = ServerSecurityConfig(server_key_pair=kp)
+        with pytest.raises(ValueError, match="authorized_keys"):
+            start_authenticator(ctx, cfg)
 
     @patch("pyleco.core.zap.load_authorized_keys", return_value={})
-    def test_full_security_config(self, mock_load_keys: MagicMock) -> None:
-        mock_zmq_auth, mock_zmq_auth_thread = _create_mock_zmq_auth()
+    @patch("pyleco.core.zap.ThreadAuthenticator")
+    @patch("pyleco.core.zap.CURVE_ALLOW_ANY", "*")
+    def test_full_security_config(
+        self, mock_thread_auth_cls: MagicMock, mock_load_keys: MagicMock
+    ) -> None:
         mock_auth = MagicMock()
-        mock_zmq_auth.ThreadAuthenticator.return_value = mock_auth
-        mock_zmq = types.ModuleType("zmq")
-        mock_zmq.auth = mock_zmq_auth
-        with patch.dict(
-            sys.modules,
-            {
-                "zmq": mock_zmq,
-                "zmq.auth": mock_zmq_auth,
-                "zmq.auth.thread": mock_zmq_auth_thread,
-            },
-        ):
-            ctx = MagicMock()
-            skp = KeyPair(public_key="a" * 40, secret_key="b" * 40)
-            ckp = KeyPair(public_key="c" * 40, secret_key="d" * 40)
-            cfg = FullSecurityConfig(
-                server_key_pair=skp,
-                client_key_pair=ckp,
-                server_public_key="e" * 40,
-                curve_any_authenticated=True,
-            )
-            result = start_authenticator(ctx, cfg)
-        mock_zmq_auth.ThreadAuthenticator.assert_called_once_with(ctx)
+        mock_thread_auth_cls.return_value = mock_auth
+        ctx = MagicMock()
+        skp = KeyPair(public_key="a" * 40, secret_key="b" * 40)
+        ckp = KeyPair(public_key="c" * 40, secret_key="d" * 40)
+        cfg = FullSecurityConfig(
+            server_key_pair=skp,
+            client_key_pair=ckp,
+            server_public_key="e" * 40,
+            curve_any_authenticated=True,
+        )
+        result = start_authenticator(ctx, cfg)
+        mock_thread_auth_cls.assert_called_once_with(ctx)
         mock_auth.start.assert_called_once()
         assert result is mock_auth
         mock_load_keys.assert_not_called()

@@ -61,7 +61,6 @@ class _CredentialsProvider:
 def start_authenticator(
     context: zmq.Context, security_config: ServerSecurityConfig | FullSecurityConfig
 ) -> ThreadAuthenticator:
-
     authenticator = ThreadAuthenticator(context)
     authenticator.start()
     if security_config.curve_any_authenticated:
