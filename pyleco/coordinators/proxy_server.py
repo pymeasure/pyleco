@@ -61,6 +61,62 @@ log = logging.Logger(__name__)
 port = PROXY_RECEIVING_PORT
 
 
+_proxy_counter = 0
+_proxy_counter_lock = threading.Lock()
+
+
+def _next_proxy_id() -> int:
+    global _proxy_counter
+    with _proxy_counter_lock:
+        n = _proxy_counter
+        _proxy_counter += 1
+    return n
+
+
+class ProxyHandle:
+    """Handle for a running proxy server, allowing graceful shutdown.
+
+    :param context: The ZMQ context used by the proxy.
+    :param control_socket: The PAIR socket connected to the proxy's control channel.
+    :param thread: The proxy thread.
+    """
+
+    def __init__(
+        self,
+        context: zmq.Context,
+        control_socket: zmq.Socket,
+        thread: threading.Thread,
+    ) -> None:
+        self.context = context
+        self._control_socket = control_socket
+        self._thread = thread
+        self._closed = False
+
+    def close(self, timeout: float = 2) -> None:
+        """Stop the proxy gracefully and close the control socket.
+
+        Sends a TERMINATE command to the proxy's control socket, joins the
+        proxy thread, and closes the control socket.  Does **not** destroy
+        the context — callers that own the context should destroy it
+        afterwards.
+        """
+        if self._closed:
+            return
+        self._control_socket.send(b"TERMINATE")
+        self._thread.join(timeout=timeout)
+        self._control_socket.close(linger=0)
+        self._closed = True
+
+    def destroy(self, timeout: float = 2) -> None:
+        """Stop the proxy and destroy the context.
+
+        Equivalent to calling :meth:`close` followed by
+        ``context.destroy(linger=0)``.
+        """
+        self.close(timeout=timeout)
+        self.context.destroy(linger=0)
+
+
 # Technical method to start the proxy server. Use `start_proxy` instead.
 def pub_sub_proxy(
     context: zmq.Context,
@@ -69,6 +125,7 @@ def pub_sub_proxy(
     pub: str = "localhost",
     offset: int = 0,
     event: threading.Event | None = None,
+    control: zmq.Socket | None = None,
 ) -> None:
     """Run a publisher subscriber proxy in the current thread (blocking)."""
     s: zmq.Socket = context.socket(zmq.XSUB)
@@ -95,11 +152,16 @@ def pub_sub_proxy(
     if event is not None:
         event.set()
     try:
-        zmq.proxy_steerable(p, s, capture=c)
+        zmq.proxy_steerable(p, s, capture=c, control=control)
     except zmq.ContextTerminated:
         log.info("Proxy context terminated.")
     except Exception as exc:
         log.exception("Some other exception on proxy happened.", exc)
+    finally:
+        s.close(linger=0)
+        p.close(linger=0)
+        if c is not None:
+            c.close(linger=0)
 
 
 def start_proxy(
@@ -108,7 +170,7 @@ def start_proxy(
     sub: str = "localhost",
     pub: str = "localhost",
     offset: int = 0,
-) -> zmq.Context:
+) -> ProxyHandle:
     """Start a proxy server, either local or remote, in its own thread.
 
     Examples:
@@ -116,16 +178,18 @@ def start_proxy(
     .. code-block:: python
 
         # Between software on the local computer, necessary on every computer:
-        c = start_proxy()
+        proxy = start_proxy()
         # Get the data from a to localhost:
-        c = start_proxy(sub="a.domain.com")
+        proxy = start_proxy(sub="a.domain.com")
         # Send local data to b:
-        c = start_proxy(pub="b.domain.com")
+        proxy = start_proxy(pub="b.domain.com")
         # Send from a to b, can be executed on some third computer:
-        c = start_proxy(sub="a.domain.com",
-                        pub="b.domain.com")
-        # Stop the proxy:
-        c.destroy()
+        proxy = start_proxy(sub="a.domain.com",
+                            pub="b.domain.com")
+        # Stop the proxy gracefully:
+        proxy.close()
+        # Or just destroy the context:
+        proxy.context.destroy()
 
     :param context: The zmq context.
     :param bool captured: Print the captured messages.
@@ -140,20 +204,29 @@ def start_proxy(
             Use the :class:`DataCoordinator` instead.
 
     :param offset: How many servers (pairs of ports) to offset from the base one.
-    :return: The zmq context. To stop, call `context.destroy()`.
+    :return: A :class:`ProxyHandle` for managing the proxy lifecycle.
     """
     context = context or zmq.Context.instance()
+    proxy_id = _next_proxy_id()
+    control_addr = f"inproc://proxy-control-{proxy_id}"
+    control = context.socket(zmq.PAIR)
+    control.bind(control_addr)
+    control_connect = context.socket(zmq.PAIR)
+    control_connect.connect(control_addr)
     event = threading.Event()
     thread = threading.Thread(
-        target=pub_sub_proxy, args=(context, captured, sub, pub, offset, event)
+        target=pub_sub_proxy,
+        args=(context, captured, sub, pub, offset, event, control),
     )
     thread.daemon = True
     thread.start()
     started = event.wait(1)
     if not started:
+        control.close(linger=0)
+        control_connect.close(linger=0)
         raise TimeoutError("Starting of proxy server failed.")
     log.info("Proxy thread started.")
-    return context
+    return ProxyHandle(context=context, control_socket=control_connect, thread=thread)
 
 
 def main(arguments: list[str] | None = None, stop_event: threading.Event | None = None) -> None:
@@ -208,9 +281,10 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
             f" (DataLogger, Beamprofiler etc.), which subscribe on port {port - 1}."
         )
     context = zmq.Context()
-    start_proxy(context=context, **kwargs)
+    handles: list[ProxyHandle] = []
+    handles.append(start_proxy(context=context, **kwargs))
     if merely_local:
-        start_proxy(context=context, offset=1)  # for log entries
+        handles.append(start_proxy(context=context, offset=1))  # for log entries
     reader = context.socket(zmq.SUB)
     reader.connect("inproc://capture")
     reader.subscribe(b"")
@@ -221,6 +295,9 @@ def main(arguments: list[str] | None = None, stop_event: threading.Event | None 
             if reader in socks:
                 received = reader.recv_multipart()
                 log.debug(f"Message brokered: {received}")
+    for handle in handles:
+        handle.close()
+    reader.close(linger=0)
     context.term()
 
 
