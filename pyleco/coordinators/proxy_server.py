@@ -50,7 +50,7 @@ from warnings import warn
 
 import zmq
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     from pyleco.core import PROXY_RECEIVING_PORT
 else:
     from ..core import PROXY_RECEIVING_PORT

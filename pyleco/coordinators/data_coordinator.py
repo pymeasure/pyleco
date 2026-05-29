@@ -52,21 +52,38 @@ from typing import Any
 
 import zmq
 
-from ..core import (
-    COORDINATOR_PORT,
-    PROXY_RECEIVING_PORT,
-    PROXY_SENDING_PORT,
-    PROXY_GATHERER_PORT,
-    LOG_RECEIVING_PORT,
-    LOG_SENDING_PORT,
-    LOG_GATHERER_PORT,
-)
-from ..json_utils.errors import (
-    GATHERER_ALREADY_CONNECTED,
-    GATHERER_NOT_CONNECTED,
-    JSONRPCError,
-)
-from ..utils.listener import Listener
+if __name__ != "__main__":
+    from ..core import (
+        COORDINATOR_PORT,
+        PROXY_RECEIVING_PORT,
+        PROXY_SENDING_PORT,
+        PROXY_GATHERER_PORT,
+        LOG_RECEIVING_PORT,
+        LOG_SENDING_PORT,
+        LOG_GATHERER_PORT,
+    )
+    from ..json_utils.errors import (
+        GATHERER_ALREADY_CONNECTED,
+        GATHERER_NOT_CONNECTED,
+        JSONRPCError,
+    )
+    from ..utils.listener import Listener
+else:  # pragma: no cover
+    from pyleco.core import (
+        COORDINATOR_PORT,
+        PROXY_RECEIVING_PORT,
+        PROXY_SENDING_PORT,
+        PROXY_GATHERER_PORT,
+        LOG_RECEIVING_PORT,
+        LOG_SENDING_PORT,
+        LOG_GATHERER_PORT,
+    )
+    from pyleco.json_utils.errors import (
+        GATHERER_ALREADY_CONNECTED,
+        GATHERER_NOT_CONNECTED,
+        JSONRPCError,
+    )
+    from pyleco.utils.listener import Listener
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -472,5 +489,5 @@ def main() -> None:
             data_dc.close()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
