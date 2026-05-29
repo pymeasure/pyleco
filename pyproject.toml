@@ -45,6 +45,7 @@ dev = [
 
 [project.scripts]
 coordinator = "pyleco.coordinators.coordinator:main"
+data_coordinator = "pyleco.coordinators.data_coordinator:main"
 proxy_server = "pyleco.coordinators.proxy_server:main"
 starter = "pyleco.management.starter:main"
 

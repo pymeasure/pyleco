@@ -27,49 +27,81 @@ import pytest
 from time import sleep
 from typing import Any
 
+import zmq
+
+from pyleco.core.data_message import DataMessage
 from pyleco.utils.data_publisher import DataPublisher
 from pyleco.utils.listener import Listener
-from pyleco.core import PROXY_SENDING_PORT
+from pyleco.utils.pipe_handler import PipeHandler
 
 from pyleco.coordinators.proxy_server import start_proxy, port
 
 
-pytestmark = pytest.mark.skip("Hangs on teardown in CI")
+pytestmark = pytest.mark.filterwarnings("ignore::FutureWarning")
 
 
-# Parameters
 offset = 100
 
 
+class CollectingPipeHandler(PipeHandler):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._messages: list[DataMessage] = []
+
+    def handle_subscription_message(self, message: DataMessage) -> None:
+        self._messages.append(message)
+
+
 class ModListener(Listener):
-    def __init__(
-        self, name: str, host: str = "localhost", data_port: int = PROXY_SENDING_PORT, **kwargs: Any
+    message_handler: CollectingPipeHandler
+
+    def _listen(
+        self,
+        name: str,
+        stop_event,
+        coordinator_host: str,
+        coordinator_port: int,
+        data_host: str,
+        data_port: int,
     ) -> None:
-        super().__init__(name=name, host=host, data_port=data_port, **kwargs)
-        self._data: list[dict] = []
-
-    def handle_subscription_data(self, data: dict) -> None:
-        self._data.append(data)
-
-
-@pytest.fixture(scope="module")
-def publisher() -> DataPublisher:
-    return DataPublisher(full_name="abc", port=port - 2 * offset)
+        self.message_handler = CollectingPipeHandler(  # type: ignore
+            name,
+            host=coordinator_host,
+            port=coordinator_port,
+            data_host=data_host,
+            data_port=data_port,
+        )
+        self.message_handler.listen(stop_event=stop_event)
 
 
 @pytest.fixture(scope="module")
-def listener(publisher):
-    context = start_proxy(offset=offset)
+def proxy_handle():
+    ctx = zmq.Context()
+    handle = start_proxy(context=ctx, offset=offset)
+    yield handle
+    handle.close()
+
+
+@pytest.fixture(scope="module")
+def publisher(proxy_handle) -> DataPublisher:
+    return DataPublisher(full_name="abc", port=port - 2 * offset, context=proxy_handle.context)
+
+
+@pytest.fixture(scope="module")
+def listener(publisher: DataPublisher, proxy_handle):
     listener = ModListener(name="listener", data_port=port - 1 - 2 * offset)
     listener.start_listen()
     listener.communicator.subscribe("")
-    sleep(0.5)  # due to slow joiner: Allow time for connections.
+    sleep(2)
     yield listener  # type: ignore
     listener.close()
-    context.destroy()  # in order to stop the proxy
 
 
 def test_publishing(publisher: DataPublisher, listener: ModListener):
-    publisher.send_data(topic="topic", data="value")
+    listener.message_handler._messages.clear()
+    publisher.send_data(topic="topic", data={"key": "value"})
     sleep(0.1)
-    assert listener._data == [{"topic": "value"}]
+    msgs = listener.message_handler._messages
+    assert len(msgs) >= 1
+    found = any(m.topic == b"topic" and m.data == {"key": "value"} for m in msgs)
+    assert found

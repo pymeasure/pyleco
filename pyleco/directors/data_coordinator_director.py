@@ -22,20 +22,35 @@
 # THE SOFTWARE.
 #
 
-"""
-Core - Essential modules for pyleco.
-"""
+from __future__ import annotations
+import logging
+from typing import Any, cast, Dict, List
 
-# Current protocol version
-VERSION: int = 0
-VERSION_B: bytes = VERSION.to_bytes(1, "big")
+from .director import Director
 
 
-# Default ports
-COORDINATOR_PORT = 12300  # the Coordinator receives and sends at that port.
-PROXY_RECEIVING_PORT = 11100  # the proxy server receives at that port
-PROXY_SENDING_PORT = 11099  # the proxy server sends at that port
-PROXY_GATHERER_PORT = 11101  # the proxy server's gatherer sends at that port
-LOG_RECEIVING_PORT = 11098  # the log server receives at that port
-LOG_SENDING_PORT = 11097  # the log server sends at that port
-LOG_GATHERER_PORT = 11096  # the log server's gatherer sends at that port
+log = logging.getLogger(__name__)
+log.addHandler(logging.NullHandler())
+
+
+class DataCoordinatorDirector(Director):
+    """Direct a DataCoordinator."""
+
+    def __init__(self, actor: bytes | str | None = "DATA_COORDINATOR", **kwargs: Any) -> None:
+        super().__init__(actor=actor, **kwargs)
+
+    def connect_to_gatherer(self, address: str) -> None:
+        """Connect to a remote Gatherer."""
+        return cast(None, self.ask_rpc(method="connect_to_gatherer", address=address))
+
+    def disconnect_from_gatherer(self, address: str) -> None:
+        """Disconnect from a remote Gatherer."""
+        return cast(None, self.ask_rpc(method="disconnect_from_gatherer", address=address))
+
+    def list_gatherers(self) -> list[str]:
+        """List connected Gatherers."""
+        return cast(List[str], self.ask_rpc(method="list_gatherers"))
+
+    def send_data_addresses(self) -> dict[str, str]:
+        """Get data addresses."""
+        return cast(Dict[str, str], self.ask_rpc(method="send_data_addresses"))

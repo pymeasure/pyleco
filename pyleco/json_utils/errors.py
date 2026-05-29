@@ -38,6 +38,7 @@ from __future__ import annotations
 from .json_objects import JsonRpcError
 
 # JSONRPC 2.0 defined errors
+# ==========================
 
 PARSE_ERROR = JsonRpcError(code=-32700, message="Parse error")
 # Invalid JSON was received by the server
@@ -57,14 +58,25 @@ INTERNAL_ERROR = JsonRpcError(code=-32603, message="Internal error")  # Internal
 SERVER_ERROR = JsonRpcError(code=-32000, message="Server error")
 
 # LECO defined errors
+# ===================
+
 # Routing errors (Coordinator) between -32090 and -32099
 NOT_SIGNED_IN = JsonRpcError(code=-32090, message="You did not sign in!")
 DUPLICATE_NAME = JsonRpcError(code=-32091, message="The name is already taken.")
 NODE_UNKNOWN = JsonRpcError(code=-32092, message="Node is not known.")
 RECEIVER_UNKNOWN = JsonRpcError(code=-32093, message="Receiver is not in addresses list.")
 
+# PyLECO defined errors
+# =====================
+
 # Error during deserialization of the server's response
 INVALID_SERVER_RESPONSE = JsonRpcError(code=-32000, message="Invalid response from server.")
+
+# Data Coordinator errors
+GATHERER_ALREADY_CONNECTED = JsonRpcError(
+    code=-32010, message="Already connected to this Gatherer."
+)
+GATHERER_NOT_CONNECTED = JsonRpcError(code=-32011, message="Not connected to this Gatherer.")
 
 
 class JSONRPCError(Exception):

@@ -115,7 +115,8 @@ For more information and for examples see the docstrings of the relevant methods
     It is useful if you want to react to incoming messages (via data or control protocol) and if you want to send messages of your own accord, for example for GUI applications.
 * The `coordinators` subpackage contains the different _Coordinators_.
   * `Coordinator` is the _Coordinator_ for the control protocol (exchanging messages).
-  * `proxy_server` is the _Coordinator_ for the data protocol (broadcasting).
+  * `DataCoordinator` is the _Data Coordinator_ for the data protocol (broadcasting).
+  * `proxy_server` is a more simple version of the _Data Coordinator_ for the data protocol (broadcasting).
 * The `actors` subpackage contains _Actor_ classes to control devices.
 * The `management` subpackage contains _Components_ useful for experiment management.
   * The `Starter` can execute tasks in separate threads.

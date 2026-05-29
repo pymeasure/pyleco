@@ -284,9 +284,7 @@ def test_routing_successful(coordinator: Coordinator, i, o):
     else:
         assert (
             coordinator.sock._messages_sent  # type: ignore
-            == [
-                (o[0], Message.from_frames(*o[1:]))
-            ]
+            == [(o[0], Message.from_frames(*o[1:]))]
         )
 
 
@@ -379,9 +377,7 @@ def test_routing_error_messages(coordinator: Coordinator, i, o):
     else:
         assert (
             coordinator.sock._messages_sent  # type: ignore
-            == [
-                (o[0], Message.from_frames(*o[1:]))
-            ]
+            == [(o[0], Message.from_frames(*o[1:]))]
         )
 
 
