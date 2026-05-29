@@ -28,10 +28,10 @@ jobs:
           python --version
           micromamba info
       - name: Lint with ruff
-        uses: astral-sh/ruff-action@v3
+        uses: astral-sh/ruff-action@v4.0.0
         with:
           args: "check --output-format github"
-      - uses: ammaraskar/sphinx-problem-matcher@master
+      - uses: ammaraskar/sphinx-problem-matcher@v1
       - name: Generate docs
         if: always()  # run even if the previous step failed
         working-directory: ./docs
