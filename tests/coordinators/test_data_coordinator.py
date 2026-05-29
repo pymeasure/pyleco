@@ -130,7 +130,7 @@ class TestConnectToGatherer:
         assert "host:11101" in data_coordinator._remote_gatherer_addresses
 
     def test_connect_returns_none(self, data_coordinator: DataCoordinator):
-        result = data_coordinator.connect_to_gatherer("host:11101")
+        result = data_coordinator.connect_to_gatherer("host:11101")  # type: ignore[func-returns-value]
         assert result is None
 
     def test_connect_duplicate_raises(self, data_coordinator: DataCoordinator):
@@ -163,7 +163,7 @@ class TestDisconnectFromGatherer:
 
     def test_disconnect_returns_none(self, data_coordinator: DataCoordinator):
         data_coordinator.connect_to_gatherer("host:11101")
-        result = data_coordinator.disconnect_from_gatherer("host:11101")
+        result = data_coordinator.disconnect_from_gatherer("host:11101")  # type: ignore[func-returns-value]
         assert result is None
 
     def test_disconnect_not_connected_raises(self, data_coordinator: DataCoordinator):

@@ -64,7 +64,7 @@ class ModListener(Listener):
         data_host: str,
         data_port: int,
     ) -> None:
-        self.message_handler = CollectingPipeHandler( # type: ignore
+        self.message_handler = CollectingPipeHandler(  # type: ignore
             name,
             host=coordinator_host,
             port=coordinator_port,
