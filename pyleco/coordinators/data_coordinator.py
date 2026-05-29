@@ -67,7 +67,6 @@ from ..json_utils.errors import (
     JSONRPCError,
 )
 from ..utils.listener import Listener
-from ..utils.log_levels import PythonLogLevels
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -175,9 +174,10 @@ class DataCoordinator:
 
     def _start_proxy_thread(self, frontend: zmq.Socket, backend: zmq.Socket, name: str) -> None:
         control = self.context.socket(zmq.PAIR)
-        control_port = control.bind_to_random_port("inproc://proxy-control")
+        control_addr = f"inproc://proxy-control-{self.name}-{name}"
+        control.bind(control_addr)
         control_connect = self.context.socket(zmq.PAIR)
-        control_connect.connect(f"inproc://proxy-control:{control_port}")
+        control_connect.connect(control_addr)
         event = threading.Event()
         thread = threading.Thread(
             target=self._run_proxy,
@@ -216,12 +216,13 @@ class DataCoordinator:
             **kwargs,
         )
         self.listener.start_listen()
-        self.listener.message_handler.rpc.method()(self.set_log_level)
-        self.listener.message_handler.rpc.method()(self.shut_down)
-        self.listener.message_handler.rpc.method()(self.connect_to_gatherer)
-        self.listener.message_handler.rpc.method()(self.disconnect_from_gatherer)
-        self.listener.message_handler.rpc.method()(self.list_gatherers)
-        self.listener.message_handler.rpc.method()(self.send_data_addresses)
+        rpc = self.listener.message_handler.rpc
+        rpc.unregister_method("shut_down")
+        rpc.method()(self.shut_down)
+        rpc.method()(self.connect_to_gatherer)
+        rpc.method()(self.disconnect_from_gatherer)
+        rpc.method()(self.list_gatherers)
+        rpc.method()(self.send_data_addresses)
         self.listener.message_handler.register_on_name_change_method(self._on_name_change)
 
     @property
@@ -299,11 +300,6 @@ class DataCoordinator:
             self.close()
 
     # Component protocol methods
-    @staticmethod
-    def set_log_level(level: str) -> None:
-        plevel = PythonLogLevels[level]
-        log.setLevel(plevel)
-
     def shut_down(self) -> None:
         self.close()
 
