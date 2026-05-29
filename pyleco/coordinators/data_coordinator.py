@@ -385,6 +385,16 @@ def main() -> None:
         "--log-xpub-port", type=int, default=LOG_SENDING_PORT, help="port for log Distributor XPUB"
     )
     parser.add_argument(
+        "--data-gatherers",
+        default="",
+        help="comma separated list of remote data Gatherer XPUB addresses to connect to",
+    )
+    parser.add_argument(
+        "--log-gatherers",
+        default="",
+        help="comma separated list of remote log Gatherer XPUB addresses to connect to",
+    )
+    parser.add_argument(
         "--no-log", action="store_true", default=False, help="do not start the log coordinator"
     )
     parser.add_argument(
@@ -404,6 +414,8 @@ def main() -> None:
     log_xsub_port = kwargs.pop("log_xsub_port", LOG_RECEIVING_PORT)
     log_gatherer_xpub_port = kwargs.pop("log_gatherer_xpub_port", LOG_GATHERER_PORT)
     log_xpub_port = kwargs.pop("log_xpub_port", LOG_SENDING_PORT)
+    data_gatherers = [a for a in kwargs.pop("data_gatherers", "").replace(" ", "").split(",") if a]
+    log_gatherers = [a for a in kwargs.pop("log_gatherers", "").replace(" ", "").split(",") if a]
 
     context = zmq.Context()
     stop_event = threading.Event()
@@ -421,6 +433,8 @@ def main() -> None:
     except Exception:
         context.term()
         raise
+    for address in data_gatherers:
+        data_dc.connect_to_gatherer(address)
     if no_log:
         try:
             data_dc.run(stop_event=stop_event)
@@ -444,6 +458,8 @@ def main() -> None:
             data_dc.close()
             context.term()
             raise
+        for address in log_gatherers:
+            log_dc.connect_to_gatherer(address)
         log_thread = threading.Thread(
             target=log_dc.run,
             args=(stop_event,),

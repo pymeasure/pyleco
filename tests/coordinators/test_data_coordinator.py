@@ -272,3 +272,59 @@ class TestComponentMethods:
     def test_shut_down(self, data_coordinator: DataCoordinator):
         data_coordinator.shut_down()
         assert data_coordinator.closed
+
+
+class TestMainGathererArgs:
+    """Test that --data-gatherers and --log-gatherers CLI args connect at startup."""
+
+    @patch("pyleco.coordinators.data_coordinator.zmq.Context")
+    @patch("pyleco.coordinators.data_coordinator.DataCoordinator")
+    def test_data_gatherers_connected(self, mock_dc_cls, mock_ctx_cls):
+        from pyleco.coordinators.data_coordinator import main
+
+        mock_dc_instance = mock_dc_cls.return_value
+        with patch(
+            "sys.argv",
+            ["data_coordinator", "--no-log", "--data-gatherers", "host1:11101,host2:11101"],
+        ):
+            main()
+        calls = [c.args[0] for c in mock_dc_instance.connect_to_gatherer.call_args_list]
+        assert calls == ["host1:11101", "host2:11101"]
+
+    @patch("pyleco.coordinators.data_coordinator.zmq.Context")
+    @patch("pyleco.coordinators.data_coordinator.DataCoordinator")
+    def test_log_gatherers_connected(self, mock_dc_cls, mock_ctx_cls):
+        from pyleco.coordinators.data_coordinator import main
+
+        mock_dc_instance = mock_dc_cls.return_value
+        with patch(
+            "sys.argv", ["data_coordinator", "--log-gatherers", "loghost1:11101, loghost2:11101"]
+        ):
+            main()
+        calls = [c.args[0] for c in mock_dc_instance.connect_to_gatherer.call_args_list]
+        assert "loghost1:11101" in calls
+        assert "loghost2:11101" in calls
+
+    @patch("pyleco.coordinators.data_coordinator.zmq.Context")
+    @patch("pyleco.coordinators.data_coordinator.DataCoordinator")
+    def test_no_gatherers_by_default(self, mock_dc_cls, mock_ctx_cls):
+        from pyleco.coordinators.data_coordinator import main
+
+        mock_dc_instance = mock_dc_cls.return_value
+        with patch("sys.argv", ["data_coordinator", "--no-log"]):
+            main()
+        mock_dc_instance.connect_to_gatherer.assert_not_called()
+
+    @patch("pyleco.coordinators.data_coordinator.zmq.Context")
+    @patch("pyleco.coordinators.data_coordinator.DataCoordinator")
+    def test_spaces_stripped_from_gatherers(self, mock_dc_cls, mock_ctx_cls):
+        from pyleco.coordinators.data_coordinator import main
+
+        mock_dc_instance = mock_dc_cls.return_value
+        with patch(
+            "sys.argv",
+            ["data_coordinator", "--no-log", "--data-gatherers", " host1:11101 , host2:11101 "],
+        ):
+            main()
+        calls = [c.args[0] for c in mock_dc_instance.connect_to_gatherer.call_args_list]
+        assert calls == ["host1:11101", "host2:11101"]
