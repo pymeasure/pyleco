@@ -31,7 +31,7 @@ from pyleco.test import FakeContext
 
 @pytest.fixture
 def publisher():
-    publisher = DataPublisher(full_name="sender", context=FakeContext())  # type: ignore
+    publisher = DataPublisher(full_name="sender", context=FakeContext())  # type: ignore[reportArgumentType]
     return publisher
 
 
@@ -40,12 +40,12 @@ def test_socket_type(publisher: DataPublisher):
 
 
 def test_connection():
-    publisher = DataPublisher(full_name="", host="localhost", port=12345, context=FakeContext())  # type: ignore
+    publisher = DataPublisher(full_name="", host="localhost", port=12345, context=FakeContext())  # type: ignore[reportArgumentType]
     assert publisher.socket.addr == "tcp://localhost:12345"
 
 
 def test_context_manager_closes_connection():
-    with DataPublisher("", context=FakeContext()) as p:  # type: ignore
+    with DataPublisher("", context=FakeContext()) as p:  # type: ignore[reportArgumentType]
         pass
     assert p.socket.closed is True
 
@@ -53,7 +53,7 @@ def test_context_manager_closes_connection():
 def test_call_publisher_sends(publisher: DataPublisher):
     publisher(b"data")
     # assert
-    message = DataMessage.from_frames(*publisher.socket._s.pop())  # type: ignore
+    message = DataMessage.from_frames(*publisher.socket._s.pop())  # type: ignore[reportAttributeAccessIssue]
     assert message.topic == publisher.full_name.encode()
     assert message.payload[0] == b"data"
 
@@ -74,7 +74,7 @@ def test_send_message(publisher: DataPublisher):
 def test_send_legacy(publisher: DataPublisher):
     value = 5.67
     publisher.send_legacy({"key": value})
-    message = DataMessage.from_frames(*publisher.socket._s[0])  # type: ignore
+    message = DataMessage.from_frames(*publisher.socket._s[0])  # type: ignore[reportGeneralTypeIssues, reportIndexIssue]
     assert message.topic == b"key"
     assert message.payload[0] == pickle.dumps(value)
     assert message.message_type == 234

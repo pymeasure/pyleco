@@ -55,7 +55,7 @@ class FakeBaseCommunicator(BaseCommunicator):
     def __init__(self, name="communicator") -> None:
         self.name = name
         self.setup_message_buffer()
-        self.socket = FakeSocket(0)  # type: ignore
+        self.socket = FakeSocket(0)  # type: ignore[reportAttributeAccessIssue]
         self.log = logging.getLogger()
         self.rpc_generator = RPCGenerator()
 
@@ -137,12 +137,12 @@ def test_buffer_len(buffer: MessageBuffer):
 
 def test_close(communicator: FakeBaseCommunicator):
     communicator.close()
-    assert communicator.socket.closed is True  # type: ignore
+    assert communicator.socket.closed is True
 
 
 def test_context_manager():
     stored_communicator = None
-    with FakeBaseCommunicator() as communicator:  # type: ignore
+    with FakeBaseCommunicator() as communicator:
         assert isinstance(communicator, FakeBaseCommunicator)  # assert enter
         stored_communicator = communicator
     assert stored_communicator.socket.closed is True  # exit
@@ -151,7 +151,7 @@ def test_context_manager():
 def test_send_socket_message(communicator: FakeBaseCommunicator):
     msg = Message(receiver="rec", sender="abc")
     BaseCommunicator._send_socket_message(communicator, msg)
-    assert communicator.socket._s == [msg.to_frames()]  # type: ignore
+    assert communicator.socket._s == [msg.to_frames()]
 
 
 def test_send_message(communicator: FakeBaseCommunicator):
@@ -172,7 +172,7 @@ class Test_sign_in:
             message_type=MessageTypes.JSON,
             data=ResultResponse(0, None),
         )
-        communicator._r = [message]  # type: ignore
+        communicator._r = [message]
         communicator.namespace = None
         communicator.sign_in()
         assert communicator.namespace == "N3"
@@ -184,7 +184,7 @@ class Test_sign_in:
         fake_cid_generation,
     ):
         message = Message("communicator", "COORDINATOR", data=b"[]", conversation_id=cid)
-        communicator._r = [message]  # type: ignore
+        communicator._r = [message]
         communicator.sign_in()
         caplog.records[-1].msg.startswith("Not json message received:")
 
@@ -202,7 +202,7 @@ class Test_sign_in:
             data=ErrorResponse(id=5, error=DUPLICATE_NAME),
             conversation_id=cid,
         )
-        communicator._r = [message]  # type: ignore
+        communicator._r = [message]
         communicator.sign_in()
         assert communicator.namespace is None
         assert caplog.records[-1].msg == "Sign in failed, the name is already used."
@@ -221,7 +221,7 @@ class Test_sign_in:
             data=ErrorResponse(5, Error(12345, "error_msg")),
             conversation_id=cid,
         )
-        communicator._r = [message]  # type: ignore
+        communicator._r = [message]
         communicator.sign_in()
         assert communicator.namespace is None
         assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
@@ -241,7 +241,7 @@ class Test_sign_in:
             data=Request(5, "some_method"),
             conversation_id=cid,
         )
-        communicator._r = [message]  # type: ignore
+        communicator._r = [message]
         communicator.sign_in()
         assert communicator.namespace is None
         assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
@@ -299,7 +299,7 @@ def test_sign_out_fail(
         data=ErrorResponse(1, error=Error(12345, "")),
         conversation_id=cid,
     )
-    communicator._r = [message]  # type: ignore
+    communicator._r = [message]
     communicator.sign_out()
     assert communicator.namespace is not None
     assert caplog.messages[-1].startswith("Signing out failed")
@@ -314,7 +314,7 @@ def test_sign_out_success(communicator: FakeBaseCommunicator, fake_cid_generatio
         data=ResultResponse(1, None),
         conversation_id=cid,
     )
-    communicator._r = [message]  # type: ignore
+    communicator._r = [message]
     communicator.sign_out()
     assert communicator.namespace is None
 
@@ -345,7 +345,7 @@ class Test_read_message:
     ids = [test[-1] for test in conf]
 
     def test_return_message_from_socket(self, communicator: FakeBaseCommunicator):
-        communicator._r = [m1]  # type: ignore
+        communicator._r = [m1]
         assert communicator.read_message() == m1
 
     def test_return_message_from_buffer(self, communicator: FakeBaseCommunicator):
@@ -366,7 +366,7 @@ class Test_read_message:
         communicator: FakeBaseCommunicator,
     ):
         socket, buffer, cid0, *_ = test
-        communicator._r = socket.copy()  # type: ignore
+        communicator._r = socket.copy()
         for m in buffer:
             communicator.message_buffer.add_message(m)
         communicator.message_buffer.add_conversation_id(cid)
@@ -381,17 +381,17 @@ class Test_read_message:
         communicator: FakeBaseCommunicator,
     ):
         socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test
-        communicator._r = socket_in.copy()  # type: ignore
+        communicator._r = socket_in.copy()
         for m in buffer_in:
             communicator.message_buffer.add_message(m)
         communicator.message_buffer.add_conversation_id(cid)
         # act
         communicator.read_message(conversation_id=cid0)
-        assert communicator._r == socket_out  # type: ignore
+        assert communicator._r == socket_out
         assert communicator.message_buffer._messages == buffer_out
 
     def test_timeout_zero_works(self, communicator: FakeBaseCommunicator):
-        communicator._r = [m1]  # type: ignore
+        communicator._r = [m1]
         communicator.read_message(timeout=0)
         # assert that no error is raised
 
@@ -400,7 +400,7 @@ class Test_read_message:
             time.sleep(0.1)
             return m1
 
-        communicator._read_socket_message = waiting  # type: ignore[assignment]
+        communicator._read_socket_message = waiting
         with pytest.raises(TimeoutError):
             communicator.read_message(conversation_id=cid, timeout=0)
 
@@ -411,7 +411,7 @@ class Test_ask_message:
 
     @pytest.fixture
     def communicator_asked(self, communicator: FakeBaseCommunicator):
-        communicator._r = [self.expected_response]  # type: ignore
+        communicator._r = [self.expected_response]
         self.response = communicator.ask_message(message=self.expected_sent)
         return communicator
 
@@ -429,7 +429,7 @@ class Test_handle_not_signed_in:
     @pytest.fixture
     def communicator_hnsi(self, communicator: FakeBaseCommunicator) -> FakeBaseCommunicator:
         communicator.namespace = "xyz"
-        communicator.sign_in = MagicMock()  # type: ignore
+        communicator.sign_in = MagicMock()
         communicator.handle_not_signed_in()
         communicator.sign_in.assert_called_once
         return communicator
@@ -438,7 +438,7 @@ class Test_handle_not_signed_in:
         assert communicator_hnsi.namespace is None
 
     def test_sign_in_called(self, communicator_hnsi: FakeBaseCommunicator):
-        communicator_hnsi.sign_in.assert_called_once()  # type: ignore
+        communicator_hnsi.sign_in.assert_called_once()  # type: ignore[reportAttributeAccessIssue]
 
     def test_log_warning(
         self, communicator_hnsi: FakeBaseCommunicator, caplog: pytest.LogCaptureFixture

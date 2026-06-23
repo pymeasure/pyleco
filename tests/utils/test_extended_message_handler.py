@@ -36,40 +36,40 @@ from pyleco.utils.extended_message_handler import ExtendedMessageHandler
 
 @pytest.fixture
 def handler():
-    handler = ExtendedMessageHandler(name="handler", context=FakeContext())  # type: ignore
+    handler = ExtendedMessageHandler(name="handler", context=FakeContext())  # type: ignore[reportArgumentType]
     handler.namespace = "N1"
     handler.stop_event = SimpleEvent()
-    handler.subscriber = FakeSocket(2)  # type: ignore
+    handler.subscriber = FakeSocket(2)  # type: ignore[reportAttributeAccessIssue]
     handler.handle_subscription_message = MagicMock()  # it is not defined
     return handler
 
 
 def test_read_subscription_message_calls_handle(handler: ExtendedMessageHandler):
     message = DataMessage("", data="[]")
-    handler.subscriber._r = [message.to_frames()]  # type: ignore
+    handler.subscriber._r = [message.to_frames()]  # type: ignore[reportArgumentType]
     handler.read_subscription_message()
     # assert
-    handler.handle_subscription_message.assert_called_once_with(message)  # type: ignore
+    handler.handle_subscription_message.assert_called_once_with(message)  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_handle_subscription_message_raises_not_implemented():
-    handler = ExtendedMessageHandler(name="handler", context=FakeContext())  # type: ignore
+    handler = ExtendedMessageHandler(name="handler", context=FakeContext())  # type: ignore[reportArgumentType]
     with pytest.raises(NotImplementedError):
         handler.handle_subscription_message(DataMessage(b"topic"))
 
 
 def test_read_subscription_message_calls_handle_legacy(handler: ExtendedMessageHandler):
     message = DataMessage("", data="[]", message_type=234)
-    handler.handle_full_legacy_subscription_message = MagicMock()  # type: ignore[method-assign]
-    handler.subscriber._r = [message.to_frames()]  # type: ignore
+    handler.handle_full_legacy_subscription_message = MagicMock()
+    handler.subscriber._r = [message.to_frames()]  # type: ignore[reportArgumentType]
     handler.read_subscription_message()
     # assert
-    handler.handle_full_legacy_subscription_message.assert_called_once_with(message)  # type: ignore
+    handler.handle_full_legacy_subscription_message.assert_called_once_with(message)
 
 
 def test_subscribe_single(handler: ExtendedMessageHandler):
     handler.subscribe_single(b"topic")
-    assert handler.subscriber._subscriptions == [b"topic"]  # type: ignore
+    assert handler.subscriber._subscriptions == [b"topic"]
     assert handler._subscriptions == [b"topic"]
 
 
@@ -98,10 +98,10 @@ def test_subscribe(handler: ExtendedMessageHandler, topics, result):
 
 def test_unsubscribe_single(handler: ExtendedMessageHandler):
     handler._subscriptions = [b"topic"]
-    handler.subscriber._subscriptions = [b"topic"]  # type: ignore
+    handler.subscriber._subscriptions = [b"topic"]  # type: ignore[reportArgumentType]
     handler.unsubscribe_single(b"topic")
     assert handler._subscriptions == []
-    assert handler.subscriber._subscriptions == []  # type: ignore
+    assert handler.subscriber._subscriptions == []
 
 
 @pytest.mark.parametrize(
@@ -132,7 +132,7 @@ def test_unsubscribe_all(handler: ExtendedMessageHandler):
 class Test_handle_full_legacy_subscription_message:
     @pytest.fixture
     def handler_hfl(self, handler: ExtendedMessageHandler) -> ExtendedMessageHandler:
-        handler.handle_subscription_data = MagicMock()  # type: ignore[method-assign]
+        handler.handle_subscription_data = MagicMock()
         return handler
 
     def test_handle_pickled_message(self, handler_hfl: ExtendedMessageHandler):
@@ -140,14 +140,14 @@ class Test_handle_full_legacy_subscription_message:
         handler_hfl.handle_full_legacy_subscription_message(
             DataMessage("topic", data=pickle.dumps(data), message_type=234)
         )
-        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})  # type: ignore
+        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})  # type: ignore[reportAttributeAccessIssue]
 
     def test_handle_json_message(self, handler_hfl: ExtendedMessageHandler):
         data = ["some", "data", 5]
         handler_hfl.handle_full_legacy_subscription_message(
             DataMessage("topic", data=json.dumps(data), message_type=235)
         )
-        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})  # type: ignore
+        handler_hfl.handle_subscription_data.assert_called_once_with({"topic": data})  # type: ignore[reportAttributeAccessIssue]
 
     def test_handle_unknown_message_type(self, handler_hfl: ExtendedMessageHandler):
         with pytest.raises(ValueError):

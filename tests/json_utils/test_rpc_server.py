@@ -110,9 +110,9 @@ def rpc_server() -> RPCServer:
 def test_success(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     request = ParamsRequest(1, method="sem", params=dict(arg=3)).model_dump_json()
     response = rpc_server.process_request(request)
-    result = rpc_generator.get_result_from_response(response)  # type: ignore
+    result = rpc_generator.get_result_from_response(response)  # type: ignore[reportArgumentType]
     assert result == 5
-    assert args == (3,)  # type: ignore
+    assert args == (3,)
 
 
 def test_multiple_requests_success(rpc_server: RPCServer, rpc_generator: RPCGenerator):
@@ -120,7 +120,7 @@ def test_multiple_requests_success(rpc_server: RPCServer, rpc_generator: RPCGene
     request2 = Request(id=2, method="side_effect_method")
     message = RequestBatch([request1, request2]).model_dump_json()
     result = rpc_server.process_request(message)
-    result_obj = json.loads(result)  # type: ignore
+    result_obj = json.loads(result)  # type: ignore[reportArgumentType]
     assert rpc_generator.get_result_from_response(result_obj[0]) == 5
     assert rpc_generator.get_result_from_response(result_obj[1]) == 5
 
@@ -129,7 +129,7 @@ def test_failing_method(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     request = Request(1, method="fail").model_dump_json()
     response = rpc_server.process_request(request)
     with pytest.raises(InternalError) as exc_info:
-        rpc_generator.get_result_from_response(response)  # type: ignore
+        rpc_generator.get_result_from_response(response)  # type: ignore[reportArgumentType]
     error = exc_info.value.rpc_error
     assert error.code == INTERNAL_ERROR.code
     assert error.message == INTERNAL_ERROR.message
@@ -138,7 +138,7 @@ def test_failing_method(rpc_generator: RPCGenerator, rpc_server: RPCServer):
 def test_failing_parsing_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     response = rpc_server.process_request(b"\x01basdf")
     with pytest.raises(ParseError) as exc_info:
-        rpc_generator.get_result_from_response(response)  # type: ignore
+        rpc_generator.get_result_from_response(response)  # type: ignore[reportArgumentType]
     error = exc_info.value.rpc_error
     assert error.code == PARSE_ERROR.code
     assert error.message == PARSE_ERROR.message
@@ -149,11 +149,11 @@ def test_method_not_found_raise_error(rpc_generator: RPCGenerator, rpc_server: R
     request = Request(1, method=method_name).model_dump_json()
     response = rpc_server.process_request(request)
     with pytest.raises(MethodNotFound) as exc_info:
-        rpc_generator.get_result_from_response(response)  # type: ignore
+        rpc_generator.get_result_from_response(response)  # type: ignore[reportArgumentType]
     error = exc_info.value.rpc_error
     assert error.code == METHOD_NOT_FOUND.code
     assert error.message == METHOD_NOT_FOUND.message
-    assert error.data == method_name  # type: ignore
+    assert error.data == method_name
 
 
 def test_wrong_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
@@ -161,38 +161,38 @@ def test_wrong_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_ser
     request = ParamsRequest(1, "simple", args)
     response = rpc_server.process_request(request.model_dump_json())
     with pytest.raises(InvalidParams) as exc_info:
-        rpc_generator.get_result_from_response(response)  # type: ignore
+        rpc_generator.get_result_from_response(response)  # type: ignore[reportArgumentType]
     error = exc_info.value.rpc_error
     assert error.code == INVALID_PARAMS.code
     assert error.message == INVALID_PARAMS.message
-    assert error.data == request.model_dump()  # type: ignore
+    assert error.data == request.model_dump()
 
 
 def test_invalid_method_arguments_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     args = "some string"
     request = Request(1, "obligatory_parameter")
-    request.params = args  # type: ignore
+    request.params = args  # type: ignore[reportAttributeAccessIssue]
     response = rpc_server.process_request(request.model_dump_json())
     with pytest.raises(InvalidRequest) as exc_info:
-        rpc_generator.get_result_from_response(response)  # type: ignore
+        rpc_generator.get_result_from_response(response)  # type: ignore[reportArgumentType]
     error = exc_info.value.rpc_error
     assert error.code == INVALID_REQUEST.code
     assert error.message == INVALID_REQUEST.message
     assert error.data == {
         "reason": "TypeError: Params must be a list, dict, or None",
         "data": request.model_dump(),
-    }  # type: ignore
+    }
 
 
 def test_required_parameter_missing_raise_error(rpc_generator: RPCGenerator, rpc_server: RPCServer):
     request = Request(1, "obligatory_parameter")
     response = rpc_server.process_request(request.model_dump_json())
     with pytest.raises(InvalidParams) as exc_info:
-        rpc_generator.get_result_from_response(response)  # type: ignore
+        rpc_generator.get_result_from_response(response)  # type: ignore[reportArgumentType]
     error = exc_info.value.rpc_error
     assert error.code == INVALID_PARAMS.code
     assert error.message == INVALID_PARAMS.message
-    assert error.data == request.model_dump()  # type: ignore
+    assert error.data == request.model_dump()
 
 
 def test_process_response_raise_error(rpc_server: RPCServer, rpc_generator: RPCGenerator):
@@ -201,11 +201,11 @@ def test_process_response_raise_error(rpc_server: RPCServer, rpc_generator: RPCG
     request_string = request.model_dump_json()
     response = rpc_server.process_request(request_string)
     with pytest.raises(InvalidRequest) as exc_info:
-        rpc_generator.get_result_from_response(response)  # type: ignore
+        rpc_generator.get_result_from_response(response)  # type: ignore[reportArgumentType]
     error = exc_info.value.rpc_error
     assert error.code == INVALID_REQUEST.code
     assert error.message == INVALID_REQUEST.message
-    assert error.data == {"reason": "Not a request", "data": request.model_dump()}  # type: ignore
+    assert error.data == {"reason": "Not a request", "data": request.model_dump()}
 
 
 @pytest.mark.parametrize(
@@ -231,7 +231,7 @@ class Test_discover_method:
         request = Request(1, "rpc.discover")
         response = rpc_server.process_json_request_object(request)
         assert isinstance(response, ResultResponse)
-        return response.result  # type: ignore
+        return response.result  # type: ignore[reportReturnType]
 
     def test_info(self, discovered: dict):
         info: dict = discovered["info"]
@@ -240,7 +240,7 @@ class Test_discover_method:
 
     @pytest.fixture
     def methods(self, discovered: dict) -> list:
-        return discovered.get("methods")  # type: ignore
+        return discovered.get("methods")  # type: ignore[reportReturnType]
 
     def test_side_effect_method(self, methods: list):
         m1: dict = methods[0]
@@ -294,7 +294,7 @@ class Test_process_request:
     def test_batch_entry_notification(self, rpc_server: RPCServer):
         """A notification (request without id) shall not return anything."""
         requests = RequestBatch([Notification("simple"), Request(4, "simple")]).model_dump_json()
-        result = json.loads(rpc_server.process_request(requests))  # type: ignore
+        result = json.loads(rpc_server.process_request(requests))  # type: ignore[reportArgumentType]
         assert result == ResponseBatch([ResultResponse(4, 7)]).model_dump()
 
     def test_batch_of_notifications(self, rpc_server: RPCServer):
@@ -314,7 +314,7 @@ class Test_process_request_object:
     def test_invalid_request(self, rpc_server: RPCServer):
         result = rpc_server.process_request_object(7)
         assert (
-            result.model_dump()  # type: ignore
+            result.model_dump()  # type: ignore[reportOptionalMemberAccess]
             == ErrorResponse(
                 id=None,
                 error=INVALID_REQUEST.with_data({"reason": "Neither list nor dict", "data": 7}),
@@ -371,11 +371,11 @@ class Test_method_params_and_result:
         request = Request(1, "rpc.discover")
         response = rpc_server.process_json_request_object(request)
         assert isinstance(response, ResultResponse)
-        return response.result  # type: ignore
+        return response.result  # type: ignore[reportReturnType]
 
     @pytest.fixture
     def methods(self, discovered: dict) -> list:
-        return discovered.get("methods")  # type: ignore
+        return discovered.get("methods")  # type: ignore[reportReturnType]
 
     def test_typed_method_params(self, methods: list):
         m = methods[0]
@@ -426,11 +426,11 @@ class Test_complex_types:
         request = Request(1, "rpc.discover")
         response = rpc_server.process_json_request_object(request)
         assert isinstance(response, ResultResponse)
-        return response.result  # type: ignore
+        return response.result  # type: ignore[reportReturnType]
 
     @pytest.fixture
     def methods(self, discovered: dict) -> list:
-        return discovered.get("methods")  # type: ignore
+        return discovered.get("methods")  # type: ignore[reportReturnType]
 
     def test_list_type(self, methods: list):
         m = methods[0]
@@ -475,11 +475,11 @@ class Test_untyped_method:
         request = Request(1, "rpc.discover")
         response = rpc_server.process_json_request_object(request)
         assert isinstance(response, ResultResponse)
-        return response.result  # type: ignore
+        return response.result  # type: ignore[reportReturnType]
 
     @pytest.fixture
     def methods(self, discovered: dict) -> list:
-        return discovered.get("methods")  # type: ignore
+        return discovered.get("methods")  # type: ignore[reportReturnType]
 
     def test_untyped_params_present(self, methods: list):
         m = methods[0]
@@ -580,11 +580,11 @@ class Test_varargs:
         request = Request(1, "rpc.discover")
         response = rpc_server.process_json_request_object(request)
         assert isinstance(response, ResultResponse)
-        return response.result  # type: ignore
+        return response.result  # type: ignore[reportReturnType]
 
     @pytest.fixture
     def methods(self, discovered: dict) -> list:
-        return discovered.get("methods")  # type: ignore
+        return discovered.get("methods")  # type: ignore[reportReturnType]
 
     def test_varargs_excluded(self, methods: list):
         m = methods[0]
@@ -619,11 +619,11 @@ class Test_non_serializable_default:
         request = Request(1, "rpc.discover")
         response = rpc_server.process_json_request_object(request)
         assert isinstance(response, ResultResponse)
-        return response.result  # type: ignore
+        return response.result  # type: ignore[reportReturnType]
 
     @pytest.fixture
     def methods(self, discovered: dict) -> list:
-        return discovered.get("methods")  # type: ignore
+        return discovered.get("methods")  # type: ignore[reportReturnType]
 
     def test_discover_succeeds(self, methods: list):
         assert len(methods) == 1

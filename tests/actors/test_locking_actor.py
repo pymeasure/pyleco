@@ -71,7 +71,7 @@ class FantasyInstrument:
         self.adapter = adapter
         super().__init__()
         self.l_channel = FantasyChannel()
-        self.l_channel.trace = FantasyChannel()  # type: ignore
+        self.l_channel.trace = FantasyChannel()  # type: ignore[reportAttributeAccessIssue]
         self.o_channel = FantasyChannel()
         self._l_prop = 5
         self._o_prop = 6
@@ -154,13 +154,13 @@ class TestProtocolImplemented:
         def testing(component: LockingActorProtocol):
             pass
 
-        testing(FakeActor(name="test", device_class=FantasyInstrument))
+        testing(FakeActor(name="test", device_class=FantasyInstrument))  # type: ignore[reportArgumentType]
 
     @pytest.fixture
     def component_methods(self, actor: LockingActor):
         response = actor.rpc.process_json_request_object(Request(1, method="rpc.discover"))
         assert isinstance(response, JsonRpcResponse)
-        return response.result.get("methods")  # type: ignore
+        return response.result.get("methods")  # type: ignore[reportOptionalMemberAccess]
 
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):

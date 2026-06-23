@@ -51,7 +51,7 @@ from pyleco.test import FakeContext
 from pyleco.utils.events import SimpleEvent
 
 from pyleco.coordinators.coordinator import Coordinator
-from pyleco.coordinators import coordinator as coordinator_module  # type: ignore
+from pyleco.coordinators import coordinator as coordinator_module
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ def coordinator() -> Coordinator:
         namespace="N1",
         host="N1host",
         cleaning_interval=1e5,
-        context=FakeContext(),  # type: ignore
+        context=FakeContext(),  # type: ignore[reportArgumentType]
         multi_socket=FakeMultiSocket(),
     )
     d = coordinator.directory
@@ -72,9 +72,9 @@ def coordinator() -> Coordinator:
     d._waiting_nodes = {}
     d.add_node_receiver(b"n2", b"N2")
     n2 = coordinator.directory.get_node(b"N2")
-    n2._messages_sent = []  # type: ignore # reset dealer sock._socket.
+    n2._messages_sent = []  # type: ignore[reportAttributeAccessIssue]
     n2.heartbeat = -1
-    coordinator.sock._messages_sent = []  # type: ignore  # reset router sock._socket:
+    coordinator.sock._messages_sent = []  # type: ignore[reportAttributeAccessIssue]
     return coordinator
 
 
@@ -116,7 +116,7 @@ class TestCoordinatorImplementsProtocol:
     def component_methods(self, coordinator: Coordinator):
         response = coordinator.rpc.process_json_request_object(Request(1, method="rpc.discover"))
         assert isinstance(response, ResultResponse)
-        return response.result.get("methods")  # type: ignore
+        return response.result.get("methods")  # type: ignore[reportOptionalMemberAccess]
 
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):
@@ -129,7 +129,7 @@ class TestCoordinatorImplementsProtocol:
 class Test_coordinator_set_namespace_from_hostname:
     @pytest.fixture
     def namespace(self) -> bytes:
-        coordinator = Coordinator(context=FakeContext())  # type: ignore
+        coordinator = Coordinator(context=FakeContext())  # type: ignore[reportArgumentType]
         return coordinator.namespace
 
     def test_namespace_is_bytes(self, namespace):
@@ -143,40 +143,40 @@ class Test_coordinator_set_namespace_from_hostname:
             return "hostname.domain.tld"
 
         monkeypatch.setattr(coordinator_module, "gethostname", fake_gethostname)
-        coordinator = Coordinator(context=FakeContext())  # type: ignore
+        coordinator = Coordinator(context=FakeContext())  # type: ignore[reportArgumentType]
         assert coordinator.namespace == b"hostname"
 
 
 def test_coordinator_set_namespace_bytes():
-    coordinator = Coordinator(namespace=b"test", context=FakeContext())  # type: ignore
+    coordinator = Coordinator(namespace=b"test", context=FakeContext())  # type: ignore[reportArgumentType]
     assert coordinator.namespace == b"test"
 
 
 def test_coordinator_set_namespace_invalid():
     with pytest.raises(ValueError, match="namespace"):
-        Coordinator(namespace=1234, context=FakeContext())  # type: ignore
+        Coordinator(namespace=1234, context=FakeContext())  # type: ignore[reportArgumentType]
 
 
 def test_set_address_from_hostname():
-    coordinator = Coordinator(context=FakeContext())  # type: ignore
+    coordinator = Coordinator(context=FakeContext())  # type: ignore[reportArgumentType]
     assert isinstance(coordinator.address, str)
 
 
 def test_set_address_manually():
     host = "host"
-    coordinator = Coordinator(host=host, context=FakeContext())  # type: ignore
+    coordinator = Coordinator(host=host, context=FakeContext())  # type: ignore[reportArgumentType]
     assert coordinator.address == f"{host}:12300"
 
 
 class TestClose:
     @pytest.fixture
     def coordinator_closed(self, coordinator: Coordinator):
-        coordinator.shut_down = MagicMock()  # type: ignore[method-assign]
+        coordinator.shut_down = MagicMock()
         coordinator.close()
         return coordinator
 
     def test_call_shutdown(self, coordinator_closed: Coordinator):
-        coordinator_closed.shut_down.assert_called_once()  # type: ignore
+        coordinator_closed.shut_down.assert_called_once()  # type: ignore[reportAttributeAccessIssue]
 
     def test_close_socket(self, coordinator_closed: Coordinator):
         assert coordinator_closed.sock.closed is True
@@ -184,7 +184,7 @@ class TestClose:
 
 def test_context_manager_calls_close():
     with Coordinator(multi_socket=FakeMultiSocket()) as c:
-        c.close = MagicMock()  # type: ignore[method-assign]
+        c.close = MagicMock()
     c.close.assert_called_once()
 
 
@@ -195,7 +195,7 @@ class Test_clean_addresses:
         assert b"send" not in coordinator.directory.get_component_names()
 
     def test_expired_component_updates_directory(self, coordinator: Coordinator, fake_counting):
-        coordinator.publish_directory_update = MagicMock()  # type: ignore
+        coordinator.publish_directory_update = MagicMock()
         coordinator.directory.get_components()[b"send"].heartbeat = -3.5
         coordinator.remove_expired_addresses(1)
         coordinator.publish_directory_update.assert_called()
@@ -204,7 +204,7 @@ class Test_clean_addresses:
         # TODO implement heartbeat request
         coordinator.directory.get_components()[b"send"].heartbeat = -1.5
         coordinator.remove_expired_addresses(1)
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"321",
                 Message(
@@ -219,7 +219,7 @@ class Test_clean_addresses:
     def test_active_Component_remains_in_directory(self, coordinator: Coordinator, fake_counting):
         coordinator.directory.get_components()[b"send"].heartbeat = -0.5
         coordinator.remove_expired_addresses(1)
-        assert coordinator.sock._messages_sent == []  # type: ignore
+        assert coordinator.sock._messages_sent == []  # type: ignore[reportAttributeAccessIssue]
         assert b"send" in coordinator.directory.get_components()
 
     def test_expired_Coordinator(self, coordinator: Coordinator, fake_counting):
@@ -229,10 +229,10 @@ class Test_clean_addresses:
         # further removal tests in :class:`Test_remove_coordinator`
 
     def test_warn_Coordinator(self, coordinator: Coordinator, fake_counting):
-        coordinator.publish_directory_update = MagicMock()  # type: ignore
+        coordinator.publish_directory_update = MagicMock()
         coordinator.directory.get_node_ids()[b"n2"].heartbeat = -1.5
         coordinator.remove_expired_addresses(1)
-        assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
+        assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             Message(
                 b"N2.COORDINATOR",
                 b"N1.COORDINATOR",
@@ -248,7 +248,7 @@ class Test_clean_addresses:
 
 
 def test_heartbeat_local(fake_counting, coordinator: Coordinator):
-    coordinator.sock._messages_read = [  # type: ignore
+    coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
         [b"321", Message(b"COORDINATOR", b"send")]
     ]
     coordinator.read_and_route()
@@ -258,7 +258,7 @@ def test_heartbeat_local(fake_counting, coordinator: Coordinator):
 def test_routing_connects_to_coordinators(coordinator: Coordinator):
     event = SimpleEvent()
     event.set()
-    coordinator.directory.add_node_sender = MagicMock()  # type: ignore
+    coordinator.directory.add_node_sender = MagicMock()
     coordinator.routing(["abc"], stop_event=event)
     coordinator.directory.add_node_sender.assert_called_once
 
@@ -275,15 +275,15 @@ def test_routing_connects_to_coordinators(coordinator: Coordinator):
 )
 def test_routing_successful(coordinator: Coordinator, i, o):
     """Test whether some incoming message `i` is sent as `o`. Here: successful routing."""
-    coordinator.sock._messages_read = [  # type: ignore
+    coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
         (i[0], Message.from_frames(*i[1:]))
     ]
     coordinator.read_and_route()
     if o is None:
-        assert coordinator.sock._messages_sent == []  # type: ignore
+        assert coordinator.sock._messages_sent == []  # type: ignore[reportAttributeAccessIssue]
     else:
         assert (
-            coordinator.sock._messages_sent  # type: ignore
+            coordinator.sock._messages_sent  # type: ignore[reportAttributeAccessIssue]
             == [(o[0], Message.from_frames(*o[1:]))]
         )
 
@@ -292,7 +292,7 @@ def test_reading_fails(coordinator: Coordinator, caplog: pytest.LogCaptureFixtur
     def read_message() -> tuple[bytes, Message]:
         return b"", Message.from_frames(*[b"frame 1", b"frame 2"])  # less frames than needed.
 
-    coordinator.sock.read_message = read_message  # type: ignore
+    coordinator.sock.read_message = read_message
     coordinator.read_and_route()
     assert caplog.records[-1].msg == "Not enough frames read."
 
@@ -368,32 +368,32 @@ def test_reading_fails(coordinator: Coordinator, caplog: pytest.LogCaptureFixtur
 )
 def test_routing_error_messages(coordinator: Coordinator, i, o):
     """Test whether some incoming message `i` is sent as `o`. Here: Error messages."""
-    coordinator.sock._messages_read = [  # type: ignore
+    coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
         (i[0], Message.from_frames(*i[1:]))
     ]
     coordinator.read_and_route()
     if o is None:
-        assert coordinator.sock._messages_sent == []  # type: ignore
+        assert coordinator.sock._messages_sent == []  # type: ignore[reportAttributeAccessIssue]
     else:
         assert (
-            coordinator.sock._messages_sent  # type: ignore
+            coordinator.sock._messages_sent  # type: ignore[reportAttributeAccessIssue]
             == [(o[0], Message.from_frames(*o[1:]))]
         )
 
 
 def test_remote_routing(coordinator: Coordinator):
-    coordinator.sock._messages_read = [  # type: ignore
+    coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
         [b"321", Message(b"N2.CB", b"N1.send")]
     ]
     coordinator.read_and_route()
-    assert coordinator.directory.get_node(b"N2")._messages_sent == [  # type: ignore
+    assert coordinator.directory.get_node(b"N2")._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
         Message(b"N2.CB", b"N1.send")
     ]
 
 
 @pytest.mark.parametrize("sender", (b"N2.CB", b"N2.COORDINATOR"))
 def test_remote_heartbeat(coordinator: Coordinator, fake_counting, sender):
-    coordinator.sock._messages_read = [  # type: ignore
+    coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
         [b"n2", Message(b"N3.CA", sender)]
     ]
     assert coordinator.directory.get_node_ids()[b"n2"].heartbeat != 0
@@ -412,7 +412,7 @@ class Test_handle_commands:
             namespace="N1",
             host="N1host",
             cleaning_interval=1e5,
-            context=FakeContext(),  # type: ignore
+            context=FakeContext(),  # type: ignore[reportArgumentType]
             multi_socket=FakeMultiSocket(),
         )
 
@@ -432,7 +432,7 @@ class Test_handle_commands:
     )
     def test_call_handle_rpc_call(self, coordinator_hc: Coordinator, identity, message):
         coordinator_hc.handle_commands(identity, message)
-        assert coordinator_hc._rpc == message  # type: ignore
+        assert coordinator_hc._rpc == message  # type: ignore[reportAttributeAccessIssue]
 
     @pytest.mark.xfail(True, reason="Not yet written")
     def test_log_error_response(self, coordinator_hc: Coordinator):
@@ -520,7 +520,7 @@ class Test_handle_commands:
 
 class Test_sign_in:
     def test_signin(self, coordinator: Coordinator):
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"cb",
                 Message(
@@ -534,7 +534,7 @@ class Test_sign_in:
         ]
         # read_and_route needs to start at routing, to check that the messages passes the heartbeats
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"cb",
                 Message(
@@ -548,8 +548,8 @@ class Test_sign_in:
         ]
 
     def test_signin_sends_directory_update(self, coordinator: Coordinator):
-        coordinator.publish_directory_update = MagicMock()  # type: ignore
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.publish_directory_update = MagicMock()
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"cb",
                 Message(
@@ -566,7 +566,7 @@ class Test_sign_in:
         coordinator.publish_directory_update.assert_any_call()
 
     def test_signin_rejected(self, coordinator: Coordinator):
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"cb",
                 Message(
@@ -579,7 +579,7 @@ class Test_sign_in:
             ]
         ]
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"cb",
                 Message(
@@ -602,8 +602,8 @@ class Test_sign_out_successful:
             message_type=MessageTypes.JSON,
             data=Request(10, "sign_out"),
         )
-        coordinator.publish_directory_update = MagicMock()  # type: ignore
-        coordinator.sock._messages_read = [[b"123", sign_out_message]]  # type: ignore
+        coordinator.publish_directory_update = MagicMock()
+        coordinator.sock._messages_read = [[b"123", sign_out_message]]  # type: ignore[reportAttributeAccessIssue]
         coordinator.read_and_route()
         return coordinator
 
@@ -611,7 +611,7 @@ class Test_sign_out_successful:
         assert b"rec" not in coordinator_signed_out.directory.get_components().keys()
 
     def test_acknowledgement_sent(self, coordinator_signed_out: Coordinator):
-        assert coordinator_signed_out.sock._messages_sent == [  # type: ignore
+        assert coordinator_signed_out.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"123",
                 Message(
@@ -624,15 +624,15 @@ class Test_sign_out_successful:
         ]
 
     def test_directory_update_sent(self, coordinator_signed_out: Coordinator):
-        coordinator_signed_out.publish_directory_update.assert_any_call()  # type: ignore
+        coordinator_signed_out.publish_directory_update.assert_any_call()  # type: ignore[reportAttributeAccessIssue]
 
     def test_requires_new_sign_in(self, coordinator_signed_out):
         coordinator = coordinator_signed_out
-        coordinator.sock._messages_sent = []  # type: ignore
+        coordinator.sock._messages_sent = []
         coordinator.sock._messages_read = [
             [
                 b"123",
-                Message(  # type: ignore
+                Message(
                     b"N1.COORDINATOR",
                     b"rec",
                     message_type=MessageTypes.JSON,
@@ -644,7 +644,7 @@ class Test_sign_out_successful:
         assert coordinator.sock._messages_sent == [
             (
                 b"123",
-                Message(  # type: ignore
+                Message(
                     b"rec",
                     b"N1.COORDINATOR",
                     message_type=MessageTypes.JSON,
@@ -655,7 +655,7 @@ class Test_sign_out_successful:
 
 
 def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
-    coordinator.sock._messages_read = [  # type: ignore
+    coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
         [
             b"123",
             Message(
@@ -668,7 +668,7 @@ def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
     ]
     coordinator.read_and_route()
     assert b"rec" not in coordinator.directory.get_components().keys()
-    assert coordinator.sock._messages_sent == [  # type: ignore
+    assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
         (
             b"123",
             Message(
@@ -682,7 +682,7 @@ def test_sign_out_clears_address_explicit_namespace(coordinator: Coordinator):
 
 
 def test_sign_out_works_with_notification(coordinator: Coordinator):
-    coordinator.sock._messages_read = [  # type: ignore
+    coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
         [
             b"123",
             Message(
@@ -695,11 +695,11 @@ def test_sign_out_works_with_notification(coordinator: Coordinator):
     ]
     coordinator.read_and_route()
     assert b"rec" not in coordinator.directory.get_components().keys()
-    assert coordinator.sock._messages_sent == []  # type: ignore
+    assert coordinator.sock._messages_sent == []  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_sign_out_of_not_signed_in_generates_acknowledgment_nonetheless(coordinator: Coordinator):
-    coordinator.sock._messages_read = [  # type: ignore
+    coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
         [
             b"584",
             Message(
@@ -711,7 +711,7 @@ def test_sign_out_of_not_signed_in_generates_acknowledgment_nonetheless(coordina
         ]
     ]
     coordinator.read_and_route()
-    assert coordinator.sock._messages_sent == [  # type: ignore
+    assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
         (
             b"584",
             Message(
@@ -727,7 +727,7 @@ def test_sign_out_of_not_signed_in_generates_acknowledgment_nonetheless(coordina
 class Test_coordinator_sign_in:
     def test_co_signin_unknown_coordinator_successful(self, coordinator: Coordinator):
         """Test that an unknown Coordinator may sign in."""
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"n3",
                 Message(
@@ -741,7 +741,7 @@ class Test_coordinator_sign_in:
         ]
         coordinator.read_and_route()
         assert b"n3" in coordinator.directory.get_node_ids().keys()
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"n3",
                 Message(
@@ -763,7 +763,7 @@ class Test_coordinator_sign_in:
         )
         coordinator.directory.get_nodes()[b"N3"].namespace = b"N3"
 
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"n3",
                 Message(
@@ -777,7 +777,7 @@ class Test_coordinator_sign_in:
         ]
         coordinator.read_and_route()
         assert b"n3" in coordinator.directory.get_node_ids().keys()
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"n3",
                 Message(
@@ -793,7 +793,7 @@ class Test_coordinator_sign_in:
     @pytest.mark.xfail(True, reason="Additional error data is added")
     def test_co_signin_rejected(self, coordinator: Coordinator):
         """Coordinator sign in rejected due to already connected Coordinator."""
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"n3",
                 Message(
@@ -806,7 +806,7 @@ class Test_coordinator_sign_in:
             ]
         ]
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"n3",
                 Message(
@@ -838,7 +838,7 @@ class Test_coordinator_sign_in:
 
     def test_co_signin_of_self_rejected(self, coordinator: Coordinator):
         """Coordinator sign in rejected because it is the same coordinator."""
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"n3",
                 Message(
@@ -851,7 +851,7 @@ class Test_coordinator_sign_in:
             ]
         ]
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"n3",
                 Message(
@@ -867,7 +867,7 @@ class Test_coordinator_sign_in:
 
 class Test_coordinator_sign_out:
     def test_co_signout_successful(self, coordinator: Coordinator):
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"n2",
                 Message(
@@ -882,7 +882,7 @@ class Test_coordinator_sign_out:
         node = coordinator.directory.get_node(b"N2")
         coordinator.read_and_route()
         assert b"n2" not in coordinator.directory.get_node_ids()
-        assert node._messages_sent == [  # type: ignore
+        assert node._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             Message(
                 b"N2.COORDINATOR",
                 b"N1.COORDINATOR",
@@ -896,7 +896,7 @@ class Test_coordinator_sign_out:
     def test_co_signout_rejected_due_to_different_identity(self, coordinator: Coordinator):
         """TODO TBD how to handle it"""
         coordinator.set_log_level("DEBUG")
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             [
                 b"n4",
                 Message(
@@ -909,7 +909,7 @@ class Test_coordinator_sign_out:
             ]
         ]
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == [  # type: ignore
+        assert coordinator.sock._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"n4",
                 Message(
@@ -924,7 +924,7 @@ class Test_coordinator_sign_out:
 
     def test_co_signout_of_not_signed_in_coordinator(self, coordinator: Coordinator):
         """TODO TBD whether to reject or to ignore."""
-        coordinator.sock._messages_read = [  # type: ignore
+        coordinator.sock._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             (
                 b"n4",
                 Message(
@@ -936,7 +936,7 @@ class Test_coordinator_sign_out:
             )
         ]
         coordinator.read_and_route()
-        assert coordinator.sock._messages_sent == []  # type: ignore
+        assert coordinator.sock._messages_sent == []  # type: ignore[reportAttributeAccessIssue]
 
 
 class Test_shutdown:
@@ -948,7 +948,7 @@ class Test_shutdown:
         return coordinator
 
     def test_sign_out_message_to_other_coordinators_sent(self, shutdown_coordinator: Coordinator):
-        assert self.n2._messages_sent == [  # type: ignore
+        assert self.n2._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             Message(
                 b"N2.COORDINATOR",
                 b"N1.COORDINATOR",
@@ -996,7 +996,7 @@ class Test_record_components:
 def test_publish_directory_updates(coordinator: Coordinator):
     # TODO TBD in LECO
     coordinator.publish_directory_update()
-    assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
+    assert coordinator.directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
         Message(
             b"N2.COORDINATOR",
             b"N1.COORDINATOR",

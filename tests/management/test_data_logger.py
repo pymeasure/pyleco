@@ -38,14 +38,14 @@ from pyleco.management.data_logger import DataLogger, nan, ValuingModes, Trigger
 @pytest.fixture
 def data_logger() -> DataLogger:
     dl = DataLogger(context=FakeContext())
-    dl.subscriber.subscribe = MagicMock()  # type: ignore[method-assign]
-    dl.subscriber.unsubscribe = MagicMock()  # type: ignore[method-assign]
+    dl.subscriber.subscribe = MagicMock()
+    dl.subscriber.unsubscribe = MagicMock()
     dl.start_collecting(
         variables=["time", "test", "2", "N1.sender.var"],
-        trigger_type=TriggerTypes.VARIABLE,
+        trigger_type=TriggerTypes.VARIABLE,  # type: ignore[reportArgumentType]
         trigger_variable="test",
         trigger_timeout=10,
-        valuing_mode=ValuingModes.AVERAGE,
+        valuing_mode=ValuingModes.AVERAGE,  # type: ignore[reportArgumentType]
         value_repeating=False,
     )
     dl.tmp["2"] = [1, 2]
@@ -77,7 +77,7 @@ class Test_start_collecting:
             assert key in data_logger_sc.lists.keys()
 
     def test_with_str_as_trigger_type(self, data_logger: DataLogger):
-        data_logger.start_collecting(trigger_type=TriggerTypes.VARIABLE.value)  # type: ignore
+        data_logger.start_collecting(trigger_type=TriggerTypes.VARIABLE.value)  # type: ignore[reportAttributeAccessIssue]
         assert isinstance(data_logger.trigger_type, TriggerTypes)
 
 
@@ -123,7 +123,7 @@ def test_start_collecting_starts_timer(data_logger: DataLogger):
     # arrange
     data_logger.trigger_timeout = 1000
     # act
-    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=500)
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=500)  # type: ignore[reportArgumentType]
     # assert
     assert data_logger.timer.interval == 500
     # cleanup
@@ -135,7 +135,7 @@ def test_start_collecting_starts_timer_even_second_time(data_logger: DataLogger)
     # arrange
     data_logger.trigger_timeout = 500
     # first time, to set type
-    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)  # type: ignore[reportArgumentType]
     data_logger.stop_collecting()
     assert not hasattr(data_logger, "timer")  # no timer left
     # act
@@ -148,7 +148,7 @@ def test_start_collecting_starts_timer_even_second_time(data_logger: DataLogger)
 
 def test_stop_collecting_stops_timer(data_logger: DataLogger):
     # arrange
-    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)  # type: ignore[reportArgumentType]
     # act
     handle_request_message(data_logger, "stop_collecting")
     # assert
@@ -157,7 +157,7 @@ def test_stop_collecting_stops_timer(data_logger: DataLogger):
 
 
 def test_listen_close_stops_collecting(data_logger: DataLogger):
-    data_logger.stop_collecting = MagicMock()  # type: ignore[method-assign]
+    data_logger.stop_collecting = MagicMock()
     # act
     data_logger._listen_close()
     # assert
@@ -165,13 +165,13 @@ def test_listen_close_stops_collecting(data_logger: DataLogger):
 
 
 def test_setup_listen_does_not_start_collecting_without_start_data(data_logger: DataLogger):
-    data_logger.start_collecting = MagicMock()  # type: ignore[method-assign]
+    data_logger.start_collecting = MagicMock()
     data_logger._listen_setup()
     data_logger.start_collecting.assert_not_called()
 
 
 def test_setup_listen_starts_collecting(data_logger: DataLogger):
-    data_logger.start_collecting = MagicMock()  # type: ignore[method-assign]
+    data_logger.start_collecting = MagicMock()
     data_logger._listen_setup(start_data={"var": 7})
     data_logger.start_collecting.assert_called_once_with(var=7)
 
@@ -181,7 +181,7 @@ class Test_setup_variables:
     def data_logger_stv(self, data_logger: DataLogger):
         data_logger.namespace = "N1"
         data_logger.unsubscribe_all()
-        data_logger.subscriber.subscribe = MagicMock()  # type: ignore[method-assign]
+        data_logger.subscriber.subscribe = MagicMock()
         data_logger.setup_variables(
             [
                 "var1",
@@ -230,7 +230,7 @@ def test_subscribe_without_having_logged_in(
 
 
 def test_set_valuing_mode_last(data_logger: DataLogger):
-    data_logger.set_valuing_mode(ValuingModes.LAST)
+    data_logger.set_valuing_mode(ValuingModes.LAST)  # type: ignore[reportArgumentType]
     assert data_logger.last == data_logger.valuing
 
 
@@ -245,7 +245,7 @@ def test_set_valuing_mode_last_integration(data_logger: DataLogger):
 
 
 def test_handle_subscription_message_calls_handle_data(data_logger: DataLogger):
-    data_logger.handle_subscription_data = MagicMock()  # type: ignore[method-assign]
+    data_logger.handle_subscription_data = MagicMock()
     message = DataMessage(topic="N1.sender", data={"var": 5, "test": 7.3})
     data_logger.handle_subscription_message(message)
     data_logger.handle_subscription_data.assert_called_once_with(
@@ -276,7 +276,7 @@ def test_handle_subscription_data_without_trigger(data_logger: DataLogger):
 
 
 def test_handle_subscription_data_triggers(data_logger: DataLogger):
-    data_logger.make_datapoint = MagicMock()  # type: ignore[method-assign]
+    data_logger.make_datapoint = MagicMock()
     data_logger.handle_subscription_data({"test": 5})
     data_logger.make_datapoint.assert_called_once()
 
@@ -325,7 +325,7 @@ class Test_make_data_point:
 
     def test_publish_data(self, data_logger: DataLogger):
         # arrange it with a Mock
-        data_logger.publisher.send_data = MagicMock()  # type: ignore[method-assign]
+        data_logger.publisher.send_data = MagicMock()
         del data_logger.lists["time"]
 
         data_logger.namespace = "N1"
@@ -407,7 +407,7 @@ class Test_last:
         assert data_logger.last([1, 2, 3, 4, 5]) == 5
 
     def test_return_single_value(self, data_logger: DataLogger):
-        assert data_logger.last(5) == 5  # type: ignore
+        assert data_logger.last(5) == 5  # type: ignore[reportArgumentType]
 
     def test_empty_list_returns_nan(self, data_logger: DataLogger):
         assert isnan(data_logger.last([]))

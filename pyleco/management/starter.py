@@ -57,7 +57,7 @@ def sanitize_tasks(
         tasks = (tasks,)
     for task in tasks:
         if not isinstance(task, str):
-            log.error(f"Invalid task name '{task}' received.")  # type: ignore[unreachable]
+            log.error(f"Invalid task name '{task}' received.")
             return ()
     return tasks
 
@@ -243,7 +243,7 @@ class Starter(MessageHandler):
                 self.started_tasks[key] = self.started_tasks.get(key, 0) & ~Status.RUNNING
                 del self.threads[key]
                 log.warning(f"Thread '{key}' stopped unexpectedly.")
-        ret_data.update(self.started_tasks)  # type: ignore
+        ret_data.update(self.started_tasks)  # type: ignore[reportArgumentType, reportCallIssue]
         return ret_data
 
     def list_tasks(self) -> list[dict[str, str]]:

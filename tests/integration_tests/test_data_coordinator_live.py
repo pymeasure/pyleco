@@ -70,7 +70,7 @@ class CollectingListener(Listener):
         data_host: str,
         data_port: int,
     ) -> None:
-        self.message_handler = CollectingPipeHandler(
+        self.message_handler = CollectingPipeHandler(  # type: ignore[reportIncompatibleVariableOverride]
             name,
             host=coordinator_host,
             port=coordinator_port,

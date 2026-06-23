@@ -30,7 +30,7 @@ from pyleco.utils.zmq_log_handler import ZmqLogHandler, DataMessage
 
 @pytest.fixture
 def handler() -> ZmqLogHandler:
-    return ZmqLogHandler(context=FakeContext(), full_name="fullname", port=12345)  # type: ignore
+    return ZmqLogHandler(context=FakeContext(), full_name="fullname", port=12345)  # type: ignore[reportArgumentType]
 
 
 def test_init_(handler: ZmqLogHandler):
@@ -38,11 +38,11 @@ def test_init_(handler: ZmqLogHandler):
 
 
 def test_init_address(handler: ZmqLogHandler):
-    assert handler.queue.socket.addr == "tcp://localhost:12345"  # type: ignore
+    assert handler.queue.socket.addr == "tcp://localhost:12345"  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_enqueue(handler: ZmqLogHandler):
     handler.enqueue("whatever")
-    message = DataMessage.from_frames(*handler.queue.socket._s.pop())  # type: ignore
+    message = DataMessage.from_frames(*handler.queue.socket._s.pop())  # type: ignore[reportAttributeAccessIssue]
     assert message.topic == b"fullname"
     assert message.payload == [b"whatever"]

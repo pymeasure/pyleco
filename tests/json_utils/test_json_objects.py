@@ -166,7 +166,7 @@ class TestJsonRpcBatch:
         return json_objects.JsonRpcBatch(
             [
                 json_objects.Request(id=1, method="req1"),
-                json_objects.ResultResponse(id=2, result="res2"),  # type: ignore
+                json_objects.ResultResponse(id=2, result="res2"),
             ]
         )
 
@@ -239,7 +239,7 @@ class TestJsonRpcBatch:
         with pytest.raises(
             ValueError, match="All batch items must be JsonRpcRequest or JsonRpcResponse"
         ):
-            json_objects.JsonRpcBatch([{"invalid": "item"}])  # type: ignore
+            json_objects.JsonRpcBatch([{"invalid": "item"}])  # type: ignore[reportArgumentType]
 
 
 def test_request_validation():
@@ -247,10 +247,10 @@ def test_request_validation():
         json_objects.Request(id=1, method="")
 
     with pytest.raises(ValueError, match="Params must be a list, dict, or None"):
-        json_objects.ParamsRequest(id=1, method="m", params="invalid")  # type: ignore
+        json_objects.ParamsRequest(id=1, method="m", params="invalid")  # type: ignore[reportArgumentType]
 
     with pytest.raises(ValueError, match="ID must be a string, int, or None"):
-        json_objects.Request(id=1.5, method="m")  # type: ignore
+        json_objects.Request(id=1.5, method="m")  # type: ignore[reportArgumentType]
 
 
 def test_response_validation():
@@ -260,7 +260,7 @@ def test_response_validation():
         )
 
     with pytest.raises(ValueError, match="ID must be a string, int, or None"):
-        json_objects.ResultResponse(id=1.5, result="res")  # type: ignore
+        json_objects.ResultResponse(id=1.5, result="res")  # type: ignore[reportArgumentType]
 
 
 def test_error_with_data_method():

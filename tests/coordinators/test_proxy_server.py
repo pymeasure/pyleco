@@ -55,7 +55,7 @@
 
 # class Test_pub_sub_proxy:
 #     def test_default_config(self, fake_proxy_steerable):
-#         pub_sub_proxy(FakeContext())  # type: ignore
+#         pub_sub_proxy(FakeContext())
 #         global parameters
 #         f, b, c = parameters
 #         assert f.addr == f"tcp://*:{PROXY_SENDING_PORT}"
@@ -64,7 +64,7 @@
 
 #     def test_event_set_for_successful_binding(self, fake_proxy_steerable):
 #         event = threading.Event()
-#         pub_sub_proxy(FakeContext(), event=event)  # type: ignore
+#         pub_sub_proxy(FakeContext(), event=event)
 #         assert event.is_set()
 
 #     @pytest.mark.parametrize(
@@ -76,16 +76,16 @@
 #         ),
 #     )
 #     def test_remote_configuration(self, pub: str, sub: str, fake_proxy_steerable):
-#         pub_sub_proxy(FakeContext(), sub=sub, pub=pub)  # type: ignore
+#         pub_sub_proxy(FakeContext(), sub=sub, pub=pub)
 #         global parameters
 #         f, b, c = parameters
 #         assert f.addr == f"tcp://{pub}:{PROXY_RECEIVING_PORT}"
 #         assert b.addr == f"tcp://{sub}:{PROXY_SENDING_PORT}"
 
 #     def test_capture(self, fake_proxy_steerable):
-#         pub_sub_proxy(context=FakeContext(), captured=True)  # type: ignore
+#         pub_sub_proxy(context=FakeContext(), captured=True)
 #         global parameters
-#         f, b, c = parameters  # type: ignore
+#         f, b, c = parameters
 #         c: FakeSocket
 #         assert c.addr == "inproc://capture"
 #         assert c.socket_type == zmq.PUB

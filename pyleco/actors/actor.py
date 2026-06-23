@@ -242,7 +242,7 @@ class Actor(MessageHandler, Generic[Device]):
         self.stop_timer()
         try:
             # Assumes a pymeasure instrument
-            self.device.adapter.close()  # type: ignore
+            self.device.adapter.close()  # type: ignore[reportAttributeAccessIssue]
         except AttributeError:
             pass
         try:

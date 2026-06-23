@@ -27,7 +27,7 @@ from typing import Any
 
 from pyleco.utils.events import Event
 from qtpy.QtCore import QObject, Signal  # type: ignore
-from zmq import Context  # type: ignore
+from zmq import Context
 
 from ..core.message import Message
 from ..core.data_message import DataMessage
@@ -61,7 +61,7 @@ class QtPipeHandler(PipeHandler):
 
     def handle_json_request(self, message: Message) -> None:
         try:
-            method = message.data.get("method")  # type: ignore
+            method = message.data.get("method")  # type: ignore[reportAttributeAccessIssue]
         except AttributeError:
             pass
         else:

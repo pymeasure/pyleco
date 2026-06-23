@@ -76,23 +76,23 @@ class RpcHandler:
                         args_l[-1] = self.current_message.payload[1:]
                     else:
                         args_l.append(self.current_message.payload[1:])
-                    args = args_l  # type: ignore[assignment]
+                    args = args_l  # type: ignore[reportAssignmentType]
                 else:
                     kwargs["additional_payload"] = self.current_message.payload[1:]
                 return_value = method(*args, **kwargs)
-                return returner(return_value=return_value)  # type: ignore
+                return returner(return_value=return_value)  # type: ignore[reportArgumentType, reportReturnType]
         else:
 
             @wraps(method)
             def modified_method(*args: Any, **kwargs: Any) -> ReturnValue:
                 return_value = method(*args, **kwargs)
-                return returner(return_value=return_value)  # type: ignore
+                return returner(return_value=return_value)  # type: ignore[reportArgumentType, reportReturnType]
 
         doc_addition = (
             f"(binary{' input' * accept_binary_input}{' output' * return_binary_output} method)"
         )
         try:
-            modified_method.__doc__ += "\n" + doc_addition  # type: ignore[operator]
+            modified_method.__doc__ += "\n" + doc_addition  # type: ignore[reportOperatorIssue]
         except TypeError:
             modified_method.__doc__ = doc_addition
         return modified_method

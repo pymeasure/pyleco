@@ -35,7 +35,7 @@ class FakeLockingDirector(FakeDirector, LockingDirector):
 
 @pytest.fixture
 def locking_director() -> LockingDirector:
-    data_logger_director = FakeLockingDirector(remote_class=LockingActor)
+    data_logger_director = FakeLockingDirector(remote_class=LockingActor)  # type: ignore[reportArgumentType]
     return data_logger_director
 
 

@@ -357,7 +357,7 @@ class Coordinator:
 
     def handle_json_commands(self, message: Message) -> None:
         try:
-            data: list[dict[str, Any]] | dict[str, Any] = message.data  # type: ignore
+            data: list[dict[str, Any]] | dict[str, Any] = message.data  # type: ignore[reportAssignmentType]
         except JSONDecodeError:
             log.error(
                 f"Invalid JSON message from {message.sender!r} received: {message.payload[0]!r}"
@@ -373,13 +373,13 @@ class Coordinator:
                     exc_info=exc,
                 )
         elif JsonContentTypes.RESULT_RESPONSE == json_type:
-            if data.get("result", False) is not None:  # type: ignore
+            if data.get("result", False) is not None:  # type: ignore[reportAttributeAccessIssue]
                 log.info(f"Unexpected result received: {data}")
         elif JsonContentTypes.ERROR in json_type:
             log.error(f"Error from {message.sender!r} received: {data}.")
         elif JsonContentTypes.RESULT in json_type:
             for element in data:
-                if element.get("result", False) is not None:  # type: ignore
+                if element.get("result", False) is not None:  # type: ignore[reportAttributeAccessIssue]
                     log.info(f"Unexpected result received: {data}")
         else:
             log.error(

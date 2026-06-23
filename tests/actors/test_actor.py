@@ -61,7 +61,7 @@ class FantasyInstrument:
         self._prop = 5
         self._prop2 = 7
         self.channel = FantasyChannel()
-        self.channel.trace = FantasyChannel()  # type: ignore
+        self.channel.trace = FantasyChannel()  # type: ignore[reportAttributeAccessIssue]
 
     @property
     def prop(self):
@@ -120,7 +120,7 @@ def actor() -> FakeActor:
         port=1234,
         protocol="inproc",
     )
-    actor.socket = FakeSocket(5)  # type: ignore
+    actor.socket = FakeSocket(5)  # type: ignore[reportAttributeAccessIssue]
     actor.next_beat = float("inf")
     return actor
 
@@ -132,13 +132,13 @@ class TestProtocolImplemented:
         def testing(component: ExtendedActorProtocol):
             pass
 
-        testing(FakeActor(name="test", device_class=FantasyInstrument))
+        testing(FakeActor(name="test", device_class=FantasyInstrument))  # type: ignore[reportArgumentType]
 
     @pytest.fixture
     def component_methods(self, actor: Actor):
         response = actor.rpc.process_json_request_object(Request(1, method="rpc.discover"))
         assert isinstance(response, JsonRpcResponse)
-        return response.result.get("methods")  # type: ignore
+        return response.result.get("methods")  # type: ignore[reportOptionalMemberAccess]
 
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):
@@ -201,7 +201,7 @@ def test_set_channel_parameters(actor: Actor):
 def test_set_nested_channel_parameters(actor: Actor):
     handle_request_message(actor, "set_parameters", {"channel.trace.channel_property": 10})
     assert_response_is_result(actor)
-    assert actor.device.channel.trace.channel_property == 10  # type: ignore
+    assert actor.device.channel.trace.channel_property == 10
 
 
 def test_call_silent_method(actor: Actor):
@@ -241,7 +241,7 @@ class Test_disconnect:
         actor = FakeActor(
             "name", device_class=FantasyInstrument, auto_connect={"adapter": MagicMock()}
         )
-        actor._device = actor.device  # type: ignore
+        actor._device = actor.device  # type: ignore[reportAttributeAccessIssue]
         actor.device.adapter.close = MagicMock()
         actor.disconnect()
         return actor
@@ -253,7 +253,7 @@ class Test_disconnect:
         assert disconnected_actor.timer.finished.is_set() is True
 
     def test_device_closed(self, disconnected_actor: Actor):
-        disconnected_actor._device.adapter.close.assert_called_once()  # type: ignore
+        disconnected_actor._device.adapter.close.assert_called_once()  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_exit_calls_disconnect():
@@ -267,31 +267,31 @@ class Test_listen_loop_element:
     def looped_actor(self, actor: Actor):
         """Check a loop with a value in the pipe"""
         poller = FakePoller()
-        poller.register(actor.pipeL)
+        poller.register(actor.pipeL)  # type: ignore[reportArgumentType]
         actor.queue_readout()  # enqueue a readout
-        actor.readout = MagicMock()  # type: ignore
+        actor.readout = MagicMock()
         # act
         socks = actor._listen_loop_element(
-            poller=poller,  # type: ignore
+            poller=poller,  # type: ignore[reportArgumentType]
             waiting_time=None,
         )
-        actor._socks = socks  # type: ignore  # for assertions
+        actor._socks = socks  # for assertions  # type: ignore[reportAttributeAccessIssue]
         return actor
 
     def test_socks_empty(self, looped_actor: Actor):
-        assert looped_actor._socks == {}  # type: ignore
+        assert looped_actor._socks == {}  # type: ignore[reportAttributeAccessIssue]
 
     def test_readout_called(self, looped_actor: Actor):
-        looped_actor.readout.assert_called_once()  # type: ignore
+        looped_actor.readout.assert_called_once()  # type: ignore[reportAttributeAccessIssue]
 
     def test_no_readout_queued(self, actor: Actor):
 
         poller = FakePoller()
-        poller.register(actor.pipeL)
-        actor.readout = MagicMock()  # type: ignore
+        poller.register(actor.pipeL)  # type: ignore[reportArgumentType]
+        actor.readout = MagicMock()
         # act
         actor._listen_loop_element(
-            poller=poller,  # type: ignore
+            poller=poller,  # type: ignore[reportArgumentType]
             waiting_time=0,
         )
         actor.readout.assert_not_called()

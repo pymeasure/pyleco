@@ -50,7 +50,7 @@ def data_coordinator():
     with patch("pyleco.coordinators.data_coordinator.zmq.proxy_steerable"):
         dc = DataCoordinator(
             host="myhost",
-            context=FakeContext(),  # type: ignore
+            context=FakeContext(),  # type: ignore[reportArgumentType]
             start_listener=False,
         )
         yield dc
@@ -63,7 +63,7 @@ def log_coordinator():
         dc = DataCoordinator(
             name="LOG_COORDINATOR",
             host="myhost",
-            context=FakeContext(),  # type: ignore
+            context=FakeContext(),  # type: ignore[reportArgumentType]
             xsub_port=11098,
             gatherer_xpub_port=11096,
             xpub_port=11097,
@@ -130,7 +130,7 @@ class TestConnectToGatherer:
         assert "host:11101" in data_coordinator._remote_gatherer_addresses
 
     def test_connect_returns_none(self, data_coordinator: DataCoordinator):
-        result = data_coordinator.connect_to_gatherer("host:11101")  # type: ignore[func-returns-value]
+        result = data_coordinator.connect_to_gatherer("host:11101")
         assert result is None
 
     def test_connect_duplicate_raises(self, data_coordinator: DataCoordinator):
@@ -163,7 +163,7 @@ class TestDisconnectFromGatherer:
 
     def test_disconnect_returns_none(self, data_coordinator: DataCoordinator):
         data_coordinator.connect_to_gatherer("host:11101")
-        result = data_coordinator.disconnect_from_gatherer("host:11101")  # type: ignore[func-returns-value]
+        result = data_coordinator.disconnect_from_gatherer("host:11101")
         assert result is None
 
     def test_disconnect_not_connected_raises(self, data_coordinator: DataCoordinator):
@@ -220,7 +220,7 @@ class TestSendDataAddresses:
         with patch("pyleco.coordinators.data_coordinator.zmq.proxy_steerable"):
             dc = DataCoordinator(
                 host="192.168.1.100",
-                context=FakeContext(),  # type: ignore
+                context=FakeContext(),  # type: ignore[reportArgumentType]
                 start_listener=False,
             )
             result = dc.send_data_addresses()
@@ -235,7 +235,7 @@ class TestContextManager:
         with patch("pyleco.coordinators.data_coordinator.zmq.proxy_steerable"):
             with DataCoordinator(
                 host="localhost",
-                context=FakeContext(),  # type: ignore
+                context=FakeContext(),  # type: ignore[reportArgumentType]
                 start_listener=False,
             ) as dc:
                 assert not dc.closed
@@ -251,7 +251,7 @@ class TestContextManager:
         with patch("pyleco.coordinators.data_coordinator.zmq.proxy_steerable"):
             dc = DataCoordinator(
                 host="localhost",
-                context=ctx,  # type: ignore
+                context=ctx,  # type: ignore[reportArgumentType]
                 start_listener=False,
             )
         assert dc._own_context is False

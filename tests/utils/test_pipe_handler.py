@@ -82,11 +82,11 @@ class Test_check_message_in_buffer:
     @pytest.fixture
     def message_buffer_cmib(self, message_buffer: LockedMessageBuffer):
         predicate = message_buffer._predicate_generator(cid)
-        message_buffer._predicate = predicate  # type: ignore
+        message_buffer._predicate = predicate  # type: ignore[reportAttributeAccessIssue]
         return message_buffer
 
     def test_message_is_in_first_place(self, message_buffer_cmib: LockedMessageBuffer):
-        assert message_buffer_cmib._predicate() == msg  # type: ignore
+        assert message_buffer_cmib._predicate() == msg  # type: ignore[reportAttributeAccessIssue]
         assert message_buffer_cmib._messages == []
 
     def test_no_suitable_message_in_buffer(self, message_buffer: LockedMessageBuffer):
@@ -139,7 +139,7 @@ def test_length_of_buffer(message_buffer: LockedMessageBuffer, length: int):
 # Test CommunicatorPipe
 class Test_CommunicatorPipe_send_pipe:
     def test_send_pipe_message(self, communicator: CommunicatorPipe):
-        communicator.socket.send_multipart = MagicMock()  # type: ignore[method-assign]
+        communicator.socket.send_multipart = MagicMock()
         communicator._send_pipe_message(PipeCommands.LOCAL_COMMAND, b"abc")
         # assert
         communicator.socket.send_multipart.assert_called_once_with(
@@ -147,7 +147,7 @@ class Test_CommunicatorPipe_send_pipe:
         )
 
     def test_raise_ConnectionError_on_zmq_error(self, communicator: CommunicatorPipe):
-        communicator.socket.send_multipart = MagicMock(  # type: ignore[method-assign]
+        communicator.socket.send_multipart = MagicMock(
             side_effect=zmq.ZMQError(128, "not a socket")
         )
         # act
@@ -159,14 +159,14 @@ class Test_CommunicatorPipe_send_pipe:
 @pytest.fixture
 def pipe_handler() -> PipeHandler:
     """With fake contexts, that is with a broken pipe."""
-    pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
+    pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore[reportArgumentType]
     return pipe_handler
 
 
 @pytest.fixture
 def pipe_handler_pipe():
     """With a working pipe!"""
-    pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
+    pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore[reportArgumentType]
     pipe_handler.internal_pipe = zmq.Context.instance().socket(zmq.PULL)
     pipe_handler.pipe_port = pipe_handler.internal_pipe.bind_to_random_port(
         "inproc://listenerPipe", min_port=12345
@@ -191,7 +191,7 @@ def test_close_closes_all_communicators(
 class Test_PipeHandler_read_message:
     def test_handle_response(self, pipe_handler: PipeHandler):
         message = Message("rec", "send")
-        pipe_handler.socket._r = [message.to_frames()]  # type: ignore
+        pipe_handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
         pipe_handler.message_buffer.add_conversation_id(message.conversation_id)
         # act
         with pytest.raises(TimeoutError):
@@ -201,7 +201,7 @@ class Test_PipeHandler_read_message:
     def test_handle_request(self, pipe_handler: PipeHandler, caplog: pytest.LogCaptureFixture):
         """Message is not a response and should be handled by the MessageHandler."""
         message = Message("rec", "send")
-        pipe_handler.socket._r = [message.to_frames()]  # type: ignore
+        pipe_handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
         # act and assert
         assert pipe_handler.read_message() == message
 
@@ -239,23 +239,23 @@ def test_handle_local_pipe_notification(pipe_handler: PipeHandler):
 class Test_get_communicator:
     @pytest.fixture
     def pipe_handler_setup(self):
-        pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore
-        communicator = pipe_handler.get_communicator(context=FakeContext())  # type: ignore
-        pipe_handler.external_pipe = communicator  # type: ignore
+        pipe_handler = PipeHandler(name="handler", context=FakeContext())  # type: ignore[reportArgumentType]
+        communicator = pipe_handler.get_communicator(context=FakeContext())
+        pipe_handler.external_pipe = communicator  # type: ignore[reportAttributeAccessIssue]
         return pipe_handler
 
     def test_external_pipe_type(self, pipe_handler_setup: PipeHandler):
-        assert isinstance(pipe_handler_setup.external_pipe, CommunicatorPipe)  # type: ignore
+        assert isinstance(pipe_handler_setup.external_pipe, CommunicatorPipe)  # type: ignore[reportAttributeAccessIssue]
 
     def test_pipe_ports_match(self, pipe_handler_setup: PipeHandler):
         port_number = pipe_handler_setup.pipe_port
         assert port_number == 5  # due to FakeSocket
         assert pipe_handler_setup.internal_pipe.addr == "inproc://listenerPipe"
-        assert pipe_handler_setup.external_pipe.socket.addr == "inproc://listenerPipe:5"  # type: ignore  # noqa
+        assert pipe_handler_setup.external_pipe.socket.addr == "inproc://listenerPipe:5"  # noqa  # type: ignore[reportAttributeAccessIssue]
 
     def test_second_call_returns_same_communicator(self, pipe_handler_setup: PipeHandler):
         com2 = pipe_handler_setup.get_communicator()
-        assert com2 == pipe_handler_setup.external_pipe  # type: ignore
+        assert com2 == pipe_handler_setup.external_pipe  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_close_all_communicators(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
@@ -265,7 +265,7 @@ def test_close_all_communicators(pipe_handler_pipe: PipeHandler, communicator: C
 
 def test_communicator_send_message(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
     message = Message("rec", "send")
-    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe._send_frames = MagicMock()
     communicator.send_message(message)
     pipe_handler_pipe.read_and_handle_pipe_message()
     # assert that the message is actually sent
@@ -276,7 +276,7 @@ def test_communicator_send_message_without_sender(
     pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe
 ):
     message = Message("rec", sender="")
-    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe._send_frames = MagicMock()
     communicator.send_message(message)
     pipe_handler_pipe.read_and_handle_pipe_message()
     # assert that the message is actually sent
@@ -296,7 +296,7 @@ def test_communicator_read_message(pipe_handler_pipe: PipeHandler, communicator:
 def test_communicator_ask_message(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
     message = Message("rec", "handler", conversation_id=cid)
     response = Message("handler", "rec", conversation_id=cid)
-    pipe_handler_pipe._send_frames = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe._send_frames = MagicMock()
     pipe_handler_pipe.message_buffer.add_conversation_id(cid)
     pipe_handler_pipe.message_buffer.add_message(response)
     # act
@@ -318,7 +318,7 @@ def test_communicator_sign_out(communicator: CommunicatorPipe):
 
 
 def test_communicator_subscribe(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
-    pipe_handler_pipe.subscribe_single = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe.subscribe_single = MagicMock()
     # act
     communicator.subscribe_single(b"topic")
     pipe_handler_pipe.read_and_handle_pipe_message()
@@ -327,7 +327,7 @@ def test_communicator_subscribe(pipe_handler_pipe: PipeHandler, communicator: Co
 
 
 def test_communicator_unsubscribe(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
-    pipe_handler_pipe.unsubscribe_single = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe.unsubscribe_single = MagicMock()
     # act
     communicator.unsubscribe_single(b"topic")
     pipe_handler_pipe.read_and_handle_pipe_message()
@@ -338,7 +338,7 @@ def test_communicator_unsubscribe(pipe_handler_pipe: PipeHandler, communicator: 
 def test_communicator_unsubscribe_all(
     pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe
 ):
-    pipe_handler_pipe.unsubscribe_all = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe.unsubscribe_all = MagicMock()
     # act
     communicator.unsubscribe_all()
     pipe_handler_pipe.read_and_handle_pipe_message()
@@ -347,8 +347,8 @@ def test_communicator_unsubscribe_all(
 
 
 def test_communicator_rename(pipe_handler_pipe: PipeHandler, communicator: CommunicatorPipe):
-    pipe_handler_pipe.sign_in = MagicMock()  # type: ignore[method-assign]
-    pipe_handler_pipe.sign_out = MagicMock()  # type: ignore[method-assign]
+    pipe_handler_pipe.sign_in = MagicMock()
+    pipe_handler_pipe.sign_out = MagicMock()
     # act
     communicator.name = "new name"
     pipe_handler_pipe.read_and_handle_pipe_message()
@@ -383,9 +383,9 @@ def test_handle_local_method(pipe_handler_pipe: PipeHandler, communicator: Commu
 
 
 def test_ask_handler(communicator: CommunicatorPipe):
-    communicator._send_handler = MagicMock()  # type: ignore[method-assign]
+    communicator._send_handler = MagicMock()
     communicator._send_handler.return_value = b"conversation_id;"
-    communicator._read_handler = MagicMock()  # type: ignore[method-assign]
+    communicator._read_handler = MagicMock()
     communicator._read_handler.return_value = 5
     # act
     result = communicator.ask_handler(method="method", timeout=1)

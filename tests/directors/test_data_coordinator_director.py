@@ -35,7 +35,7 @@ class FakeDataCoordinatorDirector(FakeDirector, DataCoordinatorDirector):
 
 @pytest.fixture
 def data_coordinator_director():
-    data_coordinator_director = FakeDataCoordinatorDirector(remote_class=DataCoordinator)
+    data_coordinator_director = FakeDataCoordinatorDirector(remote_class=DataCoordinator)  # type: ignore[reportArgumentType]
     return data_coordinator_director
 
 

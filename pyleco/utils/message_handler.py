@@ -92,7 +92,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
         return self._namespace
 
     @namespace.setter
-    def namespace(self, value: str | None) -> None:  # type: ignore
+    def namespace(self, value: str | None) -> None:  # type: ignore[reportIncompatibleVariableOverride]
         self._namespace = value
         full_name = self.name if value is None else ".".join((value, self.name))
         self.set_full_name(full_name=full_name)
@@ -194,7 +194,7 @@ class MessageHandler(MessageHandlerBase, ExtendedComponentProtocol):
 
     def handle_json_message(self, message: Message) -> None:
         try:
-            data: dict[str, Any] = message.data  # type: ignore
+            data: dict[str, Any] = message.data  # type: ignore[reportAssignmentType]
         except JSONDecodeError as exc:
             self.log.exception(f"Could not decode json message {message}", exc_info=exc)
             return

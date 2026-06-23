@@ -27,10 +27,10 @@ The module `pyleco/test.py` provides fake ZMQ classes (FakeContext, FakeSocket, 
 ```sh
 ruff check .
 ruff format .
-mypy .
+pyright
 ```
 
-Config is in `pyproject.toml`: line-length 100, ruff rules E/F/W/FURB/UP, mypy strict mode.
+Config is in `pyproject.toml`: line-length 100, ruff rules E/F/W/FURB/UP, pyright standard mode.
 
 ## Project Structure
 

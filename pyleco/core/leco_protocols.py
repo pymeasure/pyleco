@@ -55,7 +55,7 @@ For unit test, that all the necessary methods are reachable via RPC, the followi
     def component_methods(actor: Actor):
         response = actor.rpc.process_request(
             '{"id": 1, "method": "rpc.discover", "jsonrpc": "2.0"}')
-        result = actor.rpc_generator.get_result_from_response(response)  # type: ignore
+        result = actor.rpc_generator.get_result_from_response(response)
         return result.get('methods')
 
     @pytest.mark.parametrize("method", protocol_methods)
@@ -69,12 +69,12 @@ For unit test, that all the necessary methods are reachable via RPC, the followi
 from __future__ import annotations
 
 try:
-    from enum import StrEnum  # type: ignore
+    from enum import StrEnum  # type: ignore[reportAttributeAccessIssue]
 except ImportError:
     # For python<3.11
     from enum import Enum
 
-    class StrEnum(str, Enum):  # type: ignore
+    class StrEnum(str, Enum):
         pass
 
 
@@ -89,7 +89,7 @@ class ComponentProtocol(Protocol):
         return  # always succeeds.
 
 
-class LogLevels(StrEnum):
+class LogLevels(StrEnum):  # type: ignore[reportGeneralTypeIssues]
     """Log levels for :meth:`ExtendedComponentProtocol.set_log_level` method."""
 
     DEBUG = "DEBUG"

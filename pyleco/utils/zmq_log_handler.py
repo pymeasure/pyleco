@@ -53,7 +53,7 @@ class ZmqLogHandler(QueueHandler):
         full_name: str = "",
     ) -> None:
         publisher = DataPublisher(full_name=full_name, host=host, port=port, context=context)
-        super().__init__(publisher)  # type: ignore
+        super().__init__(publisher)  # type: ignore[reportArgumentType]
         self.full_name = full_name
 
     def prepare(self, record: logging.LogRecord) -> list[str]:
@@ -66,7 +66,7 @@ class ZmqLogHandler(QueueHandler):
             # Cache the traceback text to avoid converting it multiple times
             # (it's constant anyway)
             if not record.exc_text:
-                record.exc_text = logging.Formatter.formatException(self, record.exc_info)  # type: ignore  # noqa: E501
+                record.exc_text = logging.Formatter.formatException(self, record.exc_info)  # type: ignore[reportArgumentType]  # noqa: E501
         if record.exc_text:
             if s[-1:] != "\n":
                 s = s + "\n"
@@ -81,4 +81,4 @@ class ZmqLogHandler(QueueHandler):
     def enqueue(self, record: Any) -> None:
         """Enqueue a message prepared by :meth:`prepare`, if the fullname is given."""
         message = DataMessage(topic=self.full_name.encode(), data=record)
-        self.queue.send_message(message)  # type: ignore
+        self.queue.send_message(message)  # type: ignore[reportAttributeAccessIssue]

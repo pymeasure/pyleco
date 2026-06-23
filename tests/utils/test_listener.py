@@ -32,8 +32,8 @@ from pyleco.utils.listener import Listener, CommunicatorPipe
 
 @pytest.fixture
 def listener() -> Listener:
-    listener = Listener(name="test")  # type: ignore
-    listener.communicator = FakeCommunicator(name="N.Pipe")  # type: ignore
+    listener = Listener(name="test")
+    listener.communicator = FakeCommunicator(name="N.Pipe")  # type: ignore[reportAttributeAccessIssue]
     return listener
 
 

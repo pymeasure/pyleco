@@ -74,7 +74,7 @@ def fake_cid_generation(monkeypatch):
 
 @pytest.fixture()
 def handler() -> MessageHandler:
-    handler = MessageHandler(name=handler_name.split(".")[1], context=FakeContext())  # type: ignore
+    handler = MessageHandler(name=handler_name.split(".")[1], context=FakeContext())  # type: ignore[reportArgumentType]
     handler.namespace = handler_name.split(".")[0]
     handler.stop_event = SimpleEvent()
     handler.timeout = 0.1
@@ -99,7 +99,7 @@ class TestProtocolImplemented:
     def component_methods(self, handler: MessageHandler):
         response = handler.rpc.process_json_request_object(Request(1, method="rpc.discover"))
         assert isinstance(response, JsonRpcResponse)
-        return response.result.get("methods")  # type: ignore
+        return response.result.get("methods")  # type: ignore[reportOptionalMemberAccess]
 
     @pytest.mark.parametrize("method", protocol_methods)
     def test_method_is_available(self, component_methods, method):
@@ -151,7 +151,7 @@ class Test_sign_in:
             message_type=MessageTypes.JSON,
             data=ResultResponse(id=0, result=None),
         )
-        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
         handler.namespace = None
         handler.sign_in()
         assert handler.namespace == "N3"
@@ -160,7 +160,7 @@ class Test_sign_in:
         self, handler: MessageHandler, caplog: pytest.LogCaptureFixture, fake_cid_generation
     ):
         message = Message("handler", "COORDINATOR", data=b"[]", conversation_id=cid)
-        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
         handler.sign_in()
         caplog.records[-1].msg.startswith("Not json message received:")
 
@@ -175,7 +175,7 @@ class Test_sign_in:
             data=ErrorResponse(id=5, error=DUPLICATE_NAME),
             conversation_id=cid,
         )
-        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
         handler.sign_in()
         assert handler.namespace is None
         assert caplog.records[-1].msg == "Sign in failed, the name is already used."
@@ -191,7 +191,7 @@ class Test_sign_in:
             data=ErrorResponse(5, error=Error(12345, "error_msg")),
             conversation_id=cid,
         )
-        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
         handler.sign_in()
         assert handler.namespace is None
         assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
@@ -208,7 +208,7 @@ class Test_sign_in:
             data=Request(5, method="some_method"),
             conversation_id=cid,
         )
-        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
         handler.sign_in()
         assert handler.namespace is None
         assert caplog.records[-1].msg.startswith("Sign in failed, unknown error")
@@ -253,7 +253,7 @@ def test_sign_out_fail(
         data=ErrorResponse(1, error=Error(12345, "")),
         conversation_id=cid,
     )
-    handler.socket._r = [message.to_frames()]  # type: ignore
+    handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
     handler.sign_out()
     assert handler.namespace is not None
     assert caplog.messages[-1].startswith("Signing out failed")
@@ -268,7 +268,7 @@ def test_sign_out_success(handler: MessageHandler, fake_cid_generation):
         data=ResultResponse(1, None),
         conversation_id=cid,
     )
-    handler.socket._r = [message.to_frames()]  # type: ignore
+    handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
     handler.sign_out()
     assert handler.namespace is None
 
@@ -341,7 +341,7 @@ class Test_read_message:
     ids = [test[-1] for test in conf]
 
     def test_return_message_from_socket(self, handler: MessageHandler):
-        handler.socket._r = [self.m1.to_frames()]  # type: ignore
+        handler.socket._r = [self.m1.to_frames()]  # type: ignore[reportArgumentType]
         assert handler.read_message() == self.m1
 
     def test_return_message_from_buffer(self, handler: MessageHandler):
@@ -360,7 +360,7 @@ class Test_read_message:
         self, test: tuple[list[Message], list, bytes | None], handler: MessageHandler
     ):
         socket, buffer, cid0, *_ = test
-        handler.socket._r = [m.to_frames() for m in socket]  # type: ignore
+        handler.socket._r = [m.to_frames() for m in socket]  # type: ignore[reportArgumentType]
         for m in buffer:
             handler.message_buffer.add_message(m)
         handler.message_buffer.add_conversation_id(cid)
@@ -370,17 +370,17 @@ class Test_read_message:
     @pytest.mark.parametrize("test", conf, ids=ids)
     def test_correct_buffer_socket(self, test, handler: MessageHandler):
         socket_in, buffer_in, cid0, socket_out, buffer_out, *_ = test
-        handler.socket._r = [m.to_frames() for m in socket_in]  # type: ignore
+        handler.socket._r = [m.to_frames() for m in socket_in]  # type: ignore[reportArgumentType]
         for m in buffer_in:
             handler.message_buffer.add_message(m)
         handler.message_buffer.add_conversation_id(cid)
         # act
         handler.read_message(conversation_id=cid0)
-        assert handler.socket._r == [m.to_frames() for m in socket_out]  # type: ignore
+        assert handler.socket._r == [m.to_frames() for m in socket_out]
         assert handler.message_buffer._messages == buffer_out
 
     def test_timeout_zero_works(self, handler: MessageHandler):
-        handler.socket._r = [self.m1.to_frames()]  # type: ignore
+        handler.socket._r = [self.m1.to_frames()]  # type: ignore[reportArgumentType]
         handler.read_message(timeout=0)
         # assert that no error is raised
 
@@ -389,7 +389,7 @@ class Test_read_message:
             time.sleep(0.1)
             return self.m1
 
-        handler._read_socket_message = waiting  # type: ignore[assignment]
+        handler._read_socket_message = waiting
         with pytest.raises(TimeoutError):
             handler.read_message(conversation_id=cid, timeout=0)
 
@@ -400,7 +400,7 @@ class Test_ask_message:
 
     @pytest.fixture
     def handler_asked(self, handler: MessageHandler):
-        handler.socket._r = [self.expected_response.to_frames()]  # type: ignore
+        handler.socket._r = [self.expected_response.to_frames()]  # type: ignore[reportArgumentType]
         self.response = handler.ask_message(message=self.expected_sent)
         return handler
 
@@ -418,7 +418,7 @@ class Test_read_and_handle_message:
     def test_handle_message_handles_no_new_socket_message(self, handler: MessageHandler):
         """Test, that the message handler does not raise an error without a new socket message."""
         handler.message_buffer.add_conversation_id(cid)
-        handler.socket._r = [  # type: ignore
+        handler.socket._r = [  # type: ignore[reportArgumentType]
             Message(receiver=handler_name, sender=remote_name, conversation_id=cid).to_frames()
         ]
         # act
@@ -426,9 +426,9 @@ class Test_read_and_handle_message:
         # assert that no error is raised.
 
     def test_handle_message_ignores_heartbeats(self, handler: MessageHandler):
-        handler.handle_message = MagicMock()  # type: ignore
+        handler.handle_message = MagicMock()
         # empty message of heartbeat
-        handler.socket._r = [[VERSION_B, b"N1.handler", b"whatever", b";"]]  # type: ignore
+        handler.socket._r = [[VERSION_B, b"N1.handler", b"whatever", b";"]]  # type: ignore[reportArgumentType]
         handler.read_and_handle_message()
         handler.handle_message.assert_not_called()
 
@@ -472,19 +472,19 @@ class Test_read_and_handle_message:
     def test_read_and_handle_message(
         self, handler: MessageHandler, i: list[bytes], out: list[bytes]
     ):
-        handler.socket._r = [i]  # type: ignore
+        handler.socket._r = [i]  # type: ignore[reportArgumentType]
         handler.read_and_handle_message()
         for j in range(len(out)):
             if j == 3:
                 continue  # reply adds timestamp
-            assert handler.socket._s[0][j] == out[j]  # type: ignore
+            assert handler.socket._s[0][j] == out[j]  # type: ignore[reportIndexIssue]
 
     def test_handle_not_signed_in_message(self, handler: MessageHandler):
-        handler.sign_in = MagicMock()  # type: ignore
-        handler.socket._r = [
+        handler.sign_in = MagicMock()
+        handler.socket._r = [  # type: ignore[reportArgumentType]
             Message(
                 receiver="handler",
-                sender="N1.COORDINATOR",  # type: ignore
+                sender="N1.COORDINATOR",
                 message_type=MessageTypes.JSON,
                 data=ErrorResponse(id=5, error=NOT_SIGNED_IN),
             ).to_frames()
@@ -520,10 +520,10 @@ class Test_read_and_handle_message:
 
     def test_handle_ACK_does_not_change_Namespace(self, handler: MessageHandler):
         """Test that an ACK does not change the Namespace, if it is already set."""
-        handler.socket._r = [
+        handler.socket._r = [  # type: ignore[reportArgumentType]
             Message(
                 b"N3.handler",
-                b"N3.COORDINATOR",  # type: ignore
+                b"N3.COORDINATOR",
                 message_type=MessageTypes.JSON,
                 data=ResultResponse(3, None),
             ).to_frames()
@@ -533,7 +533,7 @@ class Test_read_and_handle_message:
         assert handler.namespace == "N1"
 
     def test_notification_does_not_cause_response(self, handler: MessageHandler):
-        handler.socket._r = [  # type: ignore
+        handler.socket._r = [  # type: ignore[reportArgumentType]
             Message(
                 b"N3.handler",
                 b"N3.COORDINATOR",
@@ -548,10 +548,10 @@ class Test_read_and_handle_message:
         self, handler: MessageHandler, caplog: pytest.LogCaptureFixture
     ):
         """An invalid message should not cause the message handler to crash."""
-        handler.socket._r = [
+        handler.socket._r = [  # type: ignore[reportArgumentType]
             Message(
                 b"N3.handler",
-                b"N3.COORDINATOR",  # type: ignore
+                b"N3.COORDINATOR",
                 message_type=MessageTypes.JSON,
                 data={"without": "method..."},
             ).to_frames()
@@ -563,10 +563,10 @@ class Test_read_and_handle_message:
         self, handler: MessageHandler, caplog: pytest.LogCaptureFixture
     ):
         """An invalid message should not cause the message handler to crash."""
-        handler.socket._r = [
+        handler.socket._r = [  # type: ignore[reportArgumentType]
             Message(
                 b"N3.handler",
-                b"N3.COORDINATOR",  # type: ignore
+                b"N3.COORDINATOR",
                 message_type=MessageTypes.JSON,
                 data=[],
             ).to_frames()
@@ -584,7 +584,7 @@ class Test_read_and_handle_message:
             message_type=MessageTypes.JSON,
             additional_payload=[b"()"],
         )
-        handler.socket._r = [message.to_frames()]  # type: ignore
+        handler.socket._r = [message.to_frames()]  # type: ignore[reportArgumentType]
         handler.read_and_handle_message()
         assert caplog.records[-1].msg.startswith("Could not decode")
 
@@ -640,7 +640,7 @@ class Test_process_json_message:
         assert result.conversation_id == cid
         assert result.header_elements.message_type == MessageTypes.JSON
         with pytest.raises(JSONRPCError) as exc_info:
-            handler.rpc_generator.get_result_from_response(result.data)  # type: ignore
+            handler.rpc_generator.get_result_from_response(result.data)  # type: ignore[reportArgumentType]
         error = exc_info.value.rpc_error
         assert error.code == INVALID_REQUEST.code
         assert error.message == INVALID_REQUEST.message
@@ -683,10 +683,10 @@ class Test_process_json_message_with_created_binary:
             def do_binary(
                 self, data: int, additional_payload: list[bytes] | None = None
             ) -> tuple[int, list[bytes]]:
-                test_class.payload_in = additional_payload  # type: ignore
+                test_class.payload_in = additional_payload  # type: ignore[reportAttributeAccessIssue]
                 return data, test_class.payload_out
 
-        handler = SpecialHandler(name=handler_name.split(".")[1], context=FakeContext())  # type: ignore
+        handler = SpecialHandler(name=handler_name.split(".")[1], context=FakeContext())  # type: ignore[reportArgumentType]
         handler.namespace = handler_name.split(".")[0]
         handler.stop_event = SimpleEvent()
         handler.timeout = 0.1
@@ -729,7 +729,7 @@ class Test_listen:
     def handler_l(self, handler: MessageHandler, fake_cid_generation):
         event = SimpleEvent()
         event.set()
-        handler.socket._r = [  # type: ignore
+        handler.socket._r = [  # type: ignore[reportArgumentType]
             Message(
                 "handler",
                 "N1.COORDINATOR",
@@ -765,32 +765,32 @@ class Test_listen:
     def test_loop_element_changes_heartbeat(self, handler_l: MessageHandler):
         handler_l.next_beat = 0
         # Act
-        handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore
+        handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore[reportArgumentType]
         assert handler_l.next_beat > 0
 
     def test_loop_element_does_not_change_heartbeat_if_short(self, handler_l: MessageHandler):
         handler_l.next_beat = float("inf")
         # Act
-        handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore
+        handler_l._listen_loop_element(poller=FakePoller(), waiting_time=0)  # type: ignore[reportArgumentType]
         assert handler_l.next_beat == float("inf")
 
     def test_KeyboardInterrupt_in_loop(self, handler: MessageHandler):
         def raise_error(poller, waiting_time):
             raise KeyboardInterrupt
 
-        handler.sign_in = MagicMock()  # type: ignore[method-assign]
-        handler._listen_loop_element = raise_error  # type: ignore
+        handler.sign_in = MagicMock()
+        handler._listen_loop_element = raise_error
         handler.listen()
         # assert that no error is raised and that the test does not hang
 
 
 def test_listen_loop_element(handler: MessageHandler):
     poller = FakePoller()
-    poller.register(handler.socket)
-    handler.socket._r = [  # type: ignore
+    poller.register(handler.socket)  # type: ignore[reportArgumentType]
+    handler.socket._r = [  # type: ignore[reportArgumentType]
         Message("Test", "COORDINATOR").to_frames()
     ]
-    socks = handler._listen_loop_element(poller, 0)  # type: ignore
+    socks = handler._listen_loop_element(poller, 0)  # type: ignore[reportArgumentType]
     assert socks == {}
 
 
@@ -801,7 +801,7 @@ class Test_listen_close:
         return handler
 
     def test_sign_out_sent(self, handler_lc: MessageHandler):
-        sent = Message.from_frames(*handler_lc.socket._s[-1])  # type: ignore
+        sent = Message.from_frames(*handler_lc.socket._s[-1])  # type: ignore[reportGeneralTypeIssues, reportIndexIssue]
         assert handler_lc.socket._s == [
             Message(
                 "COORDINATOR",

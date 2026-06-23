@@ -47,8 +47,8 @@ from pyleco.utils.coordinator_utils import (
 class TestZmqMultiSocket:
     @pytest.fixture
     def socket(self):
-        socket = ZmqMultiSocket(context=FakeContext())  # type: ignore
-        socket._sock._r = [  # type: ignore
+        socket = ZmqMultiSocket(context=FakeContext())  # type: ignore[reportArgumentType]
+        socket._sock._r = [  # type: ignore[reportArgumentType]
             [b"id", b"version", b"receiver", b"sender", b"header", b"data"]
         ]
         return socket
@@ -70,7 +70,7 @@ class TestZmqMultiSocket:
 class TestZmqNode:
     @pytest.fixture
     def node(self):
-        node = ZmqNode(context=FakeContext())  # type: ignore
+        node = ZmqNode(context=FakeContext())  # type: ignore[reportArgumentType]
         return node
 
     def test_connection(self, node):
@@ -192,7 +192,7 @@ class Test_add_node_sender:
         """No new connection to the coordinator itself or if there is another attempt to connect
         to that same remote node."""
         # simulate a connection to N3 under way
-        directory._waiting_nodes["N3host:12300"] = None  # type: ignore
+        directory._waiting_nodes["N3host:12300"] = None  # type: ignore[reportArgumentType]
         with pytest.raises(ValueError):
             directory.add_node_sender(Node(), address, b"N3")
 
@@ -218,7 +218,7 @@ class Test_add_node_sender:
         assert node.is_connected()
 
     def test_message_sent(self, node: Node):
-        assert node._messages_sent == [  # type: ignore
+        assert node._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             Message(
                 b"COORDINATOR",
                 b"N1.COORDINATOR",
@@ -278,7 +278,7 @@ class Test_check_unfinished_node_connections:
     def directory_cunc(self, directory: Directory) -> Directory:
         directory.add_node_sender(FakeNode(), "N3host", b"N3")
         node = directory._waiting_nodes["N3host:12300"]
-        node._messages_read = [  # type: ignore
+        node._messages_read = [  # type: ignore[reportAttributeAccessIssue]
             Message(
                 b"N1.COORDINATOR",
                 b"N3.COORDINATOR",
@@ -300,8 +300,8 @@ def test_check_unfinished_node_connection_logs_error(directory: Directory, caplo
     def read_message(timeout: int = 0) -> Message:
         return Message.from_frames(*[b"frame 1", b"frame 2"])  # not enough frames
 
-    node.read_message = read_message  # type: ignore
-    node._messages_read = ["just something to indicate a message in the buffer"]  # type: ignore
+    node.read_message = read_message
+    node._messages_read = ["just something to indicate a message in the buffer"]  # type: ignore[reportAttributeAccessIssue]
     directory.check_unfinished_node_connections()
     assert caplog.records[-1].msg == "Message decoding failed."
 
@@ -390,7 +390,7 @@ class Test_finish_sign_in_to_remote:
         assert directory_sirn._nodes[b"N3"].namespace == b"N3"
 
     def test_directory_sent(self, directory_sirn: Directory):
-        assert directory_sirn._nodes[b"N3"]._messages_sent == [  # type: ignore
+        assert directory_sirn._nodes[b"N3"]._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             Message(
                 b"COORDINATOR",
                 b"N1.COORDINATOR",
@@ -559,7 +559,7 @@ class Test_find_expired_nodes:
     def test_warn_node(self, directory: Directory, fake_counting, fake_cid_generation):
         directory.get_node_ids()[b"n2"].heartbeat = -1.5
         directory.find_expired_nodes(1)
-        assert directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore
+        assert directory.get_node_ids()[b"n2"]._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             Message(
                 b"N2.COORDINATOR",
                 b"N1.COORDINATOR",
@@ -602,12 +602,12 @@ def test_get_node_id_fails(directory: Directory):
 class Test_sign_out_from_node:
     @pytest.fixture
     def directory_wo_n2(self, fake_cid_generation, directory: Directory) -> Directory:
-        directory._test = directory.get_node(b"N2")  # type: ignore
+        directory._test = directory.get_node(b"N2")  # type: ignore[reportAttributeAccessIssue]
         directory.sign_out_from_node(b"N2")
         return directory
 
     def test_message_sent(self, directory_wo_n2: Directory):
-        assert directory_wo_n2._test._messages_sent == [  # type: ignore
+        assert directory_wo_n2._test._messages_sent == [  # type: ignore[reportAttributeAccessIssue]
             Message(
                 b"N2.COORDINATOR",
                 b"N1.COORDINATOR",
@@ -618,7 +618,7 @@ class Test_sign_out_from_node:
         ]
 
     def test_connection_closed(self, directory_wo_n2: Directory):
-        assert directory_wo_n2._test.is_connected() is False  # type: ignore
+        assert directory_wo_n2._test.is_connected() is False  # type: ignore[reportAttributeAccessIssue]
 
     def test_n2_removed_from_nodes(self, directory_wo_n2: Directory):
         assert b"N2" not in directory_wo_n2.get_nodes()

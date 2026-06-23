@@ -84,8 +84,8 @@ class ZmqMultiSocket(MultiSocket):
         super().__init__(*args, **kwargs)
 
     @property
-    def closed(self) -> bool:  # type: ignore[override]
-        return self._sock.closed  # type: ignore
+    def closed(self) -> bool:  # type: ignore[reportIncompatibleVariableOverride]
+        return self._sock.closed  # type: ignore[reportReturnType]
 
     def bind(self, host: str = "*", port: str | int = COORDINATOR_PORT) -> None:
         self._sock.bind(f"tcp://{host}:{port}")
