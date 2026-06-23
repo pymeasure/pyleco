@@ -42,10 +42,10 @@ def data_logger() -> DataLogger:
     dl.subscriber.unsubscribe = MagicMock()
     dl.start_collecting(
         variables=["time", "test", "2", "N1.sender.var"],
-        trigger_type=TriggerTypes.VARIABLE,  # type: ignore[reportArgumentType]
+        trigger_type=TriggerTypes.VARIABLE,
         trigger_variable="test",
         trigger_timeout=10,
-        valuing_mode=ValuingModes.AVERAGE,  # type: ignore[reportArgumentType]
+        valuing_mode=ValuingModes.AVERAGE,
         value_repeating=False,
     )
     dl.tmp["2"] = [1, 2]
@@ -123,7 +123,7 @@ def test_start_collecting_starts_timer(data_logger: DataLogger):
     # arrange
     data_logger.trigger_timeout = 1000
     # act
-    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=500)  # type: ignore[reportArgumentType]
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=500)
     # assert
     assert data_logger.timer.interval == 500
     # cleanup
@@ -135,7 +135,7 @@ def test_start_collecting_starts_timer_even_second_time(data_logger: DataLogger)
     # arrange
     data_logger.trigger_timeout = 500
     # first time, to set type
-    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)  # type: ignore[reportArgumentType]
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)
     data_logger.stop_collecting()
     assert not hasattr(data_logger, "timer")  # no timer left
     # act
@@ -148,7 +148,7 @@ def test_start_collecting_starts_timer_even_second_time(data_logger: DataLogger)
 
 def test_stop_collecting_stops_timer(data_logger: DataLogger):
     # arrange
-    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)  # type: ignore[reportArgumentType]
+    data_logger.start_collecting(trigger_type=TriggerTypes.TIMER, trigger_timeout=1000)
     # act
     handle_request_message(data_logger, "stop_collecting")
     # assert
@@ -230,7 +230,7 @@ def test_subscribe_without_having_logged_in(
 
 
 def test_set_valuing_mode_last(data_logger: DataLogger):
-    data_logger.set_valuing_mode(ValuingModes.LAST)  # type: ignore[reportArgumentType]
+    data_logger.set_valuing_mode(ValuingModes.LAST)
     assert data_logger.last == data_logger.valuing
 
 

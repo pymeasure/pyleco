@@ -25,14 +25,17 @@
 from __future__ import annotations
 import datetime
 
-try:
-    from enum import StrEnum  # type: ignore[reportAttributeAccessIssue]
-except ImportError:  # pragma: no cover
-    # For python<3.11
-    from enum import Enum
+import sys
 
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:  # pragma: no cover
+    from enum import Enum
     class StrEnum(str, Enum):
-        pass
+        """Backport of :class:`enum.StrEnum` for Python<3.11."""
+
+        def __str__(self) -> str:
+            return self.value
 
 
 import json
@@ -71,13 +74,13 @@ StrFormatter = logging.Formatter("%(asctime)s\t%(levelname)s\t%(name)s\t%(messag
 nan = float("nan")
 
 
-class TriggerTypes(StrEnum):  # type: ignore[reportGeneralTypeIssues]
+class TriggerTypes(StrEnum):
     TIMER = "timer"
     VARIABLE = "variable"
     NONE = "none"
 
 
-class ValuingModes(StrEnum):  # type: ignore[reportGeneralTypeIssues]
+class ValuingModes(StrEnum):
     LAST = "last"
     AVERAGE = "average"
 
@@ -111,8 +114,8 @@ class DataLogger(ExtendedMessageHandler):
     last_save_name: str = ""
 
     # configuration variables
-    trigger_type: TriggerTypes = TriggerTypes.NONE  # type: ignore[reportAssignmentType]
-    _last_trigger_type: TriggerTypes = TriggerTypes.NONE  # type: ignore[reportAssignmentType]
+    trigger_type: TriggerTypes = TriggerTypes.NONE
+    _last_trigger_type: TriggerTypes = TriggerTypes.NONE
     trigger_timeout: float = 1
     trigger_variable: str = ""
     value_repeating: bool = False
@@ -384,7 +387,7 @@ class DataLogger(ExtendedMessageHandler):
         config["trigger_variable"] = self.trigger_variable
         # Value
         vm = ValuingModes.LAST if self.valuing == self.last else ValuingModes.AVERAGE
-        config["valuing_mode"] = vm.value  # type: ignore[reportAttributeAccessIssue]
+        config["valuing_mode"] = vm.value
         config["value_repeating"] = self.value_repeating
         # Header and Variables.
         with self.list_lock:
