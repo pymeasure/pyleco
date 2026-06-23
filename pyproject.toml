@@ -35,6 +35,8 @@ dependencies = [
 dev = [
   "pytest",
   "pytest-cov",
+  "pyright",
+  "ruff",
   "sphinx",
   "sphinx_rtd_theme",
 ]
@@ -80,6 +82,22 @@ select = ["E", "F", "W", "FURB", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.8"
+reportUnnecessaryTypeIgnoreComment = "warning"
+exclude = [
+    ".git",
+    ".venv",
+    "__pypackages__",
+    "__pycache__",
+    "build",
+    "dist",
+    "docs/conf.py",
+    "**/node_modules",
+    "**/.*",
+]
 
 [tool.mypy]
 #python_version = "3.8"
