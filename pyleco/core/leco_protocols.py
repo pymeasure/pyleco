@@ -68,14 +68,17 @@ For unit test, that all the necessary methods are reachable via RPC, the followi
 
 from __future__ import annotations
 
-try:
-    from enum import StrEnum  # type: ignore[reportAttributeAccessIssue]
-except ImportError:
-    # For python<3.11
-    from enum import Enum
+import sys
 
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:  # pragma: no cover
+    from enum import Enum
     class StrEnum(str, Enum):
-        pass
+        """Backport of :class:`enum.StrEnum` for Python<3.11."""
+
+        def __str__(self) -> str:
+            return self.value
 
 
 from typing import Any, Iterable, Protocol, Sequence
@@ -89,7 +92,7 @@ class ComponentProtocol(Protocol):
         return  # always succeeds.
 
 
-class LogLevels(StrEnum):  # type: ignore[reportGeneralTypeIssues]
+class LogLevels(StrEnum):
     """Log levels for :meth:`ExtendedComponentProtocol.set_log_level` method."""
 
     DEBUG = "DEBUG"
