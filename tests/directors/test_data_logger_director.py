@@ -37,7 +37,7 @@ class FakeDataLoggerDirector(FakeDirector, DataLoggerDirector):
 
 @pytest.fixture
 def data_logger_director():
-    data_logger_director = FakeDataLoggerDirector(remote_class=DataLogger)
+    data_logger_director = FakeDataLoggerDirector(remote_class=DataLogger)  # type: ignore[reportArgumentType]
     return data_logger_director
 
 

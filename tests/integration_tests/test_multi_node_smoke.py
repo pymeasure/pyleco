@@ -110,7 +110,7 @@ class CollectingListener(Listener):
         data_host: str,
         data_port: int,
     ) -> None:
-        self.message_handler = CollectingPipeHandler(  # type: ignore
+        self.message_handler = CollectingPipeHandler(  # type: ignore[reportIncompatibleVariableOverride]
             name,
             host=coordinator_host,
             port=coordinator_port,
@@ -174,7 +174,7 @@ def start_actor(
     actor.publisher = DataPublisher(
         full_name=actor.full_name, host="localhost", port=data_xsub_port, context=ctx
     )
-    actor.read_publish = readout  # type: ignore[method-assign]
+    actor.read_publish = readout
     actor.connect()
     actor.listen(stop_event=stop_event)
     actor.disconnect()

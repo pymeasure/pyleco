@@ -55,20 +55,20 @@ class FantasyDevice(TransparentDevice):
 def director() -> TransparentDirector:
     director = FakeDirector(
         device_class=FantasyDevice, communicator=FakeCommunicator(name="Communicator")
-    )  # type: ignore
+    )
     return director
 
 
 def test_get_parameters(director: TransparentDirector):
     assert director.device.getter == 0
-    director.get_parameters.assert_called_once_with(parameters=("getter",))  # type: ignore
+    director.get_parameters.assert_called_once_with(parameters=("getter",))  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_set_parameters(director: TransparentDirector):
     director.device.setter = 5
-    director.set_parameters.assert_called_once_with(parameters={"setter": 5})  # type: ignore
+    director.set_parameters.assert_called_once_with(parameters={"setter": 5})  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_method(director: TransparentDirector):
     director.device.method(5, kwarg=7)
-    director.call_action.assert_called_once_with("method", 5, kwarg=7)  # type: ignore
+    director.call_action.assert_called_once_with("method", 5, kwarg=7)  # type: ignore[reportAttributeAccessIssue]

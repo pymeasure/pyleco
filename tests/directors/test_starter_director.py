@@ -35,7 +35,7 @@ class FakeStarterDirector(FakeDirector, StarterDirector):
 
 @pytest.fixture
 def starter_director() -> StarterDirector:
-    data_logger_director = FakeStarterDirector(remote_class=Starter)
+    data_logger_director = FakeStarterDirector(remote_class=Starter)  # type: ignore[reportArgumentType]
     return data_logger_director
 
 

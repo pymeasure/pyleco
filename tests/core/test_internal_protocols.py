@@ -58,8 +58,8 @@ def test_full_name_with_namespace(communicator: FakeCommunicator):
 
 def test_send(communicator: FakeCommunicator):
     kwargs = dict(receiver="rec", message_type=MessageTypes.JSON, data=[4, 5], conversation_id=cid)
-    communicator.send(**kwargs)  # type: ignore
-    assert communicator._s[0] == Message(sender="communicator", **kwargs)  # type: ignore
+    communicator.send(**kwargs)  # type: ignore[reportArgumentType]
+    assert communicator._s[0] == Message(sender="communicator", **kwargs)  # type: ignore[reportArgumentType]
 
 
 class Test_ask:

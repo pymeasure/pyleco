@@ -97,7 +97,7 @@ def test_install_task(starter: Starter, pre: Status, post: Status):
 
 def test_install_tasks(starter: Starter):
     # arrange
-    starter.install_task = MagicMock()  # type: ignore[method-assign]
+    starter.install_task = MagicMock()
     # act
     handle_request_message(starter, "install_tasks", names=["a", "b"])
     # assert
@@ -123,7 +123,7 @@ def test_uninstall_task(starter: Starter, pre: Status, post: Status):
 
 def test_uninstall_tasks(starter: Starter):
     # arrange
-    starter.uninstall_task = MagicMock()  # type: ignore[method-assign]
+    starter.uninstall_task = MagicMock()
     # act
     handle_request_message(starter, "uninstall_tasks", names=["a", "b"])
     # assert
@@ -134,9 +134,9 @@ def test_uninstall_tasks(starter: Starter):
 class Test_status_tasks:
     @pytest.fixture
     def status(self, starter: Starter) -> dict[str, Status]:
-        starter.threads["SR"] = FakeThread(alive=True)  # type: ignore
-        starter.threads["S"] = FakeThread()  # type: ignore
-        starter.threads["NS"] = FakeThread(alive=True)  # type: ignore
+        starter.threads["SR"] = FakeThread(alive=True)  # type: ignore[reportArgumentType]
+        starter.threads["S"] = FakeThread()  # type: ignore[reportArgumentType]
+        starter.threads["NS"] = FakeThread(alive=True)  # type: ignore[reportArgumentType]
         starter.started_tasks = {
             "SR": Status.STARTED | Status.RUNNING,
             "S": Status.STARTED | Status.RUNNING,
@@ -174,7 +174,7 @@ class Test_status_tasks:
 class Test_check_installed_tasks:
     @pytest.fixture
     def starter_cit(self, starter: Starter) -> Starter:
-        starter.start_task = MagicMock()  # type: ignore[method-assign]
+        starter.start_task = MagicMock()
         starter.started_tasks = {
             "IR": Status.INSTALLED | Status.RUNNING,
             "INR": Status.INSTALLED,
@@ -186,15 +186,15 @@ class Test_check_installed_tasks:
 
     def test_start_installed_but_not_running_task(self, starter_cit: Starter):
         """Test, that only the installed (and not running) task is started."""
-        starter_cit.start_task.assert_called_once_with("INR")  # type: ignore[attr-defined]
+        starter_cit.start_task.assert_called_once_with("INR")  # type: ignore[reportAttributeAccessIssue]
 
 
 class Test_start_task:
     def test_already_started_task(self, starter: Starter):
         # arrange
         starter.started_tasks["t1"] = Status.STARTED
-        starter.threads["t1"] = FakeThread(alive=True)  # type: ignore
-        starter.events["t1"] = SimpleEvent()  # type: ignore
+        starter.threads["t1"] = FakeThread(alive=True)  # type: ignore[reportArgumentType]
+        starter.events["t1"] = SimpleEvent()  # type: ignore[reportArgumentType]
         # act
         starter.start_task("t1")
         assert Status.RUNNING in Status(starter.started_tasks["t1"])
@@ -202,7 +202,7 @@ class Test_start_task:
 
 def test_start_tasks(starter: Starter):
     # arrange
-    starter.start_task = MagicMock()  # type: ignore[method-assign]
+    starter.start_task = MagicMock()
     # act
     handle_request_message(starter, "start_tasks", names=["a", "b"])
     # assert
@@ -217,8 +217,8 @@ class Test_stop_task:
     def test_stop_existing_running_task(self, starter: Starter):
         # arrange
         starter.started_tasks["t1"] = Status.STARTED
-        starter.threads["t1"] = FakeThread(alive=True)  # type: ignore
-        event = starter.events["t1"] = SimpleEvent()  # type: ignore
+        starter.threads["t1"] = FakeThread(alive=True)  # type: ignore[reportArgumentType]
+        event = starter.events["t1"] = SimpleEvent()  # type: ignore[reportArgumentType]
         # act
         starter.stop_task("t1")
         assert "t1" not in starter.threads
@@ -240,7 +240,7 @@ class Test_stop_task:
 
 def test_stop_tasks(starter: Starter):
     # arrange
-    starter.stop_task = MagicMock()  # type: ignore[method-assign]
+    starter.stop_task = MagicMock()
     # act
     handle_request_message(starter, "stop_tasks", names=["a", "b"])
     # assert
@@ -249,8 +249,8 @@ def test_stop_tasks(starter: Starter):
 
 
 def test_restart_tasks(starter: Starter):
-    starter.start_task = MagicMock()  # type: ignore[method-assign]
-    starter.stop_task = MagicMock()  # type: ignore[method-assign]
+    starter.start_task = MagicMock()
+    starter.stop_task = MagicMock()
     starter.restart_tasks(["a", "b"])
     assert starter.stop_task.call_args_list == [call("a"), call("b")]
     assert starter.start_task.call_args_list == [call("a"), call("b")]
@@ -259,8 +259,8 @@ def test_restart_tasks(starter: Starter):
 def test_stop_all_tasks(starter: Starter):
     # arrange
     starter.started_tasks["t1"] = Status.STARTED
-    starter.threads["t1"] = FakeThread(alive=True)  # type: ignore
-    event = starter.events["t1"] = SimpleEvent()  # type: ignore
+    starter.threads["t1"] = FakeThread(alive=True)  # type: ignore[reportArgumentType]
+    event = starter.events["t1"] = SimpleEvent()  # type: ignore[reportArgumentType]
     # act
     starter.stop_all_tasks()
     assert "t1" not in starter.threads

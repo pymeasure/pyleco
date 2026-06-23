@@ -47,8 +47,8 @@ def signal():
 
 @pytest.fixture
 def qt_listener(signal) -> QtListener:
-    qt_listener = QtListener(name="test")  # type: ignore
-    qt_listener.communicator = FakeCommunicator(name="N.Pipe")  # type: ignore
+    qt_listener = QtListener(name="test")
+    qt_listener.communicator = FakeCommunicator(name="N.Pipe")  # type: ignore[reportAttributeAccessIssue]
     qt_listener.signals.message = signal
     return qt_listener
 
@@ -57,7 +57,7 @@ def qt_listener(signal) -> QtListener:
 def qt_handler(signal) -> QtPipeHandler:
     handler = QtPipeHandler(
         name="handler",
-        context=FakeContext(),  # type: ignore
+        context=FakeContext(),  # type: ignore[reportArgumentType]
         signals=ListenerSignals(),
     )
     handler.signals.message = signal
@@ -74,12 +74,12 @@ class Test_handle_message:
             conversation_id=cid,
         )
         qt_handler.handle_message(msg)
-        assert qt_handler.signals.message._content == msg  # type: ignore
+        assert qt_handler.signals.message._content == msg
 
     def test_empty_message(self, qt_handler: QtPipeHandler):
         msg = Message("N.Pipe", "sender")
         qt_handler.handle_message(msg)
-        assert qt_handler.signals.message._content == msg  # type: ignore
+        assert qt_handler.signals.message._content == msg
 
     def test_local_method(self, qt_handler: QtPipeHandler):
         msg = Message(
@@ -90,7 +90,7 @@ class Test_handle_message:
             data=Request(3, "pong"),
         )
         qt_handler.handle_message(msg)
-        assert Message.from_frames(*qt_handler.socket._s[0]) == Message(  # type: ignore
+        assert Message.from_frames(*qt_handler.socket._s[0]) == Message(  # type: ignore[reportGeneralTypeIssues, reportIndexIssue]
             "sender",
             "handler",
             conversation_id=cid,

@@ -163,10 +163,10 @@ class Test_process_json_message_with_created_binary:
             def do_binary(
                 self, data: int, additional_payload: list[bytes] | None = None
             ) -> tuple[int, list[bytes]]:
-                test_class.payload_in = additional_payload  # type: ignore
+                test_class.payload_in = additional_payload  # type: ignore[reportAttributeAccessIssue]
                 return data, test_class.payload_out
 
-        handler = SpecialHandler(title="abc")  # type: ignore
+        handler = SpecialHandler(title="abc")
 
         handler.register_rpc_method(handler.do_binary_manually)
         handler.register_binary_rpc_method(

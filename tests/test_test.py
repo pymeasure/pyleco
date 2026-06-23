@@ -98,7 +98,7 @@ class Test_FakePoller_unregister:
 
     def test_unregister_removes_socket(self, poller: FakePoller):
         socket = FakeSocket(1)
-        poller._sockets = [1, 2, socket, 4, 5]  # type: ignore
+        poller._sockets = [1, 2, socket, 4, 5]  # type: ignore[reportAttributeAccessIssue]
         poller.unregister(socket)
         assert socket not in poller._sockets
 
@@ -110,7 +110,7 @@ def test_FakeCommunicator_sign_in():
 
 
 def test_assert_response_is_result_raises_exception_on_error():
-    handler = MessageHandler("test", context=FakeContext())  # type: ignore
+    handler = MessageHandler("test", context=FakeContext())  # type: ignore[reportArgumentType]
     handle_request_message(handler, "some_non_existing_method")
     with pytest.raises(JSONRPCError):
         assert_response_is_result(handler)

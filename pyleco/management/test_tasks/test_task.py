@@ -39,7 +39,7 @@ def task(stop_event: Event) -> None:
     while stop_event.wait(0.5):
         sleep(0.1)
     return
-    with Actor(  # type: ignore[unreachable]
+    with Actor(
         name="pymeasure_actor",
         device_class=FakeInstrument,
         periodic_reading=-1,

@@ -34,7 +34,7 @@ def task(stop_event: Event) -> None:
     # Initialize
     with Actor(name="pymeasure_actor", device_class=YAR, periodic_reading=interval) as actor:
         # define the regular readout function
-        actor.read_publish = readout  # type: ignore[method-assign]
+        actor.read_publish = readout
         actor.connect(adapter)  # connect to the device
 
         # Continuous loop

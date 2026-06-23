@@ -26,12 +26,12 @@ from __future__ import annotations
 import datetime
 
 try:
-    from enum import StrEnum  # type: ignore
+    from enum import StrEnum  # type: ignore[reportAttributeAccessIssue]
 except ImportError:  # pragma: no cover
     # For python<3.11
     from enum import Enum
 
-    class StrEnum(str, Enum):  # type: ignore
+    class StrEnum(str, Enum):
         pass
 
 
@@ -41,13 +41,13 @@ from threading import Lock
 from typing import Any, Callable, Iterable, Sequence
 
 try:
-    import numpy as np  # type: ignore[import-not-found]
+    import numpy as np # type: ignore[reportMissingImports]
 except ModuleNotFoundError:
 
     def average(values: Sequence[float | int]) -> float:
         return sum(values) / len(values)
 else:
-    average = np.average  # type: ignore
+    average = np.average
 from zmq import Poller
 
 if __name__ == "__main__":  # pragma: no cover
@@ -71,13 +71,13 @@ StrFormatter = logging.Formatter("%(asctime)s\t%(levelname)s\t%(name)s\t%(messag
 nan = float("nan")
 
 
-class TriggerTypes(StrEnum):
+class TriggerTypes(StrEnum):  # type: ignore[reportGeneralTypeIssues]
     TIMER = "timer"
     VARIABLE = "variable"
     NONE = "none"
 
 
-class ValuingModes(StrEnum):
+class ValuingModes(StrEnum):  # type: ignore[reportGeneralTypeIssues]
     LAST = "last"
     AVERAGE = "average"
 
@@ -111,8 +111,8 @@ class DataLogger(ExtendedMessageHandler):
     last_save_name: str = ""
 
     # configuration variables
-    trigger_type: TriggerTypes = TriggerTypes.NONE
-    _last_trigger_type: TriggerTypes = TriggerTypes.NONE
+    trigger_type: TriggerTypes = TriggerTypes.NONE  # type: ignore[reportAssignmentType]
+    _last_trigger_type: TriggerTypes = TriggerTypes.NONE  # type: ignore[reportAssignmentType]
     trigger_timeout: float = 1
     trigger_variable: str = ""
     value_repeating: bool = False
@@ -149,7 +149,7 @@ class DataLogger(ExtendedMessageHandler):
 
     def _listen_setup(
         self,
-        start_data: dict[str, Any] | None = None,  # type: ignore[override]
+        start_data: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Poller:
         poller = super()._listen_setup(**kwargs)
@@ -169,7 +169,7 @@ class DataLogger(ExtendedMessageHandler):
     def handle_subscription_message(self, message: DataMessage) -> None:
         sender = message.topic.decode()
         try:
-            content: dict[str, Any] = message.data  # type: ignore
+            content: dict[str, Any] = message.data  # type: ignore[reportAssignmentType]
             modified_dict = {".".join((sender, k)): v for k, v in content.items()}
         except Exception:
             log.exception(f"Could not decode message {message}.")
@@ -384,7 +384,7 @@ class DataLogger(ExtendedMessageHandler):
         config["trigger_variable"] = self.trigger_variable
         # Value
         vm = ValuingModes.LAST if self.valuing == self.last else ValuingModes.AVERAGE
-        config["valuing_mode"] = vm.value
+        config["valuing_mode"] = vm.value  # type: ignore[reportAttributeAccessIssue]
         config["value_repeating"] = self.value_repeating
         # Header and Variables.
         with self.list_lock:

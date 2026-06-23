@@ -148,7 +148,7 @@ def pub_sub_proxy(
         c: zmq.Socket = context.socket(zmq.PUB)
         c.bind("inproc://capture")
     else:
-        c = None  # type: ignore
+        c = None  # type: ignore[reportAssignmentType]
     if event is not None:
         event.set()
     try:

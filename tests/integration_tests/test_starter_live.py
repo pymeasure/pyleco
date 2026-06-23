@@ -80,7 +80,7 @@ def director():
 
 def test_sign_in(director: StarterDirector):
     d2 = CoordinatorDirector(communicator=director.communicator)
-    assert "starter" in d2.get_local_components()  # type: ignore
+    assert "starter" in d2.get_local_components()
 
 
 def test_tasks_listing(director: StarterDirector):

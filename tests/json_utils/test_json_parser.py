@@ -57,7 +57,7 @@ def test_parse_notification():
     notification_data = {"method": "exampleNotification", "jsonrpc": "2.0"}
     parsed_object = get_json_object(notification_data)
     assert parsed_object == JsonRpcRequest("exampleNotification", id=None)
-    assert parsed_object.is_notification is True  # type: ignore
+    assert parsed_object.is_notification is True  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_parse_params_notification():
@@ -68,7 +68,7 @@ def test_parse_params_notification():
     }
     parsed_object = get_json_object(params_notification_data)
     assert parsed_object == JsonRpcRequest("exampleNotification", params={"key": "value"}, id=None)
-    assert parsed_object.is_notification is True  # type: ignore
+    assert parsed_object.is_notification is True  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_parse_result_response():

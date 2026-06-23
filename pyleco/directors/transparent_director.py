@@ -133,7 +133,7 @@ class TransparentDirector(Director, Generic[Device]):
     def __init__(
         self,
         actor: bytes | str | None = None,
-        device_class: type[Device] = TransparentDevice,  # type: ignore[assignment]
+        device_class: type[Device] = TransparentDevice,
         cls: type[Device] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -141,4 +141,4 @@ class TransparentDirector(Director, Generic[Device]):
         if cls is not None:
             warn("Parameter `cls` is deprecated, use `device_class` instead.", FutureWarning)
             device_class = cls
-        self.device = device_class(director=self)  # type: ignore[call-arg]
+        self.device = device_class(director=self)  # type: ignore[reportCallIssue]

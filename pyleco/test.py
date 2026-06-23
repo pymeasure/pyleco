@@ -81,7 +81,7 @@ class FakeSocket:
     def disconnect(self, addr: str | None = None) -> None:
         self.addr = None
 
-    def poll(self, timeout: int | None = None, flags: int = "PollEvent.POLLIN") -> int:  # type: ignore
+    def poll(self, timeout: int | None = None, flags: int = "PollEvent.POLLIN") -> int:  # type: ignore[reportArgumentType]
         """Poll the socket for events.
 
         :returns: poll event mask (POLLIN, POLLOUT), 0 if the timeout was reached without an event.
@@ -151,7 +151,7 @@ class FakePoller:
     def register(
         self,
         socket: FakeSocket,
-        flags: int = "PollEvent.POLLIN",  # type: ignore
+        flags: int = "PollEvent.POLLIN",  # type: ignore[reportArgumentType]
     ) -> None:
         self._sockets.append(socket)
 
@@ -267,7 +267,7 @@ def handle_request_message(handler: MessageHandler, method: str, *args: Any, **k
 
 def assert_response_is_result(handler: MessageHandler) -> Any:
     """Assert that response is result, not error and return the result."""
-    response_message = Message.from_frames(*handler.socket._s[0])  # type: ignore
+    response_message = Message.from_frames(*handler.socket._s[0])  # type: ignore[reportGeneralTypeIssues, reportIndexIssue]
     result = handler.rpc_generator.get_result_from_response(response_message.payload[0])
     # get_result_from_response will raise an Exception if the response is an error.
     return result

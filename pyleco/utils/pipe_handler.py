@@ -158,13 +158,13 @@ class CommunicatorPipe(CommunicatorProtocol, SubscriberProtocol):
         return self.handler.name
 
     @name.setter
-    def name(self, value: bytes | str) -> None:
+    def name(self, value: bytes | str) -> None:  # type: ignore[reportIncompatibleVariableOverride]
         if isinstance(value, str):
             value = value.encode()
         self._send_pipe_message(PipeCommands.RENAME, value)
 
     @property
-    def namespace(self) -> str | None:  # type: ignore[override]
+    def namespace(self) -> str | None:  # type: ignore[reportIncompatibleVariableOverride]
         return self.handler.namespace
 
     @property
@@ -266,7 +266,7 @@ class PipeHandler(ExtendedMessageHandler):
         self._communicators = {}
 
     def setup_message_buffer(self) -> None:
-        self.message_buffer = LockedMessageBuffer()
+        self.message_buffer = LockedMessageBuffer()  # type: ignore[reportIncompatibleVariableOverride]
 
     def close(self) -> None:
         self.internal_pipe.close(1)
