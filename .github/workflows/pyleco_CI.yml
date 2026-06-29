@@ -71,7 +71,7 @@ jobs:
           args: "check --output-format github"
       - name: Type check with pyright
         if: success() || failure()
-        uses: jakebailey/pyright-action@v2
+        uses: jakebailey/pyright-action@v3
 
   test_coverage:
     name: Code Coverage on codecov
