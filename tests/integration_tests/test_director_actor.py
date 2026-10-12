@@ -25,7 +25,6 @@
 from __future__ import annotations
 import logging
 import threading
-from time import sleep
 from typing import Any
 
 import pytest
@@ -34,9 +33,10 @@ from pyleco.coordinators.coordinator import Coordinator
 from pyleco.actors.actor import Actor
 from pyleco.directors.director import Director
 
+from helpers import component_ready, coordinator_ready, reserve_free_port, wait_for
 
 # Constants
-PORT = 60004
+PORT = reserve_free_port(60004)
 
 
 def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs: Any):
@@ -111,14 +111,15 @@ def director():
     for thread in threads:
         thread.daemon = True
         thread.start()
-    sleep(1)
+    assert wait_for(lambda: coordinator_ready(PORT), timeout=10), "Coordinator did not come up."
+    assert wait_for(lambda: component_ready(PORT, "actor"), timeout=10), "Actor did not register."
     director = Director(actor="actor", port=PORT)
     yield director
     log.info("Tearing down")
     stop_event.set()
     director.shut_down_actor(actor="COORDINATOR")
     for thread in threads:
-        thread.join(0.5)
+        thread.join(5)
 
 
 def test_get_property(director: Director):

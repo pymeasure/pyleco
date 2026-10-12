@@ -24,7 +24,6 @@
 
 import logging
 from socket import gethostname
-from time import sleep
 import threading
 from typing import Any
 
@@ -39,12 +38,12 @@ from pyleco.json_utils.json_objects import Request, ResultResponse
 from pyleco.directors.coordinator_director import CoordinatorDirector
 from pyleco.coordinators.coordinator import Coordinator
 
+from helpers import component_ready, coordinator_ready, wait_for
 
 # Constants
 PORT = 60001
 PORT2 = PORT + 1
 PORT3 = PORT + 2
-TALKING_TIME = 0.5  # s
 TIMEOUT = 2  # s
 
 
@@ -88,16 +87,22 @@ def leco():
     for thread in threads:
         thread.daemon = True
         thread.start()
+    for port in (PORT, PORT2, PORT3):
+        assert wait_for(lambda p=port: coordinator_ready(p), timeout=10), (
+            f"Coordinator on port {port} did not come up."
+        )
     listener = Listener(name="Controller", port=PORT, timeout=TIMEOUT)
     listener.start_listen()
-    sleep(TALKING_TIME)  # time for setup
+    assert wait_for(lambda: component_ready(PORT, "Controller"), timeout=10), (
+        "Listener did not register."
+    )
     yield listener.get_communicator()
     log.info("Tearing down")
     listener.stop_listen()
     for event in stop_events:
         event.set()
     for thread in threads:
-        thread.join(0.5)
+        thread.join(5)
 
 
 @pytest.mark.skipif(testlevel < 0, reason="reduce load")
@@ -111,7 +116,9 @@ def test_startup(leco: Communicator):
 def test_connect_N1_to_N2(leco: Communicator):
     with CoordinatorDirector(communicator=leco) as d:
         d.add_nodes({"N2": f"localhost:{PORT2}"})
-        sleep(TALKING_TIME)  # time for coordinators to talk
+        assert wait_for(lambda: "N2" in d.get_nodes(), timeout=5), (
+            "N2 was not propagated to N1."
+        )  # time for coordinators to talk
         # assert that the N1.COORDINATOR knows about N2
         assert d.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}
         # assert that the listener can contact N2.COORDINATOR
@@ -158,7 +165,10 @@ def test_connect_N3_to_N2(leco: Communicator):
     with CoordinatorDirector(name="whatever", port=PORT3) as d1:
         d1.add_nodes({"N2": f"localhost:{PORT2}"})
 
-    sleep(TALKING_TIME)  # time for coordinators to talk
+    with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d0:
+        assert wait_for(lambda: "N3" in d0.get_nodes(), timeout=5), (
+            "N3 was not propagated to N1 with the known nodes."
+        )  # coordinators to talk
     with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d2:
         assert d2.get_nodes() == {
             "N1": f"{hostname}:{PORT}",
@@ -172,6 +182,9 @@ def test_shutdown_N3(leco: Communicator):
     with CoordinatorDirector(actor="N3.COORDINATOR", name="whatever", port=PORT3) as d1:
         d1.shut_down_actor()
 
-    sleep(TALKING_TIME)  # time for coordinators to talk
+    with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d0:
+        assert wait_for(lambda: "N3" not in d0.get_nodes(), timeout=5), (
+            "N3 was not dropped from the known nodes."
+        )  # coordinators to talk
     with CoordinatorDirector(actor="COORDINATOR", communicator=leco) as d2:
         assert d2.get_nodes() == {"N1": f"{hostname}:{PORT}", "N2": f"localhost:{PORT2}"}

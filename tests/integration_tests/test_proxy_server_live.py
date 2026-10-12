@@ -24,7 +24,6 @@
 
 from __future__ import annotations
 import pytest
-from time import sleep
 from typing import Any
 
 import zmq
@@ -35,6 +34,8 @@ from pyleco.utils.listener import Listener
 from pyleco.utils.pipe_handler import PipeHandler
 
 from pyleco.coordinators.proxy_server import start_proxy, port
+
+from helpers import send_until_visible, wait_for
 
 
 pytestmark = pytest.mark.filterwarnings("ignore::FutureWarning")
@@ -92,7 +93,13 @@ def listener(publisher: DataPublisher, proxy_handle):
     listener = ModListener(name="listener", data_port=port - 1 - 2 * offset)
     listener.start_listen()
     listener.communicator.subscribe("")
-    sleep(2)
+    # Prove positively that the data path works: the publisher is connected and
+    # the subscription reached the proxy (slow joiner handled by retrying).
+    assert send_until_visible(
+        lambda: publisher.send_data(topic="readiness", data="readiness"),
+        lambda: any(m.data == "readiness" for m in listener.message_handler._messages),
+        timeout=5,
+    ), "Data pipeline through the proxy not ready."
     yield listener
     listener.close()
 
@@ -100,8 +107,11 @@ def listener(publisher: DataPublisher, proxy_handle):
 def test_publishing(publisher: DataPublisher, listener: ModListener):
     listener.message_handler._messages.clear()
     publisher.send_data(topic="topic", data={"key": "value"})
-    sleep(0.1)
-    msgs = listener.message_handler._messages
-    assert len(msgs) >= 1
-    found = any(m.topic == b"topic" and m.data == {"key": "value"} for m in msgs)
-    assert found
+    assert wait_for(
+        lambda: any(
+            m.topic == b"topic" and m.data == {"key": "value"}
+            for m in listener.message_handler._messages
+        ),
+        timeout=5,
+    ), "Message not received"
+    assert len(listener.message_handler._messages) >= 1

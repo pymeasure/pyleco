@@ -95,7 +95,7 @@ jobs:
         # If the pytest problem matcher stops working because of bad paths, do an editable install
         run: pip install -e .[dev]  # editable for covtest
       - name: Test for Coverage
-        run: pytest --cov=pyleco --cov-report=xml
+        run: pytest --cov=pyleco --cov-report=xml -m "not integration"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
@@ -139,22 +139,61 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           echo "::add-matcher::.github/pytest.json"
-          xvfb-run -a pytest
-      - name: Run pytest under Windows
-        if: runner.os == 'Windows'
+          xvfb-run -a pytest -m "not integration"
+      - name: Run pytest
+        if: runner.os != 'Linux'
         run: |
           echo "::add-matcher::.github/pytest.json"
-          pytest
-      - name: Run pytest under Mac without integration tests
-        if: runner.os == 'macOS'
+          pytest -m "not integration"
+
+  smoke_tests:
+    name: Smoke Tests
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: ["ubuntu-latest", "windows-latest"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install pyleco requirements
+        uses: mamba-org/setup-micromamba@v3
+        with:
+          environment-file: environment.yml
+          create-args: python=3.10
+          cache-environment-key: smoke-ubuntu+windows-mamba-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
+          cache-downloads: false
+      - name: Python version
+        run: python --version
+      - name: Install Pyleco
+        # If the pytest problem matcher stops working because of bad paths, do an editable install
+        run: pip install .[dev]
+      - name: Run integration tests
+        # pytest-timeout supports only the 'signal' and 'thread' methods. With
+        # 'signal' (POSIX, incl. Ubuntu) a timeout calls pytest.fail() and the
+        # process survives, so pytest-rerunfailures can retry the timed-out
+        # test in-process. With 'thread' (needed on Windows, which has no
+        # SIGALRM) the timer thread dumps the stacks and hard-exits the whole
+        # pytest process: a timed-out test can then never be retried, but a
+        # hung job is still guaranteed to terminate and free the runner.
+        # There is no built-in process-isolation method (pytest-forked is
+        # POSIX-only), so on Windows 'thread' is the best available.
         run: |
           echo "::add-matcher::.github/pytest.json"
-          pytest --ignore=tests/integration_tests
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            pytest tests/integration_tests -m integration --reruns 2 --reruns-delay 2 --timeout 60 --timeout-method=thread
+          else
+            pytest tests/integration_tests -m integration --reruns 2 --reruns-delay 2 --timeout 60 --timeout-method=signal
+          fi
 
   ci_status:
     name: CI Status
     runs-on: "ubuntu-latest"
-    needs: [docs, code_style, test_coverage, test]
+    needs: [docs, code_style, test_coverage, test, smoke_tests]
     # Runs even when upstream jobs failed or were cancelled (!cancelled()), so that
     # this job — intended as the required status check ("merge check") for branch
     # protection — always reports a conclusion instead of staying pending/skipped.
@@ -168,6 +207,7 @@ jobs:
           echo "Result of 'code_style': ${{ needs.code_style.result }}"
           echo "Result of 'test_coverage': ${{ needs.test_coverage.result }}"
           echo "Result of 'test': ${{ needs.test.result }}"
+          echo "Result of 'smoke_tests': ${{ needs.smoke_tests.result }}"
           # The GitHub expression is evaluated before the shell runs and
           # expands to 'true' or 'false', which bash executes as commands.
           if ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}; then

@@ -56,6 +56,10 @@ We use pytest as our test framework.
 All tests are in the `tests` folder.
 Each module has its own file with unit tests in a similarly named structure, for example `pyleco/core/message.py` has the `tests/core/test_message.py` test file.
 
-There is a special folder, `tests/integration_tests` with integration tests, that are tests, which test several modules working together.
+There is a special folder, `tests/integration_tests` with integration tests, that are tests, which test several modules working together (they require real ZMQ communication and free ports).
+Integration tests are marked with the `integration` pytest marker, which is applied automatically to everything collected under `tests/integration_tests`, so no per-file marks are needed.
+Running plain `pytest` locally runs all tests, integration included.
+To run only the unit tests, use `pytest -m "not integration"`; to run only the integration tests, use `pytest -m integration tests/integration_tests`.
+In CI, the unit matrix and coverage jobs run `pytest -m "not integration"`, while a dedicated Smoke Tests job runs the integration tests with `--reruns 2 --timeout 60` to keep them stable against timing races.
 
 The module [`pymeasure.test`](pyleco/test.py) offers fake classes, e.g. a fake zmq Socket, in order to facilitate writing tests.
