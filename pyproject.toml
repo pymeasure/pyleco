@@ -36,6 +36,8 @@ dependencies = [
 dev = [
   "pytest",
   "pytest-cov",
+  "pytest-rerunfailures",
+  "pytest-timeout",
   "pyright",
   "ruff",
   "sphinx",
@@ -125,6 +127,12 @@ warn_return_any = false
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disable_error_code = ["attr-defined", "method-assign", "arg-type", "comparison-overlap", "unreachable"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: integration tests, which test several modules working together (require real ZMQ communication and ports)",
+]
 
 [tool.coverage.run]
 branch = true
