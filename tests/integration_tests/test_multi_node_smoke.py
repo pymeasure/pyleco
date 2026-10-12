@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from time import sleep, time
+from time import time
 from typing import Any, Callable
 
 import pytest
@@ -45,24 +45,37 @@ from pyleco.utils.listener import Listener
 from pyleco.utils.pipe_handler import PipeHandler
 from pyleco.utils.zmq_log_handler import ZmqLogHandler
 
-# Port layout for N1 (base 62000) and N2 (base 62200)
-N1_COORD_PORT = 62000
-N1_DATA_XPUB = 62099
-N1_DATA_XSUB = 62100
-N1_DATA_GATHERER = 62101
-N1_LOG_XPUB = 62097
-N1_LOG_XSUB = 62098
-N1_LOG_GATHERER = 62096
+from helpers import (
+    component_ready,
+    coordinator_ready,
+    reserve_free_ports,
+    send_until_visible,
+)
+from helpers import wait_for
 
-N2_COORD_PORT = 62200
-N2_DATA_XPUB = 62299
-N2_DATA_XSUB = 62300
-N2_DATA_GATHERER = 62301
-N2_LOG_XPUB = 62297
-N2_LOG_XSUB = 62298
-N2_LOG_GATHERER = 62296
+pytestmark = pytest.mark.timeout(300)  # heavy module fixture: 2 coordinators + 4 data servers
 
-SETUP_TIME = 1.0
+# Port layout for N1 (base 62000) and N2 (base 62200): if any member of a layout
+# (coordinator port plus the derived log/data ports below) is blocked by
+# lingering sockets of a previous run, the whole layout is shifted upwards.
+N1_OFFSETS = (0, 96, 97, 98, 99, 100, 101)
+N1_COORD_PORT = reserve_free_ports(62000, N1_OFFSETS)
+N1_LOG_GATHERER = N1_COORD_PORT + 96
+N1_LOG_XPUB = N1_COORD_PORT + 97
+N1_LOG_XSUB = N1_COORD_PORT + 98
+N1_DATA_XPUB = N1_COORD_PORT + 99
+N1_DATA_XSUB = N1_COORD_PORT + 100
+N1_DATA_GATHERER = N1_COORD_PORT + 101
+
+N2_COORD_PORT = reserve_free_ports(max(62200, N1_COORD_PORT + 102), N1_OFFSETS)
+N2_LOG_GATHERER = N2_COORD_PORT + 96
+N2_LOG_XPUB = N2_COORD_PORT + 97
+N2_LOG_XSUB = N2_COORD_PORT + 98
+N2_DATA_XPUB = N2_COORD_PORT + 99
+N2_DATA_XSUB = N2_COORD_PORT + 100
+N2_DATA_GATHERER = N2_COORD_PORT + 101
+
+N1_DATA_GATHERER_ADDRESS = f"localhost:{N1_DATA_GATHERER}"
 
 
 def wait_for_message(
@@ -182,151 +195,245 @@ def start_actor(
     root_logger.removeHandler(log_handler)
 
 
+def send_and_confirm(
+    pub: DataPublisher,
+    handler: CollectingPipeHandler,
+    data: dict,
+    timeout: float = 5.0,
+) -> bool:
+    """Send `data` via `pub` until a message with it arrived at the `handler`.
+
+    The first message(s) from a freshly connected PUB socket may be dropped by
+    the zmq slow joiner problem, therefore sending is retried until the message
+    is seen or `timeout` elapses (a dropped message cannot be waited for).
+    """
+    return send_until_visible(
+        lambda: pub.send_data(data=data),
+        lambda: wait_for_message(handler, lambda m: m.data == data, timeout=0.0),
+        timeout=timeout,
+    )
+
+
+def payload_marker_check(handler: CollectingPipeHandler, marker: bytes) -> Callable[[], bool]:
+    """Whether a `marker` is contained in the first payload frame of any message."""
+
+    def check() -> bool:
+        return any(marker in (m.payload[0] if m.payload else b"") for m in handler._messages)
+
+    return check
+
+
+def log_message_probe(logger: logging.Logger, message: str, handler: CollectingPipeHandler) -> bool:
+    """Log `message` via the `logger` until the marker reached the `handler`."""
+    return send_until_visible(
+        lambda: logger.info(message),
+        payload_marker_check(handler, message.encode()),
+    )
+
+
 @pytest.fixture(scope="module")
 def multi_node():
     ctx = zmq.Context()
     stop_events = [threading.Event() for _ in range(4)]
 
     threads: list[threading.Thread] = []
-
-    # N1 Coordinator
-    threads.append(
-        threading.Thread(
-            target=start_coordinator,
-            kwargs=dict(namespace="N1", port=N1_COORD_PORT, stop_event=stop_events[0], context=ctx),
-            daemon=True,
+    coordinators: list[DataCoordinator] = []
+    listeners: list[CollectingListener] = []
+    actor_thread: threading.Thread | None = None
+    try:
+        # N1 Coordinator
+        threads.append(
+            threading.Thread(
+                target=start_coordinator,
+                kwargs=dict(
+                    namespace="N1", port=N1_COORD_PORT, stop_event=stop_events[0], context=ctx
+                ),
+                daemon=True,
+            )
         )
-    )
-    # N2 Coordinator
-    threads.append(
-        threading.Thread(
-            target=start_coordinator,
+        # N2 Coordinator
+        threads.append(
+            threading.Thread(
+                target=start_coordinator,
+                kwargs=dict(
+                    namespace="N2",
+                    port=N2_COORD_PORT,
+                    stop_event=stop_events[1],
+                    context=ctx,
+                    coordinators=[f"localhost:{N1_COORD_PORT}"],
+                ),
+                daemon=True,
+            )
+        )
+
+        for t in threads:
+            t.start()
+        assert wait_for(lambda: coordinator_ready(N1_COORD_PORT), timeout=10), (
+            "Coordinator N1 did not come up."
+        )
+        assert wait_for(lambda: coordinator_ready(N2_COORD_PORT), timeout=10), (
+            "Coordinator N2 did not come up."
+        )
+
+        # N1 DataCoordinator
+        dc_n1 = DataCoordinator(
+            name="N1_DATA_COORDINATOR",
+            host="localhost",
+            coordinator_port=N1_COORD_PORT,
+            xsub_port=N1_DATA_XSUB,
+            gatherer_xpub_port=N1_DATA_GATHERER,
+            xpub_port=N1_DATA_XPUB,
+            context=ctx,
+        )
+        coordinators.append(dc_n1)
+        # N2 DataCoordinator
+        dc_n2 = DataCoordinator(
+            name="N2_DATA_COORDINATOR",
+            host="localhost",
+            coordinator_port=N2_COORD_PORT,
+            xsub_port=N2_DATA_XSUB,
+            gatherer_xpub_port=N2_DATA_GATHERER,
+            xpub_port=N2_DATA_XPUB,
+            context=ctx,
+        )
+        coordinators.append(dc_n2)
+        # N1 LogCoordinator
+        lc_n1 = DataCoordinator(
+            name="N1_LOG_COORDINATOR",
+            host="localhost",
+            coordinator_port=N1_COORD_PORT,
+            xsub_port=N1_LOG_XSUB,
+            gatherer_xpub_port=N1_LOG_GATHERER,
+            xpub_port=N1_LOG_XPUB,
+            context=ctx,
+        )
+        coordinators.append(lc_n1)
+        # N2 LogCoordinator
+        lc_n2 = DataCoordinator(
+            name="N2_LOG_COORDINATOR",
+            host="localhost",
+            coordinator_port=N2_COORD_PORT,
+            xsub_port=N2_LOG_XSUB,
+            gatherer_xpub_port=N2_LOG_GATHERER,
+            xpub_port=N2_LOG_XPUB,
+            context=ctx,
+        )
+        coordinators.append(lc_n2)
+
+        # Connect N2 data distributor to N1 gatherer and vice versa
+        dc_n2.connect_to_gatherer(N1_DATA_GATHERER_ADDRESS)
+        dc_n1.connect_to_gatherer(f"localhost:{N2_DATA_GATHERER}")
+        # Connect N2 log distributor to N1 log gatherer and vice versa
+        lc_n2.connect_to_gatherer(f"localhost:{N1_LOG_GATHERER}")
+        lc_n1.connect_to_gatherer(f"localhost:{N2_LOG_GATHERER}")
+
+        # Actor in N1
+        actor_thread = threading.Thread(
+            target=start_actor,
             kwargs=dict(
-                namespace="N2",
-                port=N2_COORD_PORT,
-                stop_event=stop_events[1],
-                context=ctx,
-                coordinators=[f"localhost:{N1_COORD_PORT}"],
+                stop_event=stop_events[2],
+                coord_port=N1_COORD_PORT,
+                data_xsub_port=N1_DATA_XSUB,
+                ctx=ctx,
             ),
             daemon=True,
         )
-    )
+        actor_thread.start()
+        assert wait_for(lambda: component_ready(N1_COORD_PORT, "device"), timeout=10), (
+            "Actor 'device' did not register."
+        )
 
-    for t in threads:
-        t.start()
-    sleep(SETUP_TIME)
+        # Data subscriber in N1
+        sub_n1 = CollectingListener(name="monitor1", port=N1_COORD_PORT, data_port=N1_DATA_XPUB)
+        sub_n1.start_listen()
+        sub_n1.communicator.subscribe("")
+        listeners.append(sub_n1)
+        # Data subscriber in N2
+        sub_n2 = CollectingListener(name="monitor2", port=N2_COORD_PORT, data_port=N2_DATA_XPUB)
+        sub_n2.start_listen()
+        sub_n2.communicator.subscribe("")
+        listeners.append(sub_n2)
+        # Log subscriber in N1
+        log_sub_n1 = CollectingListener(name="logmon1", port=N1_COORD_PORT, data_port=N1_LOG_XPUB)
+        log_sub_n1.start_listen()
+        log_sub_n1.communicator.subscribe("")
+        listeners.append(log_sub_n1)
+        # Log subscriber in N2
+        log_sub_n2 = CollectingListener(name="logmon2", port=N2_COORD_PORT, data_port=N2_LOG_XPUB)
+        log_sub_n2.start_listen()
+        log_sub_n2.communicator.subscribe("")
+        listeners.append(log_sub_n2)
+        for coordinator_port, name in (
+            (N1_COORD_PORT, "monitor1"),
+            (N2_COORD_PORT, "monitor2"),
+            (N1_COORD_PORT, "logmon1"),
+            (N2_COORD_PORT, "logmon2"),
+        ):
+            assert wait_for(lambda p=coordinator_port, n=name: component_ready(p, n), timeout=10), (
+                f"Listener '{name}' did not register."
+            )
 
-    # N1 DataCoordinator
-    dc_n1 = DataCoordinator(
-        name="N1_DATA_COORDINATOR",
-        host="localhost",
-        coordinator_port=N1_COORD_PORT,
-        xsub_port=N1_DATA_XSUB,
-        gatherer_xpub_port=N1_DATA_GATHERER,
-        xpub_port=N1_DATA_XPUB,
-        context=ctx,
-    )
-    # N2 DataCoordinator
-    dc_n2 = DataCoordinator(
-        name="N2_DATA_COORDINATOR",
-        host="localhost",
-        coordinator_port=N2_COORD_PORT,
-        xsub_port=N2_DATA_XSUB,
-        gatherer_xpub_port=N2_DATA_GATHERER,
-        xpub_port=N2_DATA_XPUB,
-        context=ctx,
-    )
-    # N1 LogCoordinator
-    lc_n1 = DataCoordinator(
-        name="N1_LOG_COORDINATOR",
-        host="localhost",
-        coordinator_port=N1_COORD_PORT,
-        xsub_port=N1_LOG_XSUB,
-        gatherer_xpub_port=N1_LOG_GATHERER,
-        xpub_port=N1_LOG_XPUB,
-        context=ctx,
-    )
-    # N2 LogCoordinator
-    lc_n2 = DataCoordinator(
-        name="N2_LOG_COORDINATOR",
-        host="localhost",
-        coordinator_port=N2_COORD_PORT,
-        xsub_port=N2_LOG_XSUB,
-        gatherer_xpub_port=N2_LOG_GATHERER,
-        xpub_port=N2_LOG_XPUB,
-        context=ctx,
-    )
-    sleep(SETUP_TIME)
-
-    # Connect N2 data distributor to N1 gatherer and vice versa
-    dc_n2.connect_to_gatherer(f"localhost:{N1_DATA_GATHERER}")
-    dc_n1.connect_to_gatherer(f"localhost:{N2_DATA_GATHERER}")
-    # Connect N2 log distributor to N1 log gatherer and vice versa
-    lc_n2.connect_to_gatherer(f"localhost:{N1_LOG_GATHERER}")
-    lc_n1.connect_to_gatherer(f"localhost:{N2_LOG_GATHERER}")
-    sleep(SETUP_TIME)
-
-    # Actor in N1
-    actor_thread = threading.Thread(
-        target=start_actor,
-        kwargs=dict(
-            stop_event=stop_events[2],
-            coord_port=N1_COORD_PORT,
-            data_xsub_port=N1_DATA_XSUB,
-            ctx=ctx,
-        ),
-        daemon=True,
-    )
-    actor_thread.start()
-    sleep(SETUP_TIME * 2)
-
-    # Data subscriber in N1
-    sub_n1 = CollectingListener(name="monitor1", port=N1_COORD_PORT, data_port=N1_DATA_XPUB)
-    sub_n1.start_listen()
-    sub_n1.communicator.subscribe("")
-    # Data subscriber in N2
-    sub_n2 = CollectingListener(name="monitor2", port=N2_COORD_PORT, data_port=N2_DATA_XPUB)
-    sub_n2.start_listen()
-    sub_n2.communicator.subscribe("")
-    # Log subscriber in N1
-    log_sub_n1 = CollectingListener(name="logmon1", port=N1_COORD_PORT, data_port=N1_LOG_XPUB)
-    log_sub_n1.start_listen()
-    log_sub_n1.communicator.subscribe("")
-    # Log subscriber in N2
-    log_sub_n2 = CollectingListener(name="logmon2", port=N2_COORD_PORT, data_port=N2_LOG_XPUB)
-    log_sub_n2.start_listen()
-    log_sub_n2.communicator.subscribe("")
-    sleep(SETUP_TIME)
-
-    yield {
-        "ctx": ctx,
-        "stop_events": stop_events,
-        "threads": threads + [actor_thread],
-        "dc_n1": dc_n1,
-        "dc_n2": dc_n2,
-        "lc_n1": lc_n1,
-        "lc_n2": lc_n2,
-        "sub_n1": sub_n1,
-        "sub_n2": sub_n2,
-        "log_sub_n1": log_sub_n1,
-        "log_sub_n2": log_sub_n2,
-    }
-
-    # Teardown
-    for event in stop_events:
-        event.set()
-    for t in threads + [actor_thread]:
-        t.join(timeout=1)
-    for listener in (sub_n1, sub_n2, log_sub_n1, log_sub_n2):
+        # Positive readiness proof of the data paths (incl. subscriptions on the
+        # distributors and the cross-node gatherer links, slow joiner included).
+        with DataPublisher(
+            full_name="N1.readiness", host="localhost", port=N1_DATA_XSUB, context=ctx
+        ) as pub:
+            assert send_and_confirm(pub, sub_n1.message_handler, {"readiness": "N1"}), (
+                "Data pipeline towards N1 not ready."
+            )
+            assert send_and_confirm(pub, sub_n2.message_handler, {"readiness": "N2"}), (
+                "Cross-node data pipeline towards N2 not ready."
+            )
+        # Positive readiness proof of the log paths.
+        log_handler = ZmqLogHandler(
+            context=ctx, host="localhost", port=N1_LOG_XSUB, full_name="N1.readiness"
+        )
+        probe_logger = logging.getLogger("log_readiness_probe")
+        probe_logger.setLevel(logging.INFO)
+        probe_logger.addHandler(log_handler)
         try:
-            listener.close()
-        except Exception:
-            pass
-    for dc in (dc_n1, dc_n2, lc_n1, lc_n2):
-        try:
-            dc.close()
-        except Exception:
-            pass
+            assert log_message_probe(probe_logger, "readiness_check", log_sub_n1.message_handler), (
+                "Log pipeline towards N1 not ready."
+            )
+            assert log_message_probe(probe_logger, "readiness_check", log_sub_n2.message_handler), (
+                "Cross-node log pipeline towards N2 not ready."
+            )
+        finally:
+            probe_logger.removeHandler(log_handler)
+            log_handler.close()
+
+        yield {
+            "ctx": ctx,
+            "stop_events": stop_events,
+            "threads": threads + [actor_thread],
+            "dc_n1": dc_n1,
+            "dc_n2": dc_n2,
+            "lc_n1": lc_n1,
+            "lc_n2": lc_n2,
+            "sub_n1": sub_n1,
+            "sub_n2": sub_n2,
+            "log_sub_n1": log_sub_n1,
+            "log_sub_n2": log_sub_n2,
+        }
+
+    finally:
+        # Teardown: stop everything created so far, also when a setup assert
+        # above failed, so leftovers never leak into the next module.
+        for event in stop_events:
+            event.set()
+        all_threads = threads + ([actor_thread] if actor_thread is not None else [])
+        for t in all_threads:
+            t.join(timeout=5)
+        for listener in listeners:
+            try:
+                listener.close()
+            except Exception:
+                pass
+        for coordinator in coordinators:
+            try:
+                coordinator.close()
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -358,9 +465,9 @@ def test_data_same_namespace(multi_node: dict):
         full_name="N1.device", host="localhost", port=N1_DATA_XSUB, context=multi_node["ctx"]
     )
     try:
-        sleep(0.5)
-        pub.send_data(data={"temperature": 42})
-        assert wait_for_message(sub_n1.message_handler, lambda m: m.data == {"temperature": 42})
+        assert send_and_confirm(pub, sub_n1.message_handler, {"temperature": 42}), (
+            "N1 should receive data."
+        )
     finally:
         pub.close()
 
@@ -372,9 +479,9 @@ def test_data_cross_namespace(multi_node: dict):
         full_name="N1.device", host="localhost", port=N1_DATA_XSUB, context=multi_node["ctx"]
     )
     try:
-        sleep(0.5)
-        pub.send_data(data={"pressure": 1013.25})
-        assert wait_for_message(sub_n2.message_handler, lambda m: m.data == {"pressure": 1013.25})
+        assert send_and_confirm(pub, sub_n2.message_handler, {"pressure": 1013.25}), (
+            "N2 should receive cross-namespace data."
+        )
     finally:
         pub.close()
 
@@ -386,19 +493,17 @@ def test_data_cross_namespace(multi_node: dict):
 
 def test_log_same_namespace(multi_node: dict):
     log_sub_n1 = multi_node["log_sub_n1"]
+    message = "smoke_test_log_same"
     log_sub_n1.message_handler._messages.clear()
-    test_logger = logging.getLogger("test_log_same")
+    test_logger = logging.getLogger(f"test_{message}")
     test_logger.setLevel(logging.INFO)
     handler = ZmqLogHandler(
         context=multi_node["ctx"], host="localhost", port=N1_LOG_XSUB, full_name="N1.device"
     )
     test_logger.addHandler(handler)
     try:
-        sleep(0.5)
-        test_logger.info("smoke_test_log_same")
-        assert wait_for_message(
-            log_sub_n1.message_handler,
-            lambda m: b"smoke_test_log_same" in (m.payload[0] if m.payload else b""),
+        assert log_message_probe(test_logger, message, log_sub_n1.message_handler), (
+            "N1 should receive the log message."
         )
     finally:
         test_logger.removeHandler(handler)
@@ -407,19 +512,17 @@ def test_log_same_namespace(multi_node: dict):
 
 def test_log_cross_namespace(multi_node: dict):
     log_sub_n2 = multi_node["log_sub_n2"]
+    message = "smoke_test_log_cross"
     log_sub_n2.message_handler._messages.clear()
-    test_logger = logging.getLogger("test_log_cross")
+    test_logger = logging.getLogger(f"test_{message}")
     test_logger.setLevel(logging.INFO)
     handler = ZmqLogHandler(
         context=multi_node["ctx"], host="localhost", port=N1_LOG_XSUB, full_name="N1.device"
     )
     test_logger.addHandler(handler)
     try:
-        sleep(0.5)
-        test_logger.info("smoke_test_log_cross")
-        assert wait_for_message(
-            log_sub_n2.message_handler,
-            lambda m: b"smoke_test_log_cross" in (m.payload[0] if m.payload else b""),
+        assert log_message_probe(test_logger, message, log_sub_n2.message_handler), (
+            "N2 should receive the cross-namespace log message."
         )
     finally:
         test_logger.removeHandler(handler)
@@ -454,27 +557,31 @@ def test_disconnect_data_gatherer(multi_node: dict):
     sub_n2.message_handler._messages.clear()
 
     with DataCoordinatorDirector(actor="N2_DATA_COORDINATOR", port=N2_COORD_PORT, timeout=5) as d:
-        d.disconnect_from_gatherer(f"localhost:{N1_DATA_GATHERER}")
-    sleep(SETUP_TIME)
+        d.disconnect_from_gatherer(N1_DATA_GATHERER_ADDRESS)
+        # Verify the disconnect took effect (connection table of N2's coordinator).
+        assert not wait_for(lambda: N1_DATA_GATHERER_ADDRESS in d.list_gatherers(), timeout=5), (
+            "Disconnect did not take effect."
+        )
 
     pub = DataPublisher(
         full_name="N1.device", host="localhost", port=N1_DATA_XSUB, context=multi_node["ctx"]
     )
     try:
-        sleep(0.5)
-        pub.send_data(data={"test": "disconnect"})
-        assert wait_for_message(
-            sub_n1.message_handler, lambda m: m.data == {"test": "disconnect"}
-        ), "N1 should still receive data"
+        assert send_and_confirm(pub, sub_n1.message_handler, {"test": "disconnect"}), (
+            "N1 should still receive data."
+        )
+        # Generous absence window so that no in-flight message can contradict.
         assert not wait_for_message(
-            sub_n2.message_handler, lambda m: m.data == {"test": "disconnect"}, timeout=0.5
-        ), "N2 should NOT receive data after disconnect"
+            sub_n2.message_handler, lambda m: m.data == {"test": "disconnect"}, timeout=2.0
+        ), "N2 should NOT receive data after disconnect."
     finally:
         pub.close()
 
     with DataCoordinatorDirector(actor="N2_DATA_COORDINATOR", port=N2_COORD_PORT, timeout=5) as d:
-        d.connect_to_gatherer(f"localhost:{N1_DATA_GATHERER}")
-    sleep(SETUP_TIME)
+        d.connect_to_gatherer(N1_DATA_GATHERER_ADDRESS)
+        assert wait_for(lambda: N1_DATA_GATHERER_ADDRESS in d.list_gatherers(), timeout=5), (
+            "Reconnect did not take effect."
+        )
 
 
 def test_reconnect_data_gatherer(multi_node: dict):
@@ -485,10 +592,8 @@ def test_reconnect_data_gatherer(multi_node: dict):
         full_name="N1.device", host="localhost", port=N1_DATA_XSUB, context=multi_node["ctx"]
     )
     try:
-        sleep(0.5)
-        pub.send_data(data={"test": "reconnect"})
-        assert wait_for_message(
-            sub_n2.message_handler, lambda m: m.data == {"test": "reconnect"}
-        ), "N2 should receive data after reconnect"
+        assert send_and_confirm(pub, sub_n2.message_handler, {"test": "reconnect"}), (
+            "N2 should receive data after reconnect."
+        )
     finally:
         pub.close()

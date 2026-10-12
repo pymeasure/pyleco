@@ -25,7 +25,6 @@
 from __future__ import annotations
 
 import threading
-from time import sleep
 from typing import Any
 
 import pytest
@@ -39,11 +38,22 @@ from pyleco.utils.data_publisher import DataPublisher
 from pyleco.utils.listener import Listener
 from pyleco.utils.pipe_handler import PipeHandler
 
-COORDINATOR_PORT = 61200
-XSUB_PORT = 61300
-GATHERER_XPUB_PORT = 61301
-XPUB_PORT = 61299
-SETUP_TIME = 0.5
+from helpers import (
+    coordinator_ready,
+    reserve_free_port,
+    reserve_free_ports,
+    send_until_visible,
+    wait_for,
+)
+
+COORDINATOR_PORT = reserve_free_port(61200)
+# Offsets relative to XSUB_PORT: the distributor ports (-1, +1) plus the port
+# families used by the raw-ZMQ (+100) and close (+200) tests below.
+XSUB_PORT = reserve_free_ports(
+    max(61300, COORDINATOR_PORT + 98), offsets=(-1, 0, 1, 99, 100, 101, 199, 200, 201)
+)
+GATHERER_XPUB_PORT = XSUB_PORT + 1
+XPUB_PORT = XSUB_PORT - 1
 
 
 class CollectingPipeHandler(PipeHandler):
@@ -97,7 +107,9 @@ def data_coordinator_setup():
         daemon=True,
     )
     coord_thread.start()
-    sleep(SETUP_TIME)
+    assert wait_for(lambda: coordinator_ready(COORDINATOR_PORT), timeout=10), (
+        "Coordinator did not come up."
+    )
 
     dc = DataCoordinator(
         name="DATA_COORDINATOR",
@@ -112,7 +124,14 @@ def data_coordinator_setup():
     sub = CollectingListener(name="subscriber", port=COORDINATOR_PORT, data_port=XPUB_PORT)
     sub.start_listen()
     sub.communicator.subscribe("")
-    sleep(SETUP_TIME)
+    # Prove positively that the data path works: PUB connected, subscription
+    # propagated through the coordinator (slow joiner handled by retrying).
+    assert send_until_visible(
+        lambda: pub.send_data(topic="readiness", data="readiness"),
+        lambda: any(m.data == "readiness" for m in sub.message_handler._messages),
+        timeout=5,
+    ), "Data pipeline not ready."
+    sub.message_handler._messages.clear()
 
     yield dc, pub, sub
 
@@ -128,20 +147,31 @@ def test_publish_subscribe(data_coordinator_setup):
     dc, pub, sub = data_coordinator_setup
     sub.message_handler._messages.clear()
     pub.send_data(topic="topic", data={"key": "value"})
-    sleep(0.3)
-    msgs = sub.message_handler._messages
-    assert len(msgs) >= 1
-    found = any(m.topic == b"topic" and m.data == {"key": "value"} for m in msgs)
-    assert found
+    assert wait_for(
+        lambda: any(
+            m.topic == b"topic" and m.data == {"key": "value"}
+            for m in sub.message_handler._messages
+        ),
+        timeout=2,
+    ), "Message not received"
+    assert len(sub.message_handler._messages) >= 1
 
 
 def test_multiple_messages(data_coordinator_setup):
     dc, pub, sub = data_coordinator_setup
     sub.message_handler._messages.clear()
     pub.send_data(topic="temp", data=42)
-    sleep(0.1)
+    assert wait_for(
+        lambda: any(m.topic == b"temp" and m.data == 42 for m in sub.message_handler._messages),
+        timeout=2,
+    ), "First message not received"
     pub.send_data(topic="pressure", data=1013.25)
-    sleep(0.1)
+    assert wait_for(
+        lambda: any(
+            m.topic == b"pressure" and m.data == 1013.25 for m in sub.message_handler._messages
+        ),
+        timeout=2,
+    ), "Second message not received"
     msgs = sub.message_handler._messages
     assert len(msgs) >= 2
     topics_data = {m.topic.decode(): m.data for m in msgs}
@@ -177,15 +207,22 @@ def test_raw_zmq_pub_sub():
         sub = ctx.socket(zmq.SUB)
         sub.connect(f"tcp://localhost:{XPUB_PORT + 100}")
         sub.subscribe(b"")
-        sleep(SETUP_TIME)
 
+        # The PUB socket suffers from the slow joiner problem: the first frames
+        # may be dropped, hence send until the subscription actually joined.
         frames = [b"topic", b"header", b"payload"]
-        pub.send_multipart(frames)
-        sleep(0.1)
-
-        assert sub.poll(timeout=1000)
-        received = sub.recv_multipart()
-        assert received == frames
+        attempts = 20
+        received = None
+        attempt = attempts - 1  # default value reflects the fully exhausted loop
+        for attempt in range(attempts):
+            pub.send_multipart(frames)
+            if sub.poll(timeout=200):
+                received = sub.recv_multipart()
+                break
+        assert received == frames, (
+            f"pub/sub did not deliver after {attempt + 1} of {attempts} attempts "
+            "(slow joiner workaround exhausted)"
+        )
 
         sub.close()
         pub.close()

@@ -25,7 +25,6 @@
 import logging
 import os
 import threading
-from time import sleep
 from typing import Any
 
 import pytest
@@ -37,8 +36,10 @@ from pyleco.directors.coordinator_director import CoordinatorDirector
 
 from pyleco.management.test_tasks import test_task
 
+from helpers import component_ready, coordinator_ready, reserve_free_port, wait_for
+
 # Constants
-PORT = 60005
+PORT = reserve_free_port(60005)
 
 
 def start_coordinator(namespace: str, port: int, coordinators=None, **kwargs: Any):
@@ -68,14 +69,17 @@ def director():
     for thread in threads:
         thread.daemon = True
         thread.start()
-    sleep(1)
+    assert wait_for(lambda: coordinator_ready(PORT), timeout=10), "Coordinator did not come up."
+    assert wait_for(lambda: component_ready(PORT, "starter"), timeout=10), (
+        "Starter did not register."
+    )
     director = StarterDirector(actor="starter", port=PORT, timeout=5)
     yield director
     log.info("Tearing down")
     stop_event.set()
     director.shut_down_actor(actor="COORDINATOR")
     for thread in threads:
-        thread.join(0.5)
+        thread.join(5)
 
 
 def test_sign_in(director: StarterDirector):
